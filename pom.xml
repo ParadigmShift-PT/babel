@@ -29,7 +29,21 @@
             <id>jitpack.io</id>
             <url>https://jitpack.io</url>
         </repository>
+        <repository>
+            <id>gitlab-maven</id>
+            <url>https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-core</url>
+        </repository>
     </repositories>
+    <distributionManagement>
+        <repository>
+            <id>gitlab-maven</id>
+            <url>https://codelab.fct.unl.pt/api/v4/projects/PROJECT_ID/packages/maven</url>
+        </repository>
+        <snapshotRepository>
+            <id>gitlab-maven</id>
+            <url>https://codelab.fct.unl.pt/api/v4/projects/PROJECT_ID/packages/maven</url>
+        </snapshotRepository>
+    </distributionManagement>
     <dependencies>
         <dependency>
             <groupId>com.github.pfouto</groupId>

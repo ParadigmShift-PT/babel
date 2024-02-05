@@ -11,16 +11,5 @@
         </httpHeaders>
       </configuration>
     </server>
-    <server>
-      <id>gitlab-maven</id>
-      <configuration>
-        <httpHeaders>
-          <property>
-            <name>Private-Token</name>
-            <value>${PACKAGE_TOKEN}</value>
-          </property>
-        </httpHeaders>
-      </configuration>
-    </server>
   </servers>
 </settings>

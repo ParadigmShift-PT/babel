@@ -24,29 +24,27 @@
             </plugin>
         </plugins>
     </build>
-    <repositories>
-        <repository>
-            <id>jitpack.io</id>
-            <url>https://jitpack.io</url>
-        </repository>
-        <repository>
-            <id>gitlab-maven</id>
-            <url>https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-core</url>
-        </repository>
+   <repositories>
+    <repository>
+        <id>gitlab-maven</id>
+        <url>https://codelab.fct.unl.pt/api/v4/projects/8/packages/maven</url>
+    </repository>
     </repositories>
+
     <distributionManagement>
         <repository>
             <id>gitlab-maven</id>
-            <url>https://codelab.fct.unl.pt/api/v4/projects/PROJECT_ID/packages/maven</url>
+            <url>${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/maven</url>
         </repository>
         <snapshotRepository>
             <id>gitlab-maven</id>
-            <url>https://codelab.fct.unl.pt/api/v4/projects/PROJECT_ID/packages/maven</url>
+            <url>${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/maven</url>
         </snapshotRepository>
     </distributionManagement>
+    
     <dependencies>
         <dependency>
-            <groupId>com.github.pfouto</groupId>
+            <groupId>pt.unl.fct.di.novasys</groupId>
             <artifactId>network-layer</artifactId>
             <version>2.0.43</version>
         </dependency>

@@ -5,8 +5,8 @@
       <configuration>
         <httpHeaders>
           <property>
-            <name>Deploy-Token</name>
-            <value>DEPLOY_KEY</value>
+            <name>Job-Token</name>
+            <value>${CI_JOB_TOKEN}</value>
           </property>
         </httpHeaders>
       </configuration>

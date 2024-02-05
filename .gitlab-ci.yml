@@ -1,6 +1,7 @@
 deploy:
-  image: maven:latest
+  image: maven:3.9.6-ibmjava-8
   script:
+    #- mvn compile
     - mvn deploy -s settings.xml
   only:
     - main

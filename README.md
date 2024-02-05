@@ -5,3 +5,6 @@ More details about this project can be found in the [SRDS'22 paper](https://ieee
 Examples of usage can be found [here](https://github.com/pedroAkos/EdgeOverlayNetworks), [here](https://github.com/pfouto/chain) and [here](https://github.com/pedroAkos/babel-case-studies).
 
 A guided tutorial on how you can use Babel to build distributed protocols can be found [here](https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-examples).
+
+The installation steps for this version can be found in [here](https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-core/-/packages/9)
+.

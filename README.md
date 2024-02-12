@@ -8,3 +8,31 @@ A guided tutorial on how you can use Babel to build distributed protocols can be
 
 The installation steps for this version can be found in [here](https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-core/-/packages/9)
 .
+
+# Installation
+
+### Dependencies
+
+Copy and paste the following block inside your ```pom.xml dependencies``` block.
+
+```
+<dependency>
+	<groupId>pt.unl.fct.di.novasys</groupId>
+	<artifactId>babel-core</artifactId>
+	<version>[0.5.03,)</version>
+</dependency>
+```
+
+
+### Repository Setup
+
+If you haven't already done so, you will need to add the following to your ```pom.xml``` file.
+
+```
+<repositories>
+    <repository>
+        <id>novasys-mvn</id>
+        <url>https://novasys.di.fct.unl.pt/packages/mvn</url>
+    </repository>
+</repositories>
+```

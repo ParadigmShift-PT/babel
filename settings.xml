@@ -1,7 +1,7 @@
 <settings>
   <servers>
    <server>
-      <id>babelcore-maven</id>
+      <id>codelab-deploy</id>
       <configuration>
         <httpHeaders>
           <property>

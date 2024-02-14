@@ -1,3 +1,5 @@
+# Babel-Core
+
 A Java framework for developing distributed protocols. Uses [network-layer](https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-networklayer) for network communications.
 
 More details about this project can be found in the [SRDS'22 paper](https://ieeexplore.ieee.org/abstract/document/9996836).
@@ -7,7 +9,15 @@ Examples of usage can be found [here](https://github.com/pedroAkos/EdgeOverlayNe
 A guided tutorial on how you can use Babel to build distributed protocols can be found [here](https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-examples).
 
 The installation steps for this version can be found in [here](https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-core/-/packages/9)
-.
+
+# Authors
+
+##Authors
+
+- Pedro Fouto (p.fouto@campus.fct.unl.pt)
+- Pedro Ákos Costa (pah.costa@campus.fct.unl.pt)
+- Nuno Preguiça (nuno.preguica@fct.unl.pt)
+- João Leitão (jc.leitao@fct.unl.pt)
 
 # Installation
 

@@ -10,8 +10,6 @@ A guided tutorial on how you can use Babel to build distributed protocols can be
 
 The installation steps for this version can be found in [here](https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-core/-/packages/9)
 
-# Authors
-
 ##Authors
 
 - Pedro Fouto (p.fouto@campus.fct.unl.pt)

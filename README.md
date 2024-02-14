@@ -27,9 +27,9 @@ Copy and paste the following block inside your ```pom.xml dependencies``` block.
 
 ```
 <dependency>
-	<groupId>pt.unl.fct.di.novasys</groupId>
+	<groupId>pt.unl.fct.di.novasys.babel</groupId>
 	<artifactId>babel-core</artifactId>
-	<version>[0.5.03,)</version>
+	<version>[1.0.0,)</version>
 </dependency>
 ```
 

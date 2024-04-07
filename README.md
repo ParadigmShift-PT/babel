@@ -1,3 +1,19 @@
+# Babel Cryptography Support (Core)
+
+Support for cryptographic material and abstractions in Babel. Support will be
+added in both [Babel-Core](https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-core)
+and [network-layer](https://codelab.fct.unl.pt/di/computer-systems/networklayer),
+as well as being available in separate, optional modules.
+
+This repository contains the changes added to Babel-Core. The goal is for the
+Core to support, in a very general level:
+- [ ] Key management
+- [ ] Identity management
+- [ ] Secure channels (to also be implemented in network-layer)
+
+
+---
+
 # Babel-Core
 
 A Java framework for developing distributed protocols. Uses [network-layer](https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-networklayer) for network communications.

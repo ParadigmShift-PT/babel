@@ -9,6 +9,7 @@ import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
 import pt.unl.fct.di.novasys.babel.metrics.MetricsManager;
+import pt.unl.fct.di.novasys.babel.protocols.discovery.DiscoveryProtocol;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
 import pt.unl.fct.di.novasys.channel.IChannel;
@@ -160,6 +161,11 @@ public class Babel {
         started = true;
         MetricsManager.getInstance().start();
         timersThread.start();
+        for (GenericProtocol proto : protocolMap.values()) {
+            if (proto.needsContact() && proto instanceof DiscoveryProtocol) {
+                
+            }
+        }
         protocolMap.values().forEach(GenericProtocol::start);
     }
 

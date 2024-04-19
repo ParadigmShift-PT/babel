@@ -38,6 +38,9 @@ public abstract class GenericProtocol {
     private final Thread executionThread;
     private final String protoName;
     private final short protoId;
+    private boolean configured;
+    private boolean needsContact;
+    private boolean started;
 
     private int defaultChannel;
 
@@ -82,6 +85,10 @@ public abstract class GenericProtocol {
         this.replyHandlers = new HashMap<>();
         this.notificationHandlers = new HashMap<>();
 
+        this.configured = false;
+        this.needsContact = true;
+        this.started = false;
+
         //tmx.setThreadContentionMonitoringEnabled(true);
     }
 
@@ -114,6 +121,15 @@ public abstract class GenericProtocol {
      */
     public final String getProtoName() {
         return protoName;
+    }
+
+    /**
+     * Returns whether or not this protocol needs to discover a contact to start
+     * 
+     * @return true if it needs a contact
+     */
+    public final boolean needsContact() {
+        return needsContact;
     }
 
     /**
@@ -625,51 +641,50 @@ public abstract class GenericProtocol {
             try {
                 InternalEvent pe = this.queue.take();
                 metrics.totalEventsCount++;
-                if (logger.isDebugEnabled())
+                if (logger.isDebugEnabled()) {
                     logger.debug("Handling event: " + pe);
-                switch (pe.getType()) {
-                    case MESSAGE_IN_EVENT:
+                }
+                switch (pe) {
+                    case MessageInEvent castPe -> {
                         metrics.messagesInCount++;
-                        this.handleMessageIn((MessageInEvent) pe);
-                        break;
-                    case MESSAGE_FAILED_EVENT:
+                        this.handleMessageIn(castPe);
+                    }
+                    case MessageFailedEvent castPe -> {
                         metrics.messagesFailedCount++;
-                        this.handleMessageFailed((MessageFailedEvent) pe);
-                        break;
-                    case MESSAGE_SENT_EVENT:
+                        this.handleMessageFailed(castPe);
+                    }
+                    case MessageSentEvent castPe -> {
                         metrics.messagesSentCount++;
-                        this.handleMessageSent((MessageSentEvent) pe);
-                        break;
-                    case TIMER_EVENT:
+                        this.handleMessageSent(castPe);
+                    }
+                    case TimerEvent castPe -> {
                         metrics.timersCount++;
-                        this.handleTimer((TimerEvent) pe);
-                        break;
-                    case NOTIFICATION_EVENT:
+                        this.handleTimer(castPe);
+                    }
+                    case NotificationEvent castPe -> {
                         metrics.notificationsCount++;
-                        this.handleNotification((NotificationEvent) pe);
-                        break;
-                    case IPC_EVENT:
-                        IPCEvent i = (IPCEvent) pe;
+                        this.handleNotification(castPe);
+                    }
+                    case IPCEvent castPe -> {
+                        IPCEvent i = castPe;
                         switch (i.getIpc().getType()) {
-                            case REPLY:
+                            case REPLY -> {
                                 metrics.repliesCount++;
                                 handleReply((ProtoReply) i.getIpc(), i.getSenderID());
-                                break;
-                            case REQUEST:
+                            }
+                            case REQUEST -> {
                                 metrics.requestsCount++;
                                 handleRequest((ProtoRequest) i.getIpc(), i.getSenderID());
-                                break;
-                            default:
-                                throw new AssertionError("Ups");
+                            }
+                            default -> throw new AssertionError("Ups");
                         }
-                        break;
-                    case CUSTOM_CHANNEL_EVENT:
+                    }
+                    case CustomChannelEvent castPe -> {
                         metrics.customChannelEventsCount++;
-                        this.handleChannelEvent((CustomChannelEvent) pe);
-                        break;
-                    default:
-                        throw new AssertionError("Unexpected event received by babel. protocol "
-                                + protoId + " (" + protoName + ")");
+                        this.handleChannelEvent(castPe);
+                    }
+                    default -> throw new AssertionError("Unexpected event received by babel. protocol "
+                            + protoId + " (" + protoName + ")");
                 }
             } catch (Exception e) {
                 logger.error("Unhandled exception in protocol " + getProtoName() +" ("+ getProtoId() +") " + e, e);

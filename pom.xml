@@ -6,7 +6,7 @@
 
     <groupId>pt.unl.fct.di.novasys.babel</groupId>
     <artifactId>babel-core</artifactId>
-    <version>1.1.0</version>
+    <version>1.1.0-a</version>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -35,7 +35,7 @@
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <version>3.6.3</version>
                 <configuration>
-                    <source>8</source>
+                    <source>21</source>
                 </configuration>
                <executions> 
                     <execution> 

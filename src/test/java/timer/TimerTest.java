@@ -19,7 +19,6 @@ public class TimerTest {
         TimerProto proto = new TimerProto();
 
         logger.info("Init: " + System.currentTimeMillis());
-        proto.init(null);
 
         babel.registerProtocol(proto);
 

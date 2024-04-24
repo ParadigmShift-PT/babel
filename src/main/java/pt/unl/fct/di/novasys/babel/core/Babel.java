@@ -9,6 +9,7 @@ import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
 import pt.unl.fct.di.novasys.babel.metrics.MetricsManager;
+import pt.unl.fct.di.novasys.babel.protocols.DiscoverableProtocol;
 import pt.unl.fct.di.novasys.babel.protocols.discovery.DiscoveryProtocol;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
@@ -34,31 +35,32 @@ import java.util.concurrent.atomic.AtomicLong;
  * The Babel class provides applications with a Runtime that supports
  * the execution of protocols.
  *
- * <p> An example of how to use the class follows:
+ * <p>
+ * An example of how to use the class follows:
  *
  * <pre>
- *         Babel babel = Babel.getInstance(); //initialize babel
- *         Properties configProps = babel.loadConfig("network_config.properties", args);
- *         INetwork net = babel.getNetworkInstance();
+ * Babel babel = Babel.getInstance(); // initialize babel
+ * Properties configProps = babel.loadConfig("network_config.properties", args);
+ * INetwork net = babel.getNetworkInstance();
  *
- *         //Define protocols
- *         ProtocolA protoA = new ProtocolA(net);
- *         protoA.init(configProps);
+ * // Define protocols
+ * ProtocolA protoA = new ProtocolA(net);
+ * protoA.init(configProps);
  *
- *         ProtocolB protoB = new ProtocolB(net);
- *         protoB.init(configProps);
+ * ProtocolB protoB = new ProtocolB(net);
+ * protoB.init(configProps);
  *
- *         //Register protocols
- *         babel.registerProtocol(protoA);
- *         babel.registerProtocol(protoB);
+ * // Register protocols
+ * babel.registerProtocol(protoA);
+ * babel.registerProtocol(protoB);
  *
- *         //subscribe to notifications
- *         protoA.subscribeNotification(protoA.NOTIFICATION_ID, this);
+ * // subscribe to notifications
+ * protoA.subscribeNotification(protoA.NOTIFICATION_ID, this);
  *
- *         //start babel runtime
- *         babel.start();
+ * // start babel runtime
+ * babel.start();
  *
- *         //Application Logic
+ * // Application Logic
  *
  * </pre>
  * <p>
@@ -81,43 +83,52 @@ public class Babel {
         return system;
     }
 
-    //Protocols
+    // Protocols
     private final Map<Short, GenericProtocol> protocolMap;
     private final Map<String, GenericProtocol> protocolByNameMap;
     private final Map<Short, Set<GenericProtocol>> subscribers;
+    private DiscoveryProtocol discovery;
 
-    //Timers
+    // Timers
     private final Map<Long, TimerEvent> allTimers;
     private final PriorityBlockingQueue<TimerEvent> timerQueue;
     private final Thread timersThread;
     private final AtomicLong timersCounter;
 
-    //Channels
+    // Channels
     private final Map<String, ChannelInitializer<? extends IChannel<BabelMessage>>> initializers;
 
-    private final Map<Integer,
-            Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer>> channelMap;
+    private final Map<Integer, Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer>> channelMap;
     private final AtomicInteger channelIdGenerator;
+
+    private final Properties configuration;
 
     private long startTime;
     private boolean started = false;
 
     private Babel() {
-        //Protocols
+        // Protocols
         this.protocolMap = new ConcurrentHashMap<>();
         this.protocolByNameMap = new ConcurrentHashMap<>();
         this.subscribers = new ConcurrentHashMap<>();
 
-        //Timers
+        // Timers
         allTimers = new HashMap<>();
         timerQueue = new PriorityBlockingQueue<>();
         timersCounter = new AtomicLong();
         timersThread = new Thread(this::timerLoop);
 
-        //Channels
+        // Channels
         channelMap = new ConcurrentHashMap<>();
         channelIdGenerator = new AtomicInteger(0);
         this.initializers = new ConcurrentHashMap<>();
+
+        this.configuration = new Properties();
+        try {
+            this.discovery = new DiscoveryProtocol(configuration);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
         registerChannelInitializer(SimpleClientChannel.NAME, new SimpleClientChannelInitializer());
         registerChannelInitializer(SimpleServerChannel.NAME, new SimpleServerChannelInitializer());
@@ -125,8 +136,21 @@ public class Babel {
         registerChannelInitializer(AccrualChannel.NAME, new AccrualChannelInitializer());
         registerChannelInitializer(SharedTCPChannel.NAME, new SharedTCPChannelInitializer());
 
-        //registerChannelInitializer("Ackos", new AckosChannelInitializer());
-        //registerChannelInitializer(MultithreadedTCPChannel.NAME, new MultithreadedTCPChannelInitializer());
+        /* discovery = new DiscoveryProtocol();
+
+        // TODO change this exception handling
+        try {
+            discovery.init(new Properties());
+            registerProtocol(discovery);
+            discovery.start();
+            discovery.startEventThread();
+        } catch (Exception e) {
+            e.printStackTrace();
+        } */
+
+        // registerChannelInitializer("Ackos", new AckosChannelInitializer());
+        // registerChannelInitializer(MultithreadedTCPChannel.NAME, new
+        // MultithreadedTCPChannelInitializer());
     }
 
     private void timerLoop() {
@@ -138,7 +162,7 @@ public class Babel {
 
             if (toSleep <= 0) {
                 TimerEvent t = timerQueue.remove();
-                //Deliver
+                // Deliver
                 t.getConsumer().deliverTimer(t);
                 if (t.isPeriodic()) {
                     t.setTriggerTime(now + t.getPeriod());
@@ -162,24 +186,30 @@ public class Babel {
         MetricsManager.getInstance().start();
         timersThread.start();
         for (GenericProtocol proto : protocolMap.values()) {
-            if (proto.needsContact() && proto instanceof DiscoveryProtocol) {
-                
+            if (proto.needsContact() && proto instanceof DiscoverableProtocol discProto) {
+                discovery.serviceListenRequest(proto.getProtoName(), discProto);
+            } else {
+                proto.setToStart();
+                proto.start();
+                proto.startEventThread();
             }
         }
-        protocolMap.values().forEach(GenericProtocol::start);
     }
+    
 
     /**
      * Register a protocol in Babel
      *
      * @param p the protocol to registered
-     * @throws ProtocolAlreadyExistsException if a protocol with the same id or name has already been registered
+     * @throws ProtocolAlreadyExistsException if a protocol with the same id or name
+     *                                        has already been registered
      */
     public void registerProtocol(GenericProtocol p) throws ProtocolAlreadyExistsException {
         GenericProtocol old = protocolMap.putIfAbsent(p.getProtoId(), p);
-        if (old != null) throw new ProtocolAlreadyExistsException(
-                "Protocol conflicts on id with protocol: id=" + p.getProtoId() + ":name=" + protocolMap.get(
-                        p.getProtoId()).getProtoName());
+        if (old != null)
+            throw new ProtocolAlreadyExistsException(
+                    "Protocol conflicts on id with protocol: id=" + p.getProtoId() + ":name=" + protocolMap.get(
+                            p.getProtoId()).getProtoName());
         old = protocolByNameMap.putIfAbsent(p.getProtoName(), p);
         if (old != null) {
             protocolMap.remove(p.getProtoId());
@@ -198,7 +228,7 @@ public class Babel {
      * @param initializer the channel initializer
      */
     public void registerChannelInitializer(String name,
-                                           ChannelInitializer<? extends IChannel<BabelMessage>> initializer) {
+            ChannelInitializer<? extends IChannel<BabelMessage>> initializer) {
         ChannelInitializer<? extends IChannel<BabelMessage>> old = initializers.putIfAbsent(name, initializer);
         if (old != null) {
             throw new IllegalArgumentException("Initializer for channel with name " + name +
@@ -233,8 +263,10 @@ public class Babel {
     /**
      * Registers interest in receiving events from a channel.
      *
-     * @param consumerProto the protocol that will receive events generated by the new channel
-     *                      Called by {@link GenericProtocol}. Do not evoke directly.
+     * @param consumerProto the protocol that will receive events generated by the
+     *                      new channel
+     *                      Called by {@link GenericProtocol}. Do not evoke
+     *                      directly.
      */
     void registerChannelInterest(int channelId, short protoId, GenericProtocol consumerProto) {
         ChannelToProtoForwarder forwarder = channelMap.get(channelId).getMiddle();
@@ -246,8 +278,8 @@ public class Babel {
      * Called by {@link GenericProtocol}. Do not evoke directly.
      */
     void sendMessage(int channelId, int connection, BabelMessage msg, Host target) {
-        Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry =
-                channelMap.get(channelId);
+        Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry = channelMap
+                .get(channelId);
         if (channelEntry == null)
             throw new AssertionError("Sending message to non-existing channelId " + channelId);
         channelEntry.getLeft().sendMessage(msg, target, connection);
@@ -258,8 +290,8 @@ public class Babel {
      * Called by {@link GenericProtocol}. Do not evoke directly.
      */
     void closeConnection(int channelId, Host target, int connection) {
-        Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry =
-                channelMap.get(channelId);
+        Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry = channelMap
+                .get(channelId);
         if (channelEntry == null)
             throw new AssertionError("Closing connection in non-existing channelId " + channelId);
         channelEntry.getLeft().closeConnection(target, connection);
@@ -270,8 +302,8 @@ public class Babel {
      * Called by {@link GenericProtocol}. Do not evoke directly.
      */
     void openConnection(int channelId, Host target, int connection) {
-        Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry =
-                channelMap.get(channelId);
+        Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry = channelMap
+                .get(channelId);
         if (channelEntry == null)
             throw new AssertionError("Opening connection in non-existing channelId " + channelId);
         channelEntry.getLeft().openConnection(target, connection);
@@ -282,8 +314,8 @@ public class Babel {
      * Called by {@link GenericProtocol}. Do not evoke directly.
      */
     void registerSerializer(int channelId, short msgCode, ISerializer<? extends ProtoMessage> serializer) {
-        Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry =
-                channelMap.get(channelId);
+        Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry = channelMap
+                .get(channelId);
         if (channelEntry == null)
             throw new AssertionError("Registering serializer in non-existing channelId " + channelId);
         channelEntry.getRight().registerProtoSerializer(msgCode, serializer);
@@ -383,36 +415,42 @@ public class Babel {
         if (tE == null)
             return null;
         timerQueue.remove(tE);
-        timersThread.interrupt(); //TODO is this needed?
+        timersThread.interrupt(); // TODO is this needed?
         return tE.getTimer();
     }
 
     // ---------------------------- CONFIG
 
     /**
-     * Reads either the default or the given properties file (the file can be given with the argument -config)
-     * Builds a configuration file with the properties from the file and then merges ad-hoc properties given
+     * Reads either the default or the given properties file (the file can be given
+     * with the argument -config)
+     * Builds a configuration file with the properties from the file and then merges
+     * ad-hoc properties given
      * in the arguments.
      * <p>
-     * Argument properties should be provided as:   propertyName=value
+     * Argument properties should be provided as: propertyName=value
      *
      * @param defaultConfigFile the path to the default properties file
      * @param args              console parameters
      * @return the configurations built
      * @throws IOException               if the provided file does not exist
-     * @throws InvalidParameterException if the console parameters are not in the format: prop=value
+     * @throws InvalidParameterException if the console parameters are not in the
+     *                                   format: prop=value
      */
-    public static Properties loadConfig(String[] args, String defaultConfigFile)
+    public void loadConfig(String[] args, String defaultConfigFile)
             throws IOException, InvalidParameterException {
 
-        List<String> argsList = new ArrayList<>();
-        Collections.addAll(argsList, args);
+        List<String> argsList = Arrays.asList(args);
         String configFile = extractConfigFileFromArguments(argsList, defaultConfigFile);
 
-        Properties configuration = new Properties();
-        if (configFile != null)
+        if (configuration.size() > 0) {
+            throw new RuntimeException("Properties already loaded");
+        }
+
+        if (configFile != null) {
             configuration.load(new FileInputStream(configFile));
-        //Override with launch parameter props
+        }
+        // Override with launch parameter props
         for (String arg : argsList) {
             String[] property = arg.split("=");
             if (property.length == 2)
@@ -420,7 +458,6 @@ public class Babel {
             else
                 throw new InvalidParameterException("Unknown parameter: " + arg);
         }
-        return configuration;
     }
 
     private static String extractConfigFileFromArguments(List<String> args, String defaultConfigFile) {
@@ -443,5 +480,4 @@ public class Babel {
     public long getMillisSinceStart() {
         return started ? System.currentTimeMillis() - startTime : 0;
     }
-
 }

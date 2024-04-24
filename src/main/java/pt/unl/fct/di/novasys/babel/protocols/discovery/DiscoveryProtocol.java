@@ -12,17 +12,17 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import pt.unl.fct.di.novasys.babel.protocols.DiscoverableProtocol;
 import pt.unl.fct.di.novasys.babel.protocols.discovery.messages.AnouncementMessage;
-import pt.unl.fct.di.novasys.babel.protocols.discovery.requests.ServiceAnounceRequest;
-import pt.unl.fct.di.novasys.babel.protocols.discovery.requests.ServiceListenRequest;
-import pt.unl.fct.di.novasys.babel.protocols.discovery.requests.ServiceReply;
 import pt.unl.fct.di.novasys.babel.protocols.discovery.timers.AnoucementTimer;
 import io.netty.buffer.ByteBuf;
 import static io.netty.buffer.Unpooled.*;
+
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.network.ISerializer;
@@ -49,19 +49,14 @@ public class DiscoveryProtocol extends GenericProtocol {
 
     private MulticastSocket multicastSocket;
     private Set<AnouncementMessage> servicesToAnounce;
-    private Map<String, Set<Short>> servicesToListen;
+    private Map<String, Set<DiscoverableProtocol>> servicesToListen;
     private Thread listeningThread;
     private InetSocketAddress multicastSocketAddress;
 
-    public DiscoveryProtocol() {
+    public DiscoveryProtocol(Properties props) throws IOException, HandlerRegistrationException {
         super(PROTO_NAME, PROTO_ID);
-    }
 
-    @Override
-    public void init(Properties props) throws HandlerRegistrationException, IOException {
-        logger.info("Starting Discovery");
-
-        servicesToAnounce = new HashSet<>();
+        servicesToAnounce = ConcurrentHashMap.newKeySet();
         servicesToListen = new HashMap<>();
 
         String targetPortString = props.getProperty("babel_discovery_port");
@@ -96,9 +91,11 @@ public class DiscoveryProtocol extends GenericProtocol {
 
         registerTimerHandler(AnoucementTimer.TIMER_ID, this::announce);
 
-        registerRequestHandler(ServiceListenRequest.REQUEST_ID, this::uponServiceListenRequest);
-        registerRequestHandler(ServiceAnounceRequest.REQUEST_ID, this::uponServiceAnounceRequest);
+        logger.info("DiscoveryProtocol set up");
+    }
 
+    @Override
+    public void start() {
         setupTimer(new AnoucementTimer(), ANOUNCEMENT_COOLDOWN);
 
         listeningThread = new Thread(this::listen);
@@ -108,15 +105,13 @@ public class DiscoveryProtocol extends GenericProtocol {
 
     private void announce(AnoucementTimer timer, long timerId) {
         try {
-            synchronized (servicesToAnounce) {
-                for (AnouncementMessage message : servicesToAnounce) {
-                    ByteBuf messageBuffer = buffer();
-                    serializer.serialize(message, messageBuffer);
-                    DatagramPacket packet = new DatagramPacket(messageBuffer.array(), messageBuffer.readableBytes(),
-                            multicastSocketAddress.getAddress(), multicastSocketAddress.getPort());
-                    multicastSocket.send(packet);
-                    logger.info("Anounced " + message.getServiceName());
-                }
+            for (AnouncementMessage message : servicesToAnounce) {
+                ByteBuf messageBuffer = buffer();
+                serializer.serialize(message, messageBuffer);
+                DatagramPacket packet = new DatagramPacket(messageBuffer.array(), messageBuffer.readableBytes(),
+                        multicastSocketAddress.getAddress(), multicastSocketAddress.getPort());
+                multicastSocket.send(packet);
+                logger.info("Anounced " + message.getServiceName());
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -133,16 +128,15 @@ public class DiscoveryProtocol extends GenericProtocol {
     private void listen() {
         while (true) {
             try {
-                byte[] byteBuffer = new byte[DATAGRAM_SIZE];
-                ByteBuf messageBuffer = wrappedBuffer(byteBuffer);
-                DatagramPacket packet = new DatagramPacket(byteBuffer, DATAGRAM_SIZE);
+                var byteBuffer = new byte[DATAGRAM_SIZE];
+                var messageBuffer = wrappedBuffer(byteBuffer);
+                var packet = new DatagramPacket(byteBuffer, DATAGRAM_SIZE);
                 multicastSocket.receive(packet);
-                AnouncementMessage message = serializer.deserialize(messageBuffer);
+                var message = serializer.deserialize(messageBuffer);
                 logger.info("Got " + message.getServiceName() + "@" + message.getServiceHost().toString());
-                Set<Short> protosWaiting = servicesToListen.get(message.getServiceName());
+                var protosWaiting = servicesToListen.get(message.getServiceName());
                 if (protosWaiting != null) {
-                    ServiceReply reply = new ServiceReply(message.getServiceName(), message.getServiceHost());
-                    protosWaiting.forEach((protoId) -> sendReply(reply, protoId));
+                    protosWaiting.forEach((proto) -> proto.setContact(message.getServiceHost()));
                 }
                 messageBuffer.clear();
             } catch (IOException e) {
@@ -151,9 +145,8 @@ public class DiscoveryProtocol extends GenericProtocol {
         }
     }
 
-    private void uponServiceListenRequest(ServiceListenRequest request, short sourceProtocol) {
-        String serviceName = request.getService();
-        Set<Short> protosWaiting = servicesToListen.get(serviceName);
+    public void serviceListenRequest(String serviceName, DiscoverableProtocol sourceProtocol) {
+        var protosWaiting = servicesToListen.get(serviceName);
         if (protosWaiting == null) {
             protosWaiting = new HashSet<>();
             servicesToListen.put(serviceName, protosWaiting);
@@ -161,13 +154,13 @@ public class DiscoveryProtocol extends GenericProtocol {
         protosWaiting.add(sourceProtocol);
     }
 
-    private void uponServiceAnounceRequest(ServiceAnounceRequest request, short sourceProtocol) {
-        String serviceName = request.getServiceName();
-        Host serviceHost = request.getServiceHost();
+    public void serviceUnlistenRequest(String serviceName, DiscoverableProtocol sourceProtocol) {
+        var protosWaiting = servicesToListen.get(serviceName);
+    }
+
+    public void serviceAnounceRequest(String serviceName, Host serviceHost) {
         logger.info("Anouncing " + serviceName + "@" + serviceHost.toString());
-        AnouncementMessage message = new AnouncementMessage(serviceName, serviceHost);
-        synchronized (servicesToAnounce) {
-            servicesToAnounce.add(message);
-        }
+        var message = new AnouncementMessage(serviceName, serviceHost);
+        servicesToAnounce.add(message);
     }
 }

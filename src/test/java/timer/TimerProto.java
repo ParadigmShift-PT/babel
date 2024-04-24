@@ -15,21 +15,20 @@ public class TimerProto extends GenericProtocol {
 
     private Instant instantLogger;
 
-    public TimerProto() {
+    public TimerProto() throws HandlerRegistrationException, IOException{
         super("TimerTest", (short) 100);
-    }
-
-    @Override
-    public void init(Properties props) throws HandlerRegistrationException, IOException {
         instantLogger = new Instant("Time");
         registerMetric(instantLogger);
 
         registerTimerHandler(TimerTimer.TIMER_ID, this::handleTimerTimer);
+    }
+    
+    @Override
+    public void start() {
         setupPeriodicTimer(new TimerTimer(), 1000, 300);
     }
 
     private void handleTimerTimer(TimerTimer timer, long timerId) {
         instantLogger.log(System.currentTimeMillis());
     }
-
 }

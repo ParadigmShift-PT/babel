@@ -1,9 +1,7 @@
 package pt.unl.fct.di.novasys.babel.protocols;
 
-import pt.unl.fct.di.novasys.babel.protocols.discovery.requests.ServiceReply;
+import pt.unl.fct.di.novasys.network.data.Host;
 
 public interface DiscoverableProtocol {
-
-    void uponContactReceived(ServiceReply reply, short sourceProto);
-    
+    public void setContact(Host host);
 }

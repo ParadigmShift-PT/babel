@@ -25,6 +25,7 @@ import org.apache.commons.lang3.tuple.Triple;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -101,7 +102,7 @@ public class Babel {
     private final Map<Integer, Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer>> channelMap;
     private final AtomicInteger channelIdGenerator;
 
-    private final Properties configuration;
+    private Properties configuration;
 
     private long startTime;
     private boolean started = false;
@@ -123,9 +124,8 @@ public class Babel {
         channelIdGenerator = new AtomicInteger(0);
         this.initializers = new ConcurrentHashMap<>();
 
-        this.configuration = new Properties();
         try {
-            this.discovery = new DiscoveryProtocol(configuration);
+            registerProtocol(DiscoveryProtocol.class);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -135,18 +135,6 @@ public class Babel {
         registerChannelInitializer(TCPChannel.NAME, new TCPChannelInitializer());
         registerChannelInitializer(AccrualChannel.NAME, new AccrualChannelInitializer());
         registerChannelInitializer(SharedTCPChannel.NAME, new SharedTCPChannelInitializer());
-
-        /* discovery = new DiscoveryProtocol();
-
-        // TODO change this exception handling
-        try {
-            discovery.init(new Properties());
-            registerProtocol(discovery);
-            discovery.start();
-            discovery.startEventThread();
-        } catch (Exception e) {
-            e.printStackTrace();
-        } */
 
         // registerChannelInitializer("Ackos", new AckosChannelInitializer());
         // registerChannelInitializer(MultithreadedTCPChannel.NAME, new
@@ -196,7 +184,6 @@ public class Babel {
         }
     }
     
-
     /**
      * Register a protocol in Babel
      *
@@ -209,14 +196,39 @@ public class Babel {
         if (old != null)
             throw new ProtocolAlreadyExistsException(
                     "Protocol conflicts on id with protocol: id=" + p.getProtoId() + ":name=" + protocolMap.get(
-                            p.getProtoId()).getProtoName());
+                           p.getProtoId()).getProtoName());
         old = protocolByNameMap.putIfAbsent(p.getProtoName(), p);
         if (old != null) {
             protocolMap.remove(p.getProtoId());
             throw new ProtocolAlreadyExistsException(
                     "Protocol conflicts on name: " + p.getProtoName() + " (id: " + this.protocolByNameMap.get(
-                            p.getProtoName()).getProtoId() + ")");
+                           p.getProtoName()).getProtoId() + ")");
         }
+    }
+
+    /**
+     * Register a protocol in Babel using its class
+     * 
+     * @param p the protocol class
+     * @throws ProtocolAlreadyExistsException if a protocol with the same id or name
+     *                                        has already been registered
+     */
+    public void registerProtocol(Class<? extends GenericProtocol> p) throws ProtocolAlreadyExistsException {
+        Constructor lmao;
+        try {
+            lmao = p.getConstructor(Properties.class);
+        } catch (NoSuchMethodException e) {
+            throw new RuntimeException("Protocol badly constructed");
+        }
+
+        GenericProtocol newP;
+        try {
+            newP = (GenericProtocol) lmao.newInstance(configuration);
+        } catch (Exception e) {
+            throw new RuntimeException("Protocol badly constructed");
+        }
+
+        registerProtocol(newP);
     }
 
     // ----------------------------- NETWORK
@@ -437,15 +449,16 @@ public class Babel {
      * @throws InvalidParameterException if the console parameters are not in the
      *                                   format: prop=value
      */
-    public void loadConfig(String[] args, String defaultConfigFile)
+    public Properties loadConfig(String[] args, String defaultConfigFile)
             throws IOException, InvalidParameterException {
 
-        List<String> argsList = Arrays.asList(args);
-        String configFile = extractConfigFileFromArguments(argsList, defaultConfigFile);
-
-        if (configuration.size() > 0) {
+        if (configuration != null) {
             throw new RuntimeException("Properties already loaded");
         }
+
+        configuration = new Properties(args.length);
+        List<String> argsList = Arrays.asList(args);
+        String configFile = extractConfigFileFromArguments(argsList, defaultConfigFile);
 
         if (configFile != null) {
             configuration.load(new FileInputStream(configFile));
@@ -458,6 +471,7 @@ public class Babel {
             else
                 throw new InvalidParameterException("Unknown parameter: " + arg);
         }
+        return configuration;
     }
 
     private static String extractConfigFileFromArguments(List<String> args, String defaultConfigFile) {

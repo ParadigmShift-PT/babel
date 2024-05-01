@@ -5,6 +5,7 @@ import pt.unl.fct.di.novasys.babel.internal.BabelMessage;
 import pt.unl.fct.di.novasys.babel.internal.IPCEvent;
 import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
 import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
+import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
@@ -75,6 +76,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class Babel {
 
     private static Babel system;
+    private static Properties props;
 
     /**
      * Returns the instance of the Babel Runtime
@@ -91,7 +93,7 @@ public class Babel {
     private final Map<Short, GenericProtocol> protocolMap;
     private final Map<String, GenericProtocol> protocolByNameMap;
     private final Map<Short, Set<GenericProtocol>> subscribers;
-    private DiscoveryProtocol discovery;
+    private final DiscoveryProtocol discovery;
 
     // Timers
     private final Map<Long, TimerEvent> allTimers;
@@ -208,6 +210,11 @@ public class Babel {
     public void start() {
         startTime = System.currentTimeMillis();
         started = true;
+        try {
+            discovery.init(props);
+        } catch (IOException | HandlerRegistrationException e) {
+            throw new RuntimeException("Something went wrong while starting the Discovery Protocol");
+        }
         MetricsManager.getInstance().start();
         timersThread.start();
         for (GenericProtocol proto : protocolMap.values()) {

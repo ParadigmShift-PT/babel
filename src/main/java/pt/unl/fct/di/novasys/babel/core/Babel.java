@@ -5,12 +5,13 @@ import pt.unl.fct.di.novasys.babel.internal.BabelMessage;
 import pt.unl.fct.di.novasys.babel.internal.IPCEvent;
 import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
 import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
+import pt.unl.fct.di.novasys.babel.core.protocols.discovery.DiscoveryProtocol;
+import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.SelfConfigurationProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
 import pt.unl.fct.di.novasys.babel.metrics.MetricsManager;
-import pt.unl.fct.di.novasys.babel.protocols.discovery.DiscoveryProtocol;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
 import pt.unl.fct.di.novasys.channel.IChannel;
@@ -94,6 +95,7 @@ public class Babel {
     private final Map<String, GenericProtocol> protocolByNameMap;
     private final Map<Short, Set<GenericProtocol>> subscribers;
     private final DiscoveryProtocol discovery;
+    private final SelfConfigurationProtocol selfConfiguration;
 
     // Timers
     private final Map<Long, TimerEvent> allTimers;
@@ -127,9 +129,11 @@ public class Babel {
         channelIdGenerator = new AtomicInteger(0);
         this.initializers = new ConcurrentHashMap<>();
         this.discovery = new DiscoveryProtocol();
+        this.selfConfiguration = new SelfConfigurationProtocol();
 
         try {
             registerProtocol(this.discovery);
+            registerProtocol(this.selfConfiguration);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -169,39 +173,47 @@ public class Babel {
         }
     }
 
-    private boolean setupAutoconfiguration(SelfConfiguredProtocol scProto) {
+    /**
+     * Sets up a SelfConfiguredProtocol. Since this is also called by the closely
+     * coupled SelfConfigurationProtocol and DiscoveryProtocol, its visibility is
+     * set to public but IT SHOULD NOT BE EVOKED outside of the Babel core package.
+     * 
+     * @param scProto the protocol to be set up
+     */
+    public void setupSelfConfiguration(SelfConfiguredProtocol scProto) {
         Class<? extends SelfConfiguredProtocol> scProtoClass = scProto.getClass();
         Field[] fields = scProtoClass.getDeclaredFields();
         boolean wellConfgired = true;
-        for (var field : fields) {
-            var annotations = field.getAnnotations();
-            for (var annotation : annotations) {
-                String fieldNameCapitalized = StringUtils.capitalize(field.getName());
-                String setterName = "set" + fieldNameCapitalized;
-                String getterName = "get" + fieldNameCapitalized;
-                if (annotation.getClass() == Contact.class) {
-                    try {
-                        Method getter = scProtoClass.getMethod(getterName);
-                        Host contact = (Host) getter.invoke(scProto);
-                        Method hostGetter = scProtoClass.getMethod("getFirstContactHost");
-                        Host host = (Host) hostGetter.invoke(scProto);
-                        if (contact == null) {
-                            Method setter = scProtoClass.getMethod(setterName, Host.class);
-                            discovery.serviceSearchAnounceRequest(scProto.getProtoName(), scProto, host, setter);
-                            wellConfgired = false;
-                        } else {
-                            discovery.serviceSearchListenRequest(scProto.getProtoName(), host);
-                        }
-                    } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException
-                            | IOException e) {
-                        throw new RuntimeException("Protocol badly constructed");
-                    }
-                } else if (annotation.getClass() == AutoConfigureParameter.class) {
+        try {
+            if (scProto.getContact() == null) {
+                discovery.serviceSearchAnounceRequest(scProto.getProtoName(), scProto, scProto.getMyself());
+                wellConfgired = false;
+            } else {
+                discovery.serviceSearchListenRequest(scProto.getProtoName(), scProto.getMyself());
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
+        for (var field : fields) {
+            if (field.isAnnotationPresent(AutoConfigureParameter.class)) {
+                String fieldNameCapitalized = StringUtils.capitalize(field.getName());
+                String getterName = "get" + fieldNameCapitalized;
+                String setterName = "set" + fieldNameCapitalized;
+                try {
+                    Method getter = scProtoClass.getMethod(getterName);
+                    Method setter = scProtoClass.getMethod(setterName);
+                    this.selfConfiguration.addProtocol(field.getName(), setter, getter, scProto);
+                } catch (NoSuchMethodException e) {
+                    throw new RuntimeException("Protocol badly constructed");
                 }
+
             }
         }
-        return wellConfgired;
+        if (wellConfgired) {
+            scProto.start();
+            scProto.startEventThread();
+        }
     }
 
     /**
@@ -219,10 +231,7 @@ public class Babel {
         timersThread.start();
         for (GenericProtocol proto : protocolMap.values()) {
             if (proto instanceof SelfConfiguredProtocol scProto) {
-                if (setupAutoconfiguration(scProto)) {
-                    scProto.start();
-                    scProto.startEventThread();
-                }
+                setupSelfConfiguration(scProto);
             } else {
                 proto.startEventThread();
             }

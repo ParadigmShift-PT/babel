@@ -1,4 +1,4 @@
-package pt.unl.fct.di.novasys.babel.protocols.discovery;
+package pt.unl.fct.di.novasys.babel.core.protocols.discovery;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -16,13 +16,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import pt.unl.fct.di.novasys.babel.protocols.discovery.messages.ServiceMessage;
-import pt.unl.fct.di.novasys.babel.protocols.discovery.timers.AnoucementTimer;
 import io.netty.buffer.ByteBuf;
 import static io.netty.buffer.Unpooled.*;
 
+import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.core.SelfConfiguredProtocol;
+import pt.unl.fct.di.novasys.babel.core.protocols.discovery.messages.ServiceMessage;
+import pt.unl.fct.di.novasys.babel.core.protocols.discovery.timers.AnoucementTimer;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.network.ISerializer;
 import pt.unl.fct.di.novasys.network.data.Host;
@@ -146,15 +147,8 @@ public class DiscoveryProtocol extends GenericProtocol {
                     if (serviceWaiting == null) {
                         continue;
                     }
-                    try {
-                        serviceWaiting.setter().invoke(serviceWaiting.proto(), message.getServiceHost());
-                        Method hostGetter = serviceWaiting.proto().getClass().getMethod("getFirstContactHost");
-                        Host host = (Host) hostGetter.invoke(serviceWaiting.proto());
-                        serviceSearchListenRequest(message.getServiceName(), host);
-                    } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
-                        throw new RuntimeException("Protocol badly constructed");
-                    }
-
+                    serviceWaiting.proto().setContact(message.getServiceHost());
+                    Babel.getInstance().setupSelfConfiguration(serviceWaiting.proto());
                 }
                 messageBuffer.clear();
             } catch (IOException e) {
@@ -172,13 +166,13 @@ public class DiscoveryProtocol extends GenericProtocol {
         servicesToReplyMessage.put(serviceName, messageBytes);
     }
 
-    public void serviceSearchAnounceRequest(String serviceName, SelfConfiguredProtocol sourceProtocol, Host host,
-            Method setter) throws IOException {
+    public void serviceSearchAnounceRequest(String serviceName, SelfConfiguredProtocol sourceProtocol, Host host)
+            throws IOException {
         byte[] messageBytes = new byte[DATAGRAM_SIZE];
         ByteBuf messageByteBuf = wrappedBuffer(messageBytes);
         ServiceMessage message = new ServiceMessage(serviceName, host, true);
         serializer.serialize(message, messageByteBuf);
 
-        servicesWaiting.put(serviceName, new WaitingContact(messageBytes, setter, sourceProtocol));
+        servicesWaiting.put(serviceName, new WaitingContact(messageBytes, sourceProtocol));
     }
 }

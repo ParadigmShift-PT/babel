@@ -1,4 +1,4 @@
-package pt.unl.fct.di.novasys.babel.protocols.discovery.messages;
+package pt.unl.fct.di.novasys.babel.core.protocols.discovery.messages;
 
 import java.io.IOException;
 import java.net.InetAddress;

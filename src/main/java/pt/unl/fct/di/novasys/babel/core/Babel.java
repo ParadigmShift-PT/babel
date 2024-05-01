@@ -9,7 +9,6 @@ import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
 import pt.unl.fct.di.novasys.babel.metrics.MetricsManager;
-import pt.unl.fct.di.novasys.babel.protocols.DiscoverableProtocol;
 import pt.unl.fct.di.novasys.babel.protocols.discovery.DiscoveryProtocol;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
@@ -21,11 +20,15 @@ import pt.unl.fct.di.novasys.channel.tcp.SharedTCPChannel;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
 import pt.unl.fct.di.novasys.network.ISerializer;
 import pt.unl.fct.di.novasys.network.data.Host;
+
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Triple;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -102,8 +105,6 @@ public class Babel {
     private final Map<Integer, Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer>> channelMap;
     private final AtomicInteger channelIdGenerator;
 
-    private Properties configuration;
-
     private long startTime;
     private boolean started = false;
 
@@ -123,9 +124,10 @@ public class Babel {
         channelMap = new ConcurrentHashMap<>();
         channelIdGenerator = new AtomicInteger(0);
         this.initializers = new ConcurrentHashMap<>();
+        this.discovery = new DiscoveryProtocol();
 
         try {
-            registerProtocol(DiscoveryProtocol.class);
+            registerProtocol(this.discovery);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -165,6 +167,41 @@ public class Babel {
         }
     }
 
+    private boolean setupAutoconfiguration(SelfConfiguredProtocol scProto) {
+        Class<? extends SelfConfiguredProtocol> scProtoClass = scProto.getClass();
+        Field[] fields = scProtoClass.getDeclaredFields();
+        boolean wellConfgired = true;
+        for (var field : fields) {
+            var annotations = field.getAnnotations();
+            for (var annotation : annotations) {
+                String fieldNameCapitalized = StringUtils.capitalize(field.getName());
+                String setterName = "set" + fieldNameCapitalized;
+                String getterName = "get" + fieldNameCapitalized;
+                if (annotation.getClass() == Contact.class) {
+                    try {
+                        Method getter = scProtoClass.getMethod(getterName);
+                        Host contact = (Host) getter.invoke(scProto);
+                        Method hostGetter = scProtoClass.getMethod("getFirstContactHost");
+                        Host host = (Host) hostGetter.invoke(scProto);
+                        if (contact == null) {
+                            Method setter = scProtoClass.getMethod(setterName, Host.class);
+                            discovery.serviceSearchAnounceRequest(scProto.getProtoName(), scProto, host, setter);
+                            wellConfgired = false;
+                        } else {
+                            discovery.serviceSearchListenRequest(scProto.getProtoName(), host);
+                        }
+                    } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException
+                            | IOException e) {
+                        throw new RuntimeException("Protocol badly constructed");
+                    }
+                } else if (annotation.getClass() == AutoConfigureParameter.class) {
+
+                }
+            }
+        }
+        return wellConfgired;
+    }
+
     /**
      * Begins the execution of all protocols registered in Babel
      */
@@ -174,16 +211,17 @@ public class Babel {
         MetricsManager.getInstance().start();
         timersThread.start();
         for (GenericProtocol proto : protocolMap.values()) {
-            if (proto.needsContact() && proto instanceof DiscoverableProtocol discProto) {
-                discovery.serviceListenRequest(proto.getProtoName(), discProto);
+            if (proto instanceof SelfConfiguredProtocol scProto) {
+                if (setupAutoconfiguration(scProto)) {
+                    scProto.start();
+                    scProto.startEventThread();
+                }
             } else {
-                proto.setToStart();
-                proto.start();
                 proto.startEventThread();
             }
         }
     }
-    
+
     /**
      * Register a protocol in Babel
      *
@@ -196,39 +234,14 @@ public class Babel {
         if (old != null)
             throw new ProtocolAlreadyExistsException(
                     "Protocol conflicts on id with protocol: id=" + p.getProtoId() + ":name=" + protocolMap.get(
-                           p.getProtoId()).getProtoName());
+                            p.getProtoId()).getProtoName());
         old = protocolByNameMap.putIfAbsent(p.getProtoName(), p);
         if (old != null) {
             protocolMap.remove(p.getProtoId());
             throw new ProtocolAlreadyExistsException(
                     "Protocol conflicts on name: " + p.getProtoName() + " (id: " + this.protocolByNameMap.get(
-                           p.getProtoName()).getProtoId() + ")");
+                            p.getProtoName()).getProtoId() + ")");
         }
-    }
-
-    /**
-     * Register a protocol in Babel using its class
-     * 
-     * @param p the protocol class
-     * @throws ProtocolAlreadyExistsException if a protocol with the same id or name
-     *                                        has already been registered
-     */
-    public void registerProtocol(Class<? extends GenericProtocol> p) throws ProtocolAlreadyExistsException {
-        Constructor lmao;
-        try {
-            lmao = p.getConstructor(Properties.class);
-        } catch (NoSuchMethodException e) {
-            throw new RuntimeException("Protocol badly constructed");
-        }
-
-        GenericProtocol newP;
-        try {
-            newP = (GenericProtocol) lmao.newInstance(configuration);
-        } catch (Exception e) {
-            throw new RuntimeException("Protocol badly constructed");
-        }
-
-        registerProtocol(newP);
     }
 
     // ----------------------------- NETWORK
@@ -449,15 +462,11 @@ public class Babel {
      * @throws InvalidParameterException if the console parameters are not in the
      *                                   format: prop=value
      */
-    public Properties loadConfig(String[] args, String defaultConfigFile)
+    public static Properties loadConfig(String[] args, String defaultConfigFile)
             throws IOException, InvalidParameterException {
 
-        if (configuration != null) {
-            throw new RuntimeException("Properties already loaded");
-        }
-
-        configuration = new Properties(args.length);
-        List<String> argsList = Arrays.asList(args);
+        var configuration = new Properties(args.length);
+        var argsList = Arrays.asList(args);
         String configFile = extractConfigFileFromArguments(argsList, defaultConfigFile);
 
         if (configFile != null) {

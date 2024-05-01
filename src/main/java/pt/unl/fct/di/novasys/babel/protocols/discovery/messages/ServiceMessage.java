@@ -14,8 +14,8 @@ import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.network.ISerializer;
 import pt.unl.fct.di.novasys.network.data.Host;
 
-public class AnouncementMessage extends ProtoMessage {
-    private static final Logger logger = LogManager.getLogger(AnouncementMessage.class);
+public class ServiceMessage extends ProtoMessage {
+    private static final Logger logger = LogManager.getLogger(ServiceMessage.class);
 
     public static final short MESSAGE_ID = 20603;
     public static final String BABEL_SIGNAL_STRING = "Babel";
@@ -24,15 +24,17 @@ public class AnouncementMessage extends ProtoMessage {
 
     private final String serviceName;
     private final Host serviceHost;
+    private final boolean searching;
 
     static {
         BABEL_SIGNAL = BABEL_SIGNAL_STRING.getBytes(StandardCharsets.UTF_8);
     }
 
-    public AnouncementMessage(String serviceName, Host serviceHost) {
+    public ServiceMessage(String serviceName, Host serviceHost, boolean searching) {
         super(MESSAGE_ID);
         this.serviceName = serviceName;
         this.serviceHost = serviceHost;
+        this.searching = searching;
     }
 
     public String getServiceName() {
@@ -43,9 +45,13 @@ public class AnouncementMessage extends ProtoMessage {
         return serviceHost;
     }
 
-    public static ISerializer<? extends ProtoMessage> serializer = new ISerializer<AnouncementMessage>() {
+    public boolean isSearching() {
+        return searching;
+    }
+
+    public static ISerializer<? extends ProtoMessage> serializer = new ISerializer<ServiceMessage>() {
         @Override
-        public void serialize(AnouncementMessage msg, ByteBuf out) throws IOException {
+        public void serialize(ServiceMessage msg, ByteBuf out) throws IOException {
             byte[] serializedServiceName = msg.getServiceName().getBytes(StandardCharsets.UTF_8);
             byte[] serializedServiceHost = msg.getServiceHost().getAddress().getAddress();
             short serializedPort = (short) msg.getServiceHost().getPort();
@@ -57,6 +63,9 @@ public class AnouncementMessage extends ProtoMessage {
             out.writeBytes(BABEL_SIGNAL);
             out.writeByte(SEPARATOR);
             out.writeBytes(serializedServiceName);
+            if (msg.isSearching()) {
+                out.writeChar('?');
+            }
             out.writeByte(SEPARATOR);
             out.writeBytes(serializedServiceHost);
             out.writeByte(SEPARATOR);
@@ -64,17 +73,20 @@ public class AnouncementMessage extends ProtoMessage {
         }
 
         @Override
-        public AnouncementMessage deserialize(ByteBuf in) throws UnknownHostException {
+        public ServiceMessage deserialize(ByteBuf in) throws UnknownHostException {
             byte[] tmpBuf = new byte[in.readableBytes()];
             int idx = 0;
             String babelSignal = null;
             String serviceName = null;
             InetAddress address = null;
             int port = 0;
+            boolean searching = false;
 
             while(in.readableBytes() > 0) {
                 byte readByte = in.readByte();
-                if (readByte == SEPARATOR || in.readableBytes() == 0) {
+                if (readByte == '?') {
+                    searching = true;
+                } else if (readByte == SEPARATOR || in.readableBytes() == 0) {
                     if (babelSignal == null) {
                         babelSignal = new String(tmpBuf, StandardCharsets.UTF_8);
                     } else if (serviceName == null) {
@@ -93,8 +105,7 @@ public class AnouncementMessage extends ProtoMessage {
                     idx++;
                 }
             }
-            return new AnouncementMessage(serviceName, new Host(address, port));
+            return new ServiceMessage(serviceName, new Host(address, port), searching);
         }
     };
-    
 }

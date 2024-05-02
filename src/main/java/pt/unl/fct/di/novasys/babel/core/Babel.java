@@ -202,9 +202,11 @@ public class Babel {
                 String setterName = "set" + fieldNameCapitalized;
                 try {
                     Method getter = scProtoClass.getMethod(getterName);
-                    Method setter = scProtoClass.getMethod(setterName);
-                    this.selfConfiguration.addProtocol(field.getName(), setter, getter, scProto);
-                } catch (NoSuchMethodException e) {
+                    Method setter = scProtoClass.getMethod(setterName, String.class);
+                    if (getter.invoke(scProto) == null) {
+                        this.selfConfiguration.addProtocol(field.getName(), setter, getter, scProto);
+                    }
+                } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
                     throw new RuntimeException("Protocol badly constructed");
                 }
 

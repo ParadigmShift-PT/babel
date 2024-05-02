@@ -18,7 +18,7 @@ public class ServiceMessage extends ProtoMessage {
     private static final Logger logger = LogManager.getLogger(ServiceMessage.class);
 
     public static final short MESSAGE_ID = 20603;
-    public static final String BABEL_SIGNAL_STRING = "Babel";
+    public static final String BABEL_SIGNAL_STRING = "BabelD";
     public static final byte[] BABEL_SIGNAL;
     public static final byte SEPARATOR = 30; // RECORD SEPARATOR IN ASCII
 

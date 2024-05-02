@@ -1,12 +1,12 @@
 package pt.unl.fct.di.novasys.babel.core;
 
+import pt.unl.fct.di.novasys.babel.core.protocols.discovery.DiscoveryProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.handlers.*;
 import pt.unl.fct.di.novasys.babel.internal.*;
 import pt.unl.fct.di.novasys.babel.metrics.Metric;
 import pt.unl.fct.di.novasys.babel.metrics.MetricsManager;
-import pt.unl.fct.di.novasys.babel.protocols.discovery.DiscoveryProtocol;
 import pt.unl.fct.di.novasys.babel.generic.*;
 import pt.unl.fct.di.novasys.channel.ChannelEvent;
 import pt.unl.fct.di.novasys.network.ISerializer;

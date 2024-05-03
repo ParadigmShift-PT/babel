@@ -39,6 +39,7 @@ public abstract class SelfConfiguredProtocol extends GenericProtocol {
      */
     protected abstract void start();
 
+    protected abstract boolean readyToStart();
 
     public void setContact(Host host) {
         this.contact = host;

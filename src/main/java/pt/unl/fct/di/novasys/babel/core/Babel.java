@@ -183,11 +183,9 @@ public class Babel {
     public void setupSelfConfiguration(SelfConfiguredProtocol scProto) {
         Class<? extends SelfConfiguredProtocol> scProtoClass = scProto.getClass();
         Field[] fields = scProtoClass.getDeclaredFields();
-        boolean wellConfgired = true;
         try {
             if (scProto.getContact() == null) {
                 discovery.serviceSearchAnounceRequest(scProto.getProtoName(), scProto, scProto.getMyself());
-                wellConfgired = false;
             } else {
                 discovery.serviceSearchListenRequest(scProto.getProtoName(), scProto.getMyself());
             }
@@ -198,21 +196,20 @@ public class Babel {
         for (var field : fields) {
             if (field.isAnnotationPresent(AutoConfigureParameter.class)) {
                 String fieldNameCapitalized = StringUtils.capitalize(field.getName());
-                String getterName = "get" + fieldNameCapitalized;
-                String setterName = "set" + fieldNameCapitalized;
+                String getterName = "getFirst" + fieldNameCapitalized;
+                String setterName = "setFirst" + fieldNameCapitalized;
                 try {
                     Method getter = scProtoClass.getMethod(getterName);
                     Method setter = scProtoClass.getMethod(setterName, String.class);
                     if (getter.invoke(scProto) == null) {
-                        this.selfConfiguration.addProtocol(field.getName(), setter, getter, scProto);
+                        this.selfConfiguration.addProtocolParameterToConfigure(field.getName(), setter, getter, scProto);
                     }
                 } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
                     throw new RuntimeException("Protocol badly constructed");
                 }
-
             }
         }
-        if (wellConfgired) {
+        if (scProto.readyToStart()) {
             scProto.start();
             scProto.startEventThread();
         }

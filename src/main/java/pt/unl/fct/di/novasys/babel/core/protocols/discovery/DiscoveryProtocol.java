@@ -1,8 +1,6 @@
 package pt.unl.fct.di.novasys.babel.core.protocols.discovery;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -62,15 +60,15 @@ public class DiscoveryProtocol extends GenericProtocol {
         servicesToReplyMessage = new ConcurrentHashMap<>();
         servicesWaiting = new ConcurrentHashMap<>();
 
-        String targetPortString = props.getProperty("babel_discovery_listening_port");
+        String targetPortString = props.getProperty("BabelDiscovery.Port");
         int targetPort = DEFAULT_PORT;
         if (targetPortString != null) {
             targetPort = Integer.parseInt(targetPortString);
         }
 
         multicastSocketAddress = new InetSocketAddress(
-                props.getProperty("babel_multicast_address", MULTICAST_ADDRESS), targetPort);
-        String networkInterfaceString = props.getProperty("babel_multicast_interface");
+                props.getProperty("BabelDiscovery.Multicast.Address", MULTICAST_ADDRESS), targetPort);
+        String networkInterfaceString = props.getProperty("BabelDiscovery.Multicast.Interface");
         NetworkInterface networkInterface;
         if (networkInterfaceString == null) {
             // Bind to any interface that supports multicast

@@ -49,7 +49,7 @@ public abstract class GenericProtocol {
     private final Map<Short, ReplyHandler<? extends ProtoReply>> replyHandlers;
     private final Map<Short, NotificationHandler<? extends ProtoNotification>> notificationHandlers;
 
-    private static final Babel babel = Babel.getInstance();
+    public static final Babel babel = Babel.getInstance();
 
     //Debug
     ProtocolMetrics metrics = new ProtocolMetrics();

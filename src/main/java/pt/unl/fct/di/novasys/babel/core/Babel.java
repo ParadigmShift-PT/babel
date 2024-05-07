@@ -25,12 +25,15 @@ import pt.unl.fct.di.novasys.network.data.Host;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Triple;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.security.Security;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -75,6 +78,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * @see GenericProtocol
  */
 public class Babel {
+    private static final Logger logger = LogManager.getLogger(Babel.class);
 
     private static Babel system;
     private static Properties props;
@@ -94,14 +98,14 @@ public class Babel {
     private final Map<Short, GenericProtocol> protocolMap;
     private final Map<String, GenericProtocol> protocolByNameMap;
     private final Map<Short, Set<GenericProtocol>> subscribers;
-    private final DiscoveryProtocol discovery;
-    private final SelfConfigurationProtocol selfConfiguration;
+    private DiscoveryProtocol discovery;
+    private SelfConfigurationProtocol selfConfiguration;
 
     // Timers
     private final Map<Long, TimerEvent> allTimers;
     private final PriorityBlockingQueue<TimerEvent> timerQueue;
     private final Thread timersThread;
-    private final AtomicLong timersCounter;
+    public final AtomicLong timersCounter;
 
     // Channels
     private final Map<String, ChannelInitializer<? extends IChannel<BabelMessage>>> initializers;
@@ -128,15 +132,6 @@ public class Babel {
         channelMap = new ConcurrentHashMap<>();
         channelIdGenerator = new AtomicInteger(0);
         this.initializers = new ConcurrentHashMap<>();
-        this.discovery = new DiscoveryProtocol();
-        this.selfConfiguration = new SelfConfigurationProtocol();
-
-        try {
-            registerProtocol(this.discovery);
-            registerProtocol(this.selfConfiguration);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
 
         registerChannelInitializer(SimpleClientChannel.NAME, new SimpleClientChannelInitializer());
         registerChannelInitializer(SimpleServerChannel.NAME, new SimpleServerChannelInitializer());
@@ -202,7 +197,8 @@ public class Babel {
                     Method getter = scProtoClass.getMethod(getterName);
                     Method setter = scProtoClass.getMethod(setterName, String.class);
                     if (getter.invoke(scProto) == null) {
-                        this.selfConfiguration.addProtocolParameterToConfigure(field.getName(), setter, getter, scProto);
+                        this.selfConfiguration.addProtocolParameterToConfigure(field.getName(), setter, getter,
+                                scProto);
                     }
                 } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
                     throw new RuntimeException("Protocol badly constructed");
@@ -219,6 +215,16 @@ public class Babel {
      * Begins the execution of all protocols registered in Babel
      */
     public void start() {
+        this.discovery = new DiscoveryProtocol();
+        this.selfConfiguration = new SelfConfigurationProtocol();
+
+        try {
+            registerProtocol(this.discovery);
+            registerProtocol(this.selfConfiguration);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
         startTime = System.currentTimeMillis();
         started = true;
         try {
@@ -229,6 +235,7 @@ public class Babel {
         MetricsManager.getInstance().start();
         timersThread.start();
         for (GenericProtocol proto : protocolMap.values()) {
+            logger.info("Starting " + proto.getProtoName());
             if (proto instanceof SelfConfiguredProtocol scProto) {
                 setupSelfConfiguration(scProto);
             } else {
@@ -416,11 +423,16 @@ public class Babel {
      * @param period   the periodicity of the timer event
      */
     long setupPeriodicTimer(ProtoTimer t, GenericProtocol consumer, long first, long period) {
+        logger.info(this);
         long id = timersCounter.incrementAndGet();
         TimerEvent newTimer = new TimerEvent(t, id, consumer,
                 getMillisSinceStart() + first, true, period);
         allTimers.put(newTimer.getUuid(), newTimer);
         timerQueue.add(newTimer);
+        for (var timer : protocolMap.values()) {
+            logger.info(timer);
+        }
+        logger.info(timersCounter);
         timersThread.interrupt();
         return id;
     }
@@ -480,22 +492,22 @@ public class Babel {
     public static Properties loadConfig(String[] args, String defaultConfigFile)
             throws IOException, InvalidParameterException {
 
-        var configuration = new Properties(args.length);
+        props = new Properties(args.length);
         var argsList = Arrays.asList(args);
         String configFile = extractConfigFileFromArguments(argsList, defaultConfigFile);
 
         if (configFile != null) {
-            configuration.load(new FileInputStream(configFile));
+            props.load(new FileInputStream(configFile));
         }
         // Override with launch parameter props
         for (String arg : argsList) {
             String[] property = arg.split("=");
             if (property.length == 2)
-                configuration.setProperty(property[0], property[1]);
+                props.setProperty(property[0], property[1]);
             else
                 throw new InvalidParameterException("Unknown parameter: " + arg);
         }
-        return configuration;
+        return props;
     }
 
     private static String extractConfigFileFromArguments(List<String> args, String defaultConfigFile) {

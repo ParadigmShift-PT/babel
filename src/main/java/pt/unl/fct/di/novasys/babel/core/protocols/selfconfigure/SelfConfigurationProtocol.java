@@ -11,8 +11,7 @@ import org.apache.logging.log4j.Logger;
 
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.core.SelfConfiguredProtocol;
-import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.messages.ParameterAskMessage;
-import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.messages.ParameterResponseMessage;
+import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.messages.ParameterMessage;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
 import pt.unl.fct.di.novasys.network.data.Host;
@@ -21,7 +20,7 @@ public class SelfConfigurationProtocol extends GenericProtocol {
     private static final Logger logger = LogManager.getLogger(SelfConfigurationProtocol.class);
 
     public static final String DEFAULT_ADDRESS = "0.0.0.0";
-    public static final String DEFAULT_PORT = "19349";
+    public static final String DEFAULT_PORT = "19350";
     public static final short PROTO_ID = 604;
     public static final String PROTO_NAME = "BabelSelfConfiguration";
 
@@ -48,7 +47,7 @@ public class SelfConfigurationProtocol extends GenericProtocol {
         channelProps.setProperty(TCPChannel.PORT_KEY, port);
         defaultChannelID = createChannel(TCPChannel.NAME, props);
 
-        registerMessageSerializer(defaultChannelID, ParameterResponseMessage.MSG_ID, ParameterResponseMessage.serializer);
+        registerMessageSerializer(defaultChannelID, ParameterMessage.MSG_ID, ParameterMessage.serializer);
     }
 
     public void addProtocolParameterToConfigure(String parameterName, Method setter, Method getter, SelfConfiguredProtocol proto) {
@@ -73,11 +72,7 @@ public class SelfConfigurationProtocol extends GenericProtocol {
         protocolMap.put(proto.getProtoName(), proto);
     }
 
-    public void uponParameterAsk(ParameterAskMessage msg, Host from, short sourceProto, int channelId) {
-        
-    }
-
-    public void uponParameterResponse(ParameterResponseMessage msg, Host from, short sourceProto, int channelId) {
+    public void uponParameterMessage(ParameterMessage msg, Host from, short sourceProto, int channelId) {
 
     }
 }

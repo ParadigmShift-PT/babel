@@ -1,6 +1,7 @@
 package pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
@@ -105,11 +106,29 @@ public class SelfConfigurationProtocol extends GenericProtocol {
         ParameterMessage replyMsg = new ParameterMessage();
         for (var protoEntry : receivedParams.entrySet()) {
             SelfConfiguredProtocol proto = protocolMap.get(protoEntry.getKey());
+            Map<String, Parameter> thisProtocolToConfigured = protocolToParameterToConfigure.get(protoEntry.getKey());
+            Map<String, Parameter> thisProtocolConfigured = protocolToParameterConfigured.get(protoEntry.getKey());
             for (var paramEntry : protoEntry.getValue().entrySet()) {
-                if (paramEntry.getValue() != null) {
-
+                Parameter paramToConfigure = thisProtocolToConfigured.get(paramEntry.getKey());
+                Parameter paramConfigured = thisProtocolConfigured.get(paramEntry.getKey());
+                if (paramEntry.getValue() != null && paramToConfigure != null) {
+                    try {
+                        paramToConfigure.setter().invoke(proto, paramEntry.getValue());
+                    } catch (IllegalAccessException | InvocationTargetException e) {
+                        throw new RuntimeException("Protocol badly constructed");
+                    }
+                } else if (paramEntry.getValue() == null && paramConfigured != null) {
+                    try {
+                        String value = (String) paramConfigured.getter().invoke(proto);
+                        replyMsg.addParameter(protoEntry.getKey(), paramEntry.getKey(), value);
+                    } catch (IllegalAccessException | InvocationTargetException e) {
+                        throw new RuntimeException("Protocol badly constructed");
+                    }
                 }
             }
+        }
+        if (replyMsg.getAllProtocolParams().size() > 0) {
+            sendMessage(msg, from);
         }
     }
 }

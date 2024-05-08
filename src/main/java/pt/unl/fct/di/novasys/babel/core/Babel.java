@@ -229,9 +229,12 @@ public class Babel {
         started = true;
         try {
             discovery.init(props);
+            selfConfiguration.init(props);
         } catch (IOException | HandlerRegistrationException e) {
-            throw new RuntimeException("Something went wrong while starting the Discovery Protocol");
+            e.printStackTrace();
+            throw new RuntimeException("Something went wrong while starting the Discovery or Self Configuration Protocol");
         }
+
         MetricsManager.getInstance().start();
         timersThread.start();
         for (GenericProtocol proto : protocolMap.values()) {

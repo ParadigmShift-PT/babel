@@ -2,6 +2,7 @@ package pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
@@ -12,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.core.SelfConfiguredProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.messages.ParameterMessage;
+import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.timers.SearchTimer;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
 import pt.unl.fct.di.novasys.network.data.Host;
@@ -20,9 +22,10 @@ public class SelfConfigurationProtocol extends GenericProtocol {
     private static final Logger logger = LogManager.getLogger(SelfConfigurationProtocol.class);
 
     public static final String DEFAULT_ADDRESS = "0.0.0.0";
-    public static final String DEFAULT_PORT = "19350";
+    public static final String DEFAULT_PORT = "19349";
     public static final short PROTO_ID = 604;
     public static final String PROTO_NAME = "BabelSelfConfiguration";
+    public static final int SEARCH_COOLDOWN = 5000;
 
     private final Map<String, Map<String, Parameter>> protocolToParameterToConfigure;
     private final Map<String, Map<String, Parameter>> protocolToParameterConfigured;
@@ -48,6 +51,12 @@ public class SelfConfigurationProtocol extends GenericProtocol {
         defaultChannelID = createChannel(TCPChannel.NAME, props);
 
         registerMessageSerializer(defaultChannelID, ParameterMessage.MSG_ID, ParameterMessage.serializer);
+
+        registerMessageHandler(defaultChannelID, ParameterMessage.MSG_ID, this::uponParameterMessage);
+        
+        registerTimerHandler(SearchTimer.TIMER_ID, this::search);
+
+        setupPeriodicTimer(new SearchTimer(), SEARCH_COOLDOWN, SEARCH_COOLDOWN);
     }
 
     public void addProtocolParameterToConfigure(String parameterName, Method setter, Method getter, SelfConfiguredProtocol proto) {
@@ -72,7 +81,35 @@ public class SelfConfigurationProtocol extends GenericProtocol {
         protocolMap.put(proto.getProtoName(), proto);
     }
 
-    public void uponParameterMessage(ParameterMessage msg, Host from, short sourceProto, int channelId) {
+    public void search(SearchTimer timer, long timerId) {
+        Map<Host, ParameterMessage> messages = new HashMap<>();
+        for (var protoEntry : protocolToParameterToConfigure.entrySet()) {
+            Host protoHost = protocolMap.get(protoEntry.getKey()).getContact();
+            ParameterMessage msg = messages.get(protoHost);
+            if (msg == null) {
+                msg = new ParameterMessage();
+                messages.put(protoHost, msg);
+            }
+            for (var paramEntry : protoEntry.getValue().entrySet()) {
+                msg.addAskingParameter(protoEntry.getKey(), paramEntry.getKey());
+            }
+        }
 
+        for (var msg : messages.entrySet()) {
+            sendMessage(msg.getValue(), msg.getKey());
+        }
+    }
+
+    public void uponParameterMessage(ParameterMessage msg, Host from, short sourceProto, int channelId) {
+        var receivedParams = msg.getAllProtocolParams();
+        ParameterMessage replyMsg = new ParameterMessage();
+        for (var protoEntry : receivedParams.entrySet()) {
+            SelfConfiguredProtocol proto = protocolMap.get(protoEntry.getKey());
+            for (var paramEntry : protoEntry.getValue().entrySet()) {
+                if (paramEntry.getValue() != null) {
+
+                }
+            }
+        }
     }
 }

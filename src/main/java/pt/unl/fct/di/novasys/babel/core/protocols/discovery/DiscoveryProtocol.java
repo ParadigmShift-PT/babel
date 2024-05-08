@@ -4,11 +4,9 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.Inet4Address;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
-import java.net.Socket;
 import java.net.SocketException;
 import java.util.Map;
 import java.util.Properties;
@@ -20,7 +18,6 @@ import org.apache.logging.log4j.Logger;
 import io.netty.buffer.ByteBuf;
 import static io.netty.buffer.Unpooled.*;
 
-import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.core.SelfConfiguredProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.messages.ServiceMessage;
@@ -39,7 +36,7 @@ import pt.unl.fct.di.novasys.network.data.Host;
 public class DiscoveryProtocol extends GenericProtocol {
     private static final Logger logger = LogManager.getLogger(DiscoveryProtocol.class);
 
-    public static final int DEFAULT_PORT = 19348;
+    public static final int MULTICAST_PORT = 19348;
     public static final int UNICAST_PORT = 19349;
     public static final String MULTICAST_ADDRESS = "233.138.122.123";
     public static final int ANOUNCEMENT_COOLDOWN = 1000;
@@ -67,15 +64,15 @@ public class DiscoveryProtocol extends GenericProtocol {
         servicesToReplyMessage = new ConcurrentHashMap<>();
         servicesWaiting = new ConcurrentHashMap<>();
 
-        String targetPortString = props.getProperty("BabelDiscovery.Port");
-        int targetPort = DEFAULT_PORT;
+        String targetPortString = props.getProperty("BabelWhisperer.Multicast.Port");
+        int targetPort = MULTICAST_PORT;
         if (targetPortString != null) {
             targetPort = Integer.parseInt(targetPortString);
         }
 
         multicastSocketAddress = new InetSocketAddress(
-                props.getProperty("BabelDiscovery.Multicast.Address", MULTICAST_ADDRESS), targetPort);
-        String networkInterfaceString = props.getProperty("BabelDiscovery.Multicast.Interface");
+                props.getProperty("BabelWhisperer.Multicast.Address", MULTICAST_ADDRESS), targetPort);
+        String networkInterfaceString = props.getProperty("BabelWhisperer.Multicast.Interface");
         NetworkInterface networkInterface;
         if (networkInterfaceString == null) {
             // Bind to any interface that supports multicast
@@ -93,17 +90,25 @@ public class DiscoveryProtocol extends GenericProtocol {
         } else {
             networkInterface = NetworkInterface.getByName(networkInterfaceString);
         }
+        
+        multicastSocket = new MulticastSocket(targetPort);
+        multicastSocket.joinGroup(multicastSocketAddress, networkInterface);
+
+        targetPortString = props.getProperty("BabelWhisperer.Unicast.Port");
+        targetPort = UNICAST_PORT;
+        if (targetPortString != null) {
+            targetPort = Integer.parseInt(targetPortString);
+        }
+
+        datagramSocket = new DatagramSocket(targetPort);
+
         var possibleAdresses = networkInterface.getInetAddresses();
         while (possibleAdresses.hasMoreElements() && myself == null) {
             var possibleAdress = possibleAdresses.nextElement();
             if (possibleAdress instanceof Inet4Address) {
-                myself = new Host(possibleAdress, UNICAST_PORT);
+                myself = new Host(possibleAdress, targetPort);
             }
         }
-        multicastSocket = new MulticastSocket(targetPort);
-        multicastSocket.joinGroup(multicastSocketAddress, networkInterface);
-
-        datagramSocket = new DatagramSocket(UNICAST_PORT);
 
         registerTimerHandler(AnoucementTimer.TIMER_ID, this::announce);
 

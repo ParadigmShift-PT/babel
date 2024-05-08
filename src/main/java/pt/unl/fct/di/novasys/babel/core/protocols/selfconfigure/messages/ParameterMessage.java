@@ -39,6 +39,14 @@ public class ParameterMessage extends ProtoMessage {
         paramValueMap.put(paramName, value);
     }
 
+    public void addAskingParameter(String protoName, String paramName) {
+        addParameter(protoName, paramName, null);
+    }
+
+    public void join(ParameterMessage msg) {
+        protoParam.putAll(msg.getAllProtocolParams());
+    }
+
     public Map<String, String> getProtocolParams(String protoName) {
         return Collections.unmodifiableMap(protoParam.get(protoName));
     }
@@ -77,7 +85,9 @@ public class ParameterMessage extends ProtoMessage {
                     idx = 0;
                 } else if (readByte == PARAM_AND_PARAM_SEPARATOR) {
                     if (currentParam != null) {
-                        paramValue = new String(tmpBuf, 0, idx - 1, StandardCharsets.UTF_8);
+                        if (idx - 1 != 0) {
+                            paramValue = new String(tmpBuf, 0, idx - 1, StandardCharsets.UTF_8);
+                        }
                         currentMapping.put(currentParam, paramValue);
                     }
                     currentParam = null;
@@ -102,10 +112,13 @@ public class ParameterMessage extends ProtoMessage {
                 for (var paramEntry : protoEntry.getValue().entrySet()) {
                     out.writeByte(PARAM_AND_PARAM_SEPARATOR);
                     byte[] serializedParamName = paramEntry.getKey().getBytes(StandardCharsets.UTF_8);
-                    byte[] serializedValue = paramEntry.getKey().getBytes(StandardCharsets.UTF_8);
                     out.writeBytes(serializedParamName);
                     out.writeByte(PARAM_AND_VALUE_SEPARATOR);
-                    out.writeBytes(serializedValue);
+                    String value = paramEntry.getKey();
+                    if (value != null) {
+                        byte[] serializedValue = paramEntry.getKey().getBytes(StandardCharsets.UTF_8);
+                        out.writeBytes(serializedValue);
+                    }
                 }
             }
         }

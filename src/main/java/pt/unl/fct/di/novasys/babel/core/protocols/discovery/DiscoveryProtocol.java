@@ -8,6 +8,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
+import java.net.Socket;
 import java.net.SocketException;
 import java.util.Map;
 import java.util.Properties;
@@ -108,8 +109,8 @@ public class DiscoveryProtocol extends GenericProtocol {
 
         setupPeriodicTimer(new AnoucementTimer(), ANOUNCEMENT_COOLDOWN, ANOUNCEMENT_COOLDOWN);
 
-        listeningMulticastThread = new Thread(this::listenInMulticast);
-        listeningUnicastThread = new Thread(this::listenInUnicast);
+        listeningMulticastThread = new Thread(() -> listen(multicastSocket));
+        listeningUnicastThread = new Thread(() -> listen(datagramSocket));
         listeningMulticastThread.start();
         listeningUnicastThread.start();
 
@@ -131,57 +132,20 @@ public class DiscoveryProtocol extends GenericProtocol {
         }
     }
 
-    private void listenInUnicast() {
-        while (true) {
-            var byteBuffer = new byte[DATAGRAM_SIZE];
-            var messageBuffer = wrappedBuffer(byteBuffer);
-            messageBuffer.clear();
-            try {
-                var packet = new DatagramPacket(byteBuffer, DATAGRAM_SIZE);
-                datagramSocket.receive(packet);
-                messageBuffer.setIndex(0, packet.getLength());
-                var message = serializer.deserialize(messageBuffer);
-                if (message.isSearching()) {
-                    logger.info("Got search for " + message.getServiceName() + " from "
-                            + message.getServiceHost().toString());
-                    var replyMessage = servicesToReplyMessage.get(message.getServiceName());
-                    if (replyMessage == null) {
-                        continue;
-                    }
-                    Host destination = message.getDiscoveryHost();
-                    DatagramPacket replyPacket = new DatagramPacket(replyMessage, replyMessage.length,
-                            destination.getAddress(), destination.getPort());
-                    datagramSocket.send(replyPacket);
-                    logger.info("Replied");
-                } else {
-                    var serviceWaiting = servicesWaiting.remove(message.getServiceName());
-                    if (serviceWaiting == null) {
-                        continue;
-                    }
-                    serviceWaiting.proto().setContact(message.getServiceHost());
-                    Babel.getInstance().setupSelfConfiguration(serviceWaiting.proto());
-                }
-                messageBuffer.clear();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
     /**
      * Listens for incoming anouncements
      * 
      * Since no support exists in the network layer, this method should be called
      * in a thread manually for now. Eventually this should be moved to netty.
      */
-    private void listenInMulticast() {
+    private void listen(DatagramSocket socket) {
         while (true) {
             var byteBuffer = new byte[DATAGRAM_SIZE];
             var messageBuffer = wrappedBuffer(byteBuffer);
             messageBuffer.clear();
             try {
                 var packet = new DatagramPacket(byteBuffer, DATAGRAM_SIZE);
-                multicastSocket.receive(packet);
+                socket.receive(packet);
                 messageBuffer.setIndex(0, packet.getLength());
                 var message = serializer.deserialize(messageBuffer);
                 if (message.isSearching()) {
@@ -194,7 +158,7 @@ public class DiscoveryProtocol extends GenericProtocol {
                     Host destination = message.getDiscoveryHost();
                     DatagramPacket replyPacket = new DatagramPacket(replyMessage, replyMessage.length,
                             destination.getAddress(), destination.getPort());
-                    multicastSocket.send(replyPacket);
+                    socket.send(replyPacket);
                     logger.info("Replied");
                 } else {
                     var serviceWaiting = servicesWaiting.remove(message.getServiceName());

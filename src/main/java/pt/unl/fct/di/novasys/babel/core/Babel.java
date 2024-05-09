@@ -19,7 +19,9 @@ import pt.unl.fct.di.novasys.channel.tcp.SharedTCPChannel;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
 import pt.unl.fct.di.novasys.network.ISerializer;
 import pt.unl.fct.di.novasys.network.data.Host;
+
 import org.apache.commons.lang3.tuple.Triple;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -126,6 +128,10 @@ public class Babel {
 
         //registerChannelInitializer("Ackos", new AckosChannelInitializer());
         //registerChannelInitializer(MultithreadedTCPChannel.NAME, new MultithreadedTCPChannelInitializer());
+
+        // Initialize security features
+        // TODO make these be loaded only if a protocol would use them
+        java.security.Security.addProvider(new BouncyCastleProvider());
     }
 
     private void timerLoop() {

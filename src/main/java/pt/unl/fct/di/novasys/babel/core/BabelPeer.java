@@ -1,34 +1,36 @@
 package pt.unl.fct.di.novasys.babel.core;
 
+import java.security.PublicKey;
 import java.security.cert.Certificate;
+import java.util.Base64;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
-
-import org.bouncycastle.util.encoders.Hex;
+import java.util.concurrent.ConcurrentHashMap;
 
 import pt.unl.fct.di.novasys.network.data.Host;
 
 /**
- * TODO This class does nothing for now. It's just a placeholder until I think of how IDs should be stored
+ * TODO docs
  */
 public class BabelPeer {
-    private static final int DEFAULT_HOSTS_SIZE = 1;
+    private static final int DEFAULT_HOSTS_NUM = 1;
 
     private final byte[] peerId;
     private final Set<Host> hosts;
-    private Certificate certificate;
+    // TODO should this be a certificate instead? And should this be a set or just a single element?
+    private PublicKey publicKey;
 
     public BabelPeer(byte[] peerId) {
         this.peerId = peerId;
-        this.hosts = new HashSet<>(DEFAULT_HOSTS_SIZE);
+        this.hosts = HashSet.newHashSet(DEFAULT_HOSTS_NUM);
     }
 
-    public BabelPeer(byte[] peerId, Certificate certificate) {
+    public BabelPeer(byte[] peerId, PublicKey publicKey) {
         this.peerId = peerId;
-        this.hosts = new HashSet<>(DEFAULT_HOSTS_SIZE);
-        this.certificate = certificate;
+        this.hosts = ConcurrentHashMap.newKeySet(DEFAULT_HOSTS_NUM);
+        this.publicKey = publicKey;
     }
-
 
     public byte[] getId() {
         byte[] copy = new byte[peerId.length];
@@ -36,22 +38,36 @@ public class BabelPeer {
         return copy;
     }
 
-    public String getIdHex() {
-        return Hex.toHexString(peerId);
-    }
-
     public Host getHost() {
         return hosts.iterator().next();
     }
 
-    // TODO throw no certificate exception
-    public Certificate getCertificate() {
-        return certificate;
+    public Iterator<Host> getHosts() {
+        return hosts.iterator();
     }
 
-    public Certificate setCertificate(Certificate newCertificate) {
-        var old = certificate;
-        certificate = newCertificate;
-        return old;
+    public void addHost(Host newHost) {
+        hosts.add(newHost);
+    }
+
+    public boolean removeHost(Host host) {
+        return hosts.remove(host);
+    }
+
+    // TODO throw no public key exception
+    public PublicKey getPublicKey() {
+        return publicKey;
+    }
+
+    public void setPublicKey(PublicKey newPublicKey) {
+        publicKey = newPublicKey;
+    }
+
+    /**
+     * A base64 encoded string of this peer's id.
+     */
+    @Override
+    public String toString() {
+        return Base64.getEncoder().encodeToString(peerId);
     }
 }

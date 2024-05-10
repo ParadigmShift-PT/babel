@@ -75,6 +75,7 @@ public class ParameterMessage extends ProtoMessage {
                     currentProto = null;
                     currentParam = null;
                     paramValue = null;
+                    currentMapping = null;
                 } else if (readByte == PROTO_AND_PARAM_SEPARATOR) {
                     currentProto = new String(tmpBuf, 0, idx - 1, StandardCharsets.UTF_8);
                     currentMapping = protoParam.get(currentProto);
@@ -84,10 +85,13 @@ public class ParameterMessage extends ProtoMessage {
                     }
                     idx = 0;
                 } else if (readByte == PARAM_AND_PARAM_SEPARATOR) {
-                    if (currentParam != null) {
-                        if (idx - 1 != 0) {
-                            paramValue = new String(tmpBuf, 0, idx - 1, StandardCharsets.UTF_8);
-                        }
+                    if (idx == 1) {
+                        idx = 0;
+                    } else if (currentParam == null) {
+                        currentParam = new String(tmpBuf, 0, idx - 1, StandardCharsets.UTF_8);
+                        currentMapping.put(currentParam, null);
+                    } else {
+                        paramValue = new String(tmpBuf, 0, idx - 1, StandardCharsets.UTF_8);
                         currentMapping.put(currentParam, paramValue);
                     }
                     currentParam = null;
@@ -113,13 +117,14 @@ public class ParameterMessage extends ProtoMessage {
                     out.writeByte(PARAM_AND_PARAM_SEPARATOR);
                     byte[] serializedParamName = paramEntry.getKey().getBytes(StandardCharsets.UTF_8);
                     out.writeBytes(serializedParamName);
-                    out.writeByte(PARAM_AND_VALUE_SEPARATOR);
-                    String value = paramEntry.getKey();
+                    String value = paramEntry.getValue();
                     if (value != null) {
-                        byte[] serializedValue = paramEntry.getKey().getBytes(StandardCharsets.UTF_8);
+                        out.writeByte(PARAM_AND_VALUE_SEPARATOR);
+                        byte[] serializedValue = paramEntry.getValue().getBytes(StandardCharsets.UTF_8);
                         out.writeBytes(serializedValue);
                     }
                 }
+                out.writeByte(PARAM_AND_PARAM_SEPARATOR);
             }
         }
     };

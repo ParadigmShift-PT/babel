@@ -33,7 +33,6 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.security.Security;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -199,6 +198,8 @@ public class Babel {
                     if (getter.invoke(scProto) == null) {
                         this.selfConfiguration.addProtocolParameterToConfigure(field.getName(), setter, getter,
                                 scProto);
+                    } else {
+                        this.selfConfiguration.addProtocolParameterConfigured(field.getName(), setter, getter, scProto);
                     }
                 } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
                     throw new RuntimeException("Protocol badly constructed");
@@ -206,6 +207,7 @@ public class Babel {
             }
         }
         if (scProto.readyToStart()) {
+            scProto.setWhispererContact(discovery.getMyself());
             scProto.start();
             scProto.startEventThread();
         }
@@ -232,7 +234,8 @@ public class Babel {
             selfConfiguration.init(props);
         } catch (IOException | HandlerRegistrationException e) {
             e.printStackTrace();
-            throw new RuntimeException("Something went wrong while starting the Discovery or Self Configuration Protocol");
+            throw new RuntimeException(
+                    "Something went wrong while starting the Discovery or Self Configuration Protocol");
         }
 
         MetricsManager.getInstance().start();

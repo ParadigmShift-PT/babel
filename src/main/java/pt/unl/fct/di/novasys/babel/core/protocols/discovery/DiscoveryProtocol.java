@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.Inet4Address;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
@@ -23,6 +24,7 @@ import pt.unl.fct.di.novasys.babel.core.SelfConfiguredProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.messages.ServiceMessage;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.timers.AnoucementTimer;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
+import pt.unl.fct.di.novasys.babel.utils.NetworkingUtilities;
 import pt.unl.fct.di.novasys.network.ISerializer;
 import pt.unl.fct.di.novasys.network.data.Host;
 
@@ -102,13 +104,20 @@ public class DiscoveryProtocol extends GenericProtocol {
 
         datagramSocket = new DatagramSocket(targetPort);
 
-        var possibleAdresses = networkInterface.getInetAddresses();
-        while (possibleAdresses.hasMoreElements() && myself == null) {
-            var possibleAdress = possibleAdresses.nextElement();
-            if (possibleAdress instanceof Inet4Address) {
-                myself = new Host(possibleAdress, targetPort);
+        networkInterfaceString = props.getProperty("BabelWhisperer.Unicast.Interface");
+        InetAddress address = null;
+        if (networkInterfaceString == null) {
+            String addressString = props.getProperty("BabelWhisperer.Unicast.Address");
+            if (addressString == null) {
+                address = InetAddress.getByName(NetworkingUtilities.getAddress("eth0"));
+            } else {
+                address = InetAddress.getByName(addressString);
             }
+        } else {
+            address = InetAddress.getByName(NetworkingUtilities.getAddress(networkInterfaceString));
         }
+
+        myself = new Host(address, targetPort);
 
         registerTimerHandler(AnoucementTimer.TIMER_ID, this::announce);
 
@@ -171,6 +180,7 @@ public class DiscoveryProtocol extends GenericProtocol {
                         continue;
                     }
                     serviceWaiting.proto().setContact(message.getServiceHost());
+                    serviceWaiting.proto().setWhispererContact(message.getDiscoveryHost());
                     babel.setupSelfConfiguration(serviceWaiting.proto());
                 }
                 messageBuffer.clear();
@@ -201,5 +211,9 @@ public class DiscoveryProtocol extends GenericProtocol {
         serializer.serialize(message, messageByteBuf);
 
         servicesWaiting.put(serviceName, new WaitingContact(messageBytes, sourceProtocol));
+    }
+
+    public Host getMyself() {
+        return myself;
     }
 }

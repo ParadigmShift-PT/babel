@@ -10,6 +10,7 @@ public abstract class SelfConfiguredProtocol extends GenericProtocol {
     private Properties props;
     private Host contact;
     private Host myself;
+    private Host whispererContact;
 
     public SelfConfiguredProtocol(String protoName, short protoId) {
         super(protoName, protoId);
@@ -32,7 +33,7 @@ public abstract class SelfConfiguredProtocol extends GenericProtocol {
      */
     protected abstract void start();
 
-    protected abstract boolean readyToStart();
+    public abstract boolean readyToStart();
 
     public void setContact(Host host) {
         this.contact = host;
@@ -48,5 +49,13 @@ public abstract class SelfConfiguredProtocol extends GenericProtocol {
 
     public Host getMyself() {
         return this.myself;
+    }
+
+    public void setWhispererContact(Host whisperer) {
+        this.whispererContact = whisperer;
+    }
+
+    public Host getWhisperer() {
+        return this.whispererContact;
     }
 }

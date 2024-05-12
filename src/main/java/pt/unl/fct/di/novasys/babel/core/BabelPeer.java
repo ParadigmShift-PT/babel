@@ -1,5 +1,6 @@
 package pt.unl.fct.di.novasys.babel.core;
 
+import java.beans.Encoder;
 import java.security.PublicKey;
 import java.security.cert.Certificate;
 import java.util.Base64;
@@ -8,6 +9,7 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import pt.unl.fct.di.novasys.babel.internal.PeerIdEncoder;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 /**
@@ -64,10 +66,10 @@ public class BabelPeer {
     }
 
     /**
-     * A base64 encoded string of this peer's id.
+     * A string encoded form of this peer's id.
      */
     @Override
     public String toString() {
-        return Base64.getEncoder().encodeToString(peerId);
+        return PeerIdEncoder.encodeToString(peerId);
     }
 }

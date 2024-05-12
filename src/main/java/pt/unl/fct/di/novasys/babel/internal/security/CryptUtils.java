@@ -14,6 +14,7 @@ import java.security.cert.X509Certificate;
 import java.security.spec.RSAKeyGenParameterSpec;
 import java.util.Date;
 
+import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.x500.RDN;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x500.X500NameBuilder;
@@ -47,6 +48,7 @@ public class CryptUtils {
      * style in the ordering of the RDNs.
      */
     public static final X500NameStyle CERT_X500_NAME_STYLE = RFC4519Style.INSTANCE;
+    public static final ASN1ObjectIdentifier X500_PEER_ID_OID = BCStyle.UNIQUE_IDENTIFIER;
 
     // TODO the following two values were simply taken from Java Cryptography: Tools and Techniques, page 140.
     // Confirm their validity later
@@ -91,7 +93,7 @@ public class CryptUtils {
         // TODO choose something less tied to names and addresses...
         // TODO I think I can create my own "Style". I.e., custom RelativeDistinguishedNames. See p. 200
         X500Name myName = new X500NameBuilder(BCStyle.INSTANCE)
-            .addRDN(BCStyle.NAME, identity)
+            .addRDN(X500_PEER_ID_OID, identity)
             .build();
         myName = X500Name.getInstance(CERT_X500_NAME_STYLE, myName); // Convert to chosen style
         var certBuilder = new JcaX509v1CertificateBuilder(
@@ -123,11 +125,11 @@ public class CryptUtils {
     /**
      * @param cert A X509Certificate
      */
-    public String getCertificateSubjectName(X509Certificate cert) {
+    public static String getX509CertificatePeerId(X509Certificate cert) {
         try {
             X509CertificateHolder certHolder = new JcaX509CertificateHolder(cert);
             X500Name x500name = certHolder.getSubject();
-            RDN name = x500name.getRDNs(BCStyle.NAME)[0];
+            RDN name = x500name.getRDNs(X500_PEER_ID_OID)[0];
 
             return IETFUtils.valueToString(name.getFirst().getValue());
         } catch (CertificateEncodingException e) {

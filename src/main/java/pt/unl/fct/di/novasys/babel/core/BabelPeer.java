@@ -1,9 +1,6 @@
 package pt.unl.fct.di.novasys.babel.core;
 
-import java.beans.Encoder;
 import java.security.PublicKey;
-import java.security.cert.Certificate;
-import java.util.Base64;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
@@ -20,8 +17,6 @@ public class BabelPeer {
 
     private final byte[] peerId;
     private final Set<Host> hosts;
-    // TODO should this be a certificate instead? And should this be a set or just a single element?
-    private PublicKey publicKey;
 
     public BabelPeer(byte[] peerId) {
         this.peerId = peerId;
@@ -31,7 +26,6 @@ public class BabelPeer {
     public BabelPeer(byte[] peerId, PublicKey publicKey) {
         this.peerId = peerId;
         this.hosts = ConcurrentHashMap.newKeySet(DEFAULT_HOSTS_NUM);
-        this.publicKey = publicKey;
     }
 
     public byte[] getId() {
@@ -54,15 +48,6 @@ public class BabelPeer {
 
     public boolean removeHost(Host host) {
         return hosts.remove(host);
-    }
-
-    // TODO throw no public key exception
-    public PublicKey getPublicKey() {
-        return publicKey;
-    }
-
-    public void setPublicKey(PublicKey newPublicKey) {
-        publicKey = newPublicKey;
     }
 
     /**

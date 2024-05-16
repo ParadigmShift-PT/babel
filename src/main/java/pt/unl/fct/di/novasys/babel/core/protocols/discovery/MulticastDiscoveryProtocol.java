@@ -106,7 +106,7 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
         InetAddress address = null;
         
         if(props.contains(PAR_DISCOVERY_UNICAST_ADDRESS)) {
-        	address = InetAddress.ofLiteral(props.getProperty(PAR_DISCOVERY_UNICAST_ADDRESS));
+        	address = InetAddress.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_ADDRESS));
         } else if(props.contains(PAR_DISCOVERY_UNICAST_INTERFACE)) {
         	List<InterfaceAddress> l =  NetworkInterface.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_INTERFACE)).getInterfaceAddresses();
         	for(InterfaceAddress a: l) {

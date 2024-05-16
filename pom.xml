@@ -97,7 +97,7 @@
     <dependencies>
         <dependency>
             <groupId>pt.unl.fct.di.novasys</groupId>
-            <artifactId>network-layer-21</artifactId>
+            <artifactId>network-layer-j21</artifactId>
             <version>3.0.0</version>
         </dependency>
     </dependencies>

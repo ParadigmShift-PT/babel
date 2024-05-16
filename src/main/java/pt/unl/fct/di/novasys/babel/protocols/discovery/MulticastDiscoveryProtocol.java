@@ -17,13 +17,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import pt.unl.fct.di.novasys.babel.protocols.DiscoverableProtocol;
 import pt.unl.fct.di.novasys.babel.protocols.discovery.messages.AnouncementMessage;
 import pt.unl.fct.di.novasys.babel.protocols.discovery.timers.AnoucementTimer;
 import io.netty.buffer.ByteBuf;
 import static io.netty.buffer.Unpooled.*;
 
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
+import pt.unl.fct.di.novasys.babel.core.protocol.DiscoverableProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.network.ISerializer;
 import pt.unl.fct.di.novasys.network.data.Host;
@@ -32,45 +32,47 @@ import pt.unl.fct.di.novasys.network.data.Host;
  * Protocol to be included in the Babel framework in the future
  * 
  * It does not depend on the network-layer as Babel does right now since it does
- * not support any other comunications besides TCP. In the future it might be
+ * not support any other communications besides TCP. In the future it might be
  * expanded
  */
-public class DiscoveryProtocol extends GenericProtocol {
-    private static final Logger logger = LogManager.getLogger(DiscoveryProtocol.class);
+public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
+    private static final Logger logger = LogManager.getLogger(MulticastDiscoveryProtocol.class);
 
-    public static final int DEFAULT_PORT = 19348;
+    public static final int DEFAULT_PORT = 1025;
     public static final String MULTICAST_ADDRESS = "233.138.122.123";
     public static final int ANOUNCEMENT_COOLDOWN = 1000;
-    public static final short PROTO_ID = 603;
-    public static final String PROTO_NAME = "BabelDiscovery";
+    public static final short PROTO_ID = 32767;
+    public static final String PROTO_NAME = "BabelMulticastDiscovery";
     public static final int DATAGRAM_SIZE = 65535;
     @SuppressWarnings("unchecked")
     private static final ISerializer<AnouncementMessage> serializer = (ISerializer<AnouncementMessage>) AnouncementMessage.serializer;
 
+    public static final String PAR_DISCOVERY_MULTICAST_INTERFACE = "babel.discocvery.multicast.interface";
+    public static final String PAR_DISCOVERY_MULTICAST_ADDRESS = "babel.discovery.multicast.addr";
+    public static final String PAR_DISCOVERY_MULTICAST_PORT = "babel.discovery.multicast.port";
+ 
     private MulticastSocket multicastSocket;
     private Set<AnouncementMessage> servicesToAnounce;
     private Map<String, Set<DiscoverableProtocol>> servicesToListen;
     private Thread listeningThread;
     private InetSocketAddress multicastSocketAddress;
 
-    public DiscoveryProtocol(Properties props) throws IOException, HandlerRegistrationException {
+    public MulticastDiscoveryProtocol(Properties props) throws IOException, HandlerRegistrationException {
         super(PROTO_NAME, PROTO_ID);
 
         servicesToAnounce = ConcurrentHashMap.newKeySet();
         servicesToListen = new HashMap<>();
 
-        String targetPortString = props.getProperty("babel_discovery_port");
         int targetPort = DEFAULT_PORT;
-        if (targetPortString != null) {
-            targetPort = Integer.parseInt(targetPortString);
+        if (props.contains(PAR_DISCOVERY_MULTICAST_PORT)) {
+            targetPort = Integer.parseInt(props.getProperty(PAR_DISCOVERY_MULTICAST_PORT));
         }
 
-        multicastSocketAddress = new InetSocketAddress(
-                props.getProperty("babel_multicast_address", MULTICAST_ADDRESS), targetPort);
-        String networkInterfaceString = props.getProperty("babel_multicast_interface");
+        multicastSocketAddress = new InetSocketAddress(props.getProperty(PAR_DISCOVERY_MULTICAST_ADDRESS, MULTICAST_ADDRESS), targetPort);
+   
         NetworkInterface networkInterface;
-        if (networkInterfaceString == null) {
-            // Bind to any interface that supports multicast
+        if (!props.contains(PAR_DISCOVERY_MULTICAST_INTERFACE)) {
+            // Bind to all?? interface that supports multicast
             networkInterface = NetworkInterface.networkInterfaces()
                     .filter(i -> {
                         try {
@@ -83,8 +85,7 @@ public class DiscoveryProtocol extends GenericProtocol {
                     .findAny()
                     .orElseThrow(() -> new RuntimeException("No network interface supports multicast"));
         } else {
-            InetAddress interfaceAddress = InetAddress.getByName(networkInterfaceString);
-            networkInterface = NetworkInterface.getByInetAddress(interfaceAddress);
+            networkInterface = NetworkInterface.getByInetAddress(InetAddress.getByName(props.getProperty(PAR_DISCOVERY_MULTICAST_INTERFACE)));
         }
         multicastSocket = new MulticastSocket(targetPort);
         multicastSocket.joinGroup(multicastSocketAddress, networkInterface);

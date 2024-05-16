@@ -1,4 +1,4 @@
-package pt.unl.fct.di.novasys.babel.protocols;
+package pt.unl.fct.di.novasys.babel.core.protocol;
 
 import pt.unl.fct.di.novasys.network.data.Host;
 

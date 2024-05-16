@@ -1,5 +1,5 @@
 deploy:
-  image: maven:3.9.6-ibmjava-8
+  image: maven:3.9.6-sapmachine-21
   before_script:
     - 'command -v ssh-agent >/dev/null || ( apt-get update -y && apt-get install openssh-client -y )'
     - eval `ssh-agent -s`

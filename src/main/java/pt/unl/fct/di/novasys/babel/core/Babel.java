@@ -5,11 +5,11 @@ import pt.unl.fct.di.novasys.babel.internal.BabelMessage;
 import pt.unl.fct.di.novasys.babel.internal.IPCEvent;
 import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
 import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
+import pt.unl.fct.di.novasys.babel.core.protocol.DiscoverableProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
 import pt.unl.fct.di.novasys.babel.metrics.MetricsManager;
-import pt.unl.fct.di.novasys.babel.protocols.DiscoverableProtocol;
 import pt.unl.fct.di.novasys.babel.protocols.discovery.DiscoveryProtocol;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
@@ -88,6 +88,9 @@ public class Babel {
     private final Map<Short, GenericProtocol> protocolMap;
     private final Map<String, GenericProtocol> protocolByNameMap;
     private final Map<Short, Set<GenericProtocol>> subscribers;
+   
+    
+    public final static String PAR_DISCOVERY_PROTOCOL = "babel.discovery";
     private DiscoveryProtocol discovery;
 
     // Timers
@@ -123,12 +126,6 @@ public class Babel {
         channelMap = new ConcurrentHashMap<>();
         channelIdGenerator = new AtomicInteger(0);
         this.initializers = new ConcurrentHashMap<>();
-
-        try {
-            registerProtocol(DiscoveryProtocol.class);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
 
         registerChannelInitializer(SimpleClientChannel.NAME, new SimpleClientChannelInitializer());
         registerChannelInitializer(SimpleServerChannel.NAME, new SimpleServerChannelInitializer());
@@ -174,12 +171,10 @@ public class Babel {
         MetricsManager.getInstance().start();
         timersThread.start();
         for (GenericProtocol proto : protocolMap.values()) {
-            if (proto.needsContact() && proto instanceof DiscoverableProtocol discProto) {
+            if (discovery != null && proto.needsContact() && proto instanceof DiscoverableProtocol discProto) {
                 discovery.serviceListenRequest(proto.getProtoName(), discProto);
             } else {
-                proto.setToStart();
-                proto.start();
-                proto.startEventThread();
+            	proto.startEventThread();
             }
         }
     }
@@ -206,6 +201,30 @@ public class Babel {
         }
     }
 
+    
+    /**
+     * Register a discovery protocol in Babel using its class
+     * 
+     * @param p the protocol class
+     * @throws ProtocolAlreadyExistsException if a protocol with the same id or name
+     *                                        has already been registered
+     */
+    public void registerDiscoveryProtocol(Class<? extends DiscoveryProtocol> p) throws ProtocolAlreadyExistsException {
+        Constructor lmao;
+        try {
+            lmao = p.getConstructor(Properties.class);
+        } catch (NoSuchMethodException e) {
+            throw new RuntimeException("Protocol badly constructed");
+        }
+        try {
+            this.discovery = (DiscoveryProtocol) lmao.newInstance(configuration);
+        } catch (Exception e) {
+            throw new RuntimeException("Protocol badly constructed");
+        }
+
+        registerProtocol(this.discovery);
+    }
+    
     /**
      * Register a protocol in Babel using its class
      * 
@@ -449,7 +468,8 @@ public class Babel {
      * @throws InvalidParameterException if the console parameters are not in the
      *                                   format: prop=value
      */
-    public Properties loadConfig(String[] args, String defaultConfigFile)
+    @SuppressWarnings("unchecked")
+	public Properties loadConfig(String[] args, String defaultConfigFile)
             throws IOException, InvalidParameterException {
 
         if (configuration != null) {
@@ -471,6 +491,19 @@ public class Babel {
             else
                 throw new InvalidParameterException("Unknown parameter: " + arg);
         }
+        
+        if(configuration.contains(PAR_DISCOVERY_PROTOCOL)) {
+            try {
+            	Class<? extends DiscoveryProtocol> discoveryClass = (Class<? extends DiscoveryProtocol>) Class.forName(configuration.getProperty(PAR_DISCOVERY_PROTOCOL));
+            	registerDiscoveryProtocol( ((Class<DiscoveryProtocol> )discoveryClass ));
+            } catch (Exception e) {
+                e.printStackTrace();
+                System.err.println("Unable to load DiscoveryProtocol: '" + configuration.getProperty(PAR_DISCOVERY_PROTOCOL) + "'");
+            }
+        } else {
+        	this.discovery = null;
+        }
+        
         return configuration;
     }
 

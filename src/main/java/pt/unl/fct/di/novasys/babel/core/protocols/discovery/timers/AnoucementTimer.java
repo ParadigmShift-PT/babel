@@ -1,4 +1,4 @@
-package pt.unl.fct.di.novasys.babel.protocols.discovery.timers;
+package pt.unl.fct.di.novasys.babel.core.protocols.discovery.timers;
 
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
 

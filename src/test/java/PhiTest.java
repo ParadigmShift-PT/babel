@@ -16,11 +16,11 @@ import java.util.Properties;
 public class PhiTest {
 
     public static void main(String[] args) throws InvalidParameterException, IOException, ProtocolAlreadyExistsException, HandlerRegistrationException {
-        Babel babel = Babel.getInstance();
-        babel.loadConfig(Arrays.copyOfRange(args, 0, args.length), null);
-        // TODO fix this later
-        PhiProto phiProto = new PhiProto(new Properties());
+    	Babel babel = Babel.getInstance();
+    	Properties configProps = babel.loadConfig(Arrays.copyOfRange(args, 0, args.length), null);
+        PhiProto phiProto = new PhiProto(configProps);
         babel.registerProtocol(phiProto);
+        phiProto.init(configProps);
         babel.start();
     }
 
@@ -28,7 +28,6 @@ public class PhiTest {
     public static class PhiProto extends GenericProtocol{
 
         private final String listenPort;
-        private Host connection;
 
         public PhiProto(Properties configProps) throws IOException, HandlerRegistrationException {
             super("Phi", (short) 10);
@@ -52,18 +51,16 @@ public class PhiTest {
             registerChannelEventHandler(peerChannel, OutConnectionFailed.EVENT_ID, this::onOutConnectionFailed);
             registerChannelEventHandler(peerChannel, PhiEvent.EVENT_ID, this::onPhiEvent);
 
+
+        }
+
+        @Override
+        public void init(Properties configProps) throws HandlerRegistrationException, IOException {
             String mode = configProps.getProperty("mode");
             if(mode.equals("client")){
                 String serverPort = configProps.getProperty("server_port");
                 String serverAddr = configProps.getProperty("server_addr");
-                connection = new Host(InetAddress.getByName(serverAddr), Integer.parseInt(serverPort));
-            }
-        }
-
-        @Override
-        public void start() {
-            if (connection != null) {
-                openConnection(connection);
+                openConnection(new Host(InetAddress.getByName(serverAddr), Integer.parseInt(serverPort)));
             }
         }
 

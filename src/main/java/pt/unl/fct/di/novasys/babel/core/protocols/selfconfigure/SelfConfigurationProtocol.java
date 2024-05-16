@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
-import pt.unl.fct.di.novasys.babel.core.SelfConfiguredProtocol;
+import pt.unl.fct.di.novasys.babel.core.SelfConfigurableProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.messages.ParameterMessage;
 import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.timers.SearchTimer;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
@@ -36,7 +36,7 @@ public class SelfConfigurationProtocol extends GenericProtocol {
 
     private final Map<String, Map<String, Parameter>> protocolToParameterToConfigure;
     private final Map<String, Map<String, Parameter>> protocolToParameterConfigured;
-    private final Map<String, SelfConfiguredProtocol> protocolMap;
+    private final Map<String, SelfConfigurableProtocol> protocolMap;
     private final Map<Host, ParameterMessage> msgToSend;
 
     private int defaultChannelID;
@@ -85,7 +85,7 @@ public class SelfConfigurationProtocol extends GenericProtocol {
     }
 
     public void addProtocolParameterToConfigure(String parameterName, Method setter, Method getter,
-            SelfConfiguredProtocol proto) {
+            SelfConfigurableProtocol proto) {
         Parameter parameter = new Parameter(getter, setter, proto);
         Map<String, Parameter> protocolParameters = protocolToParameterToConfigure.get(proto.getProtoName());
         if (protocolParameters == null) {
@@ -97,7 +97,7 @@ public class SelfConfigurationProtocol extends GenericProtocol {
     }
 
     public void addProtocolParameterConfigured(String parameterName, Method setter, Method getter,
-            SelfConfiguredProtocol proto) {
+            SelfConfigurableProtocol proto) {
         Parameter parameter = new Parameter(getter, setter, proto);
         Map<String, Parameter> protocolParameter = protocolToParameterConfigured.get(proto.getProtoName());
         if (protocolParameter == null) {
@@ -132,7 +132,7 @@ public class SelfConfigurationProtocol extends GenericProtocol {
         var receivedParams = msg.getAllProtocolParams();
         ParameterMessage replyMsg = new ParameterMessage();
         for (var protoEntry : receivedParams.entrySet()) {
-            SelfConfiguredProtocol proto = protocolMap.get(protoEntry.getKey());
+            SelfConfigurableProtocol proto = protocolMap.get(protoEntry.getKey());
             boolean wasNotReady = proto.readyToStart();
             Map<String, Parameter> thisProtocolToConfigure = protocolToParameterToConfigure.get(protoEntry.getKey());
             Map<String, Parameter> thisProtocolConfigured = protocolToParameterConfigured.get(protoEntry.getKey());

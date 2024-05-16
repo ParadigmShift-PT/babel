@@ -4,7 +4,7 @@ import java.util.Properties;
 
 import pt.unl.fct.di.novasys.network.data.Host;
 
-public abstract class SelfConfiguredProtocol extends GenericProtocol {
+public abstract class SelfConfigurableProtocol extends GenericProtocol {
 
     private boolean started;
     private Properties props;
@@ -12,7 +12,7 @@ public abstract class SelfConfiguredProtocol extends GenericProtocol {
     private Host myself;
     private Host whispererContact;
 
-    public SelfConfiguredProtocol(String protoName, short protoId) {
+    public SelfConfigurableProtocol(String protoName, short protoId) {
         super(protoName, protoId);
     }
 

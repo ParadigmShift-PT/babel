@@ -21,7 +21,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import io.netty.buffer.ByteBuf;
-import pt.unl.fct.di.novasys.babel.core.SelfConfiguredProtocol;
+import pt.unl.fct.di.novasys.babel.core.SelfConfigurableProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.messages.ServiceMessage;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.timers.AnoucementTimer;
@@ -218,7 +218,7 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
         servicesToReplyMessage.put(serviceName, messageBytes);
     }
 
-    public void serviceSearchAnounceRequest(String serviceName, SelfConfiguredProtocol sourceProtocol, Host host)
+    public void serviceSearchAnounceRequest(String serviceName, SelfConfigurableProtocol sourceProtocol, Host host)
             throws IOException {
         logger.info("Got search request for " + serviceName);
         byte[] messageBytes = new byte[DATAGRAM_SIZE];

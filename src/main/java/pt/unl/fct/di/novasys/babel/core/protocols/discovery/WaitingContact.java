@@ -1,6 +1,6 @@
 package pt.unl.fct.di.novasys.babel.core.protocols.discovery;
 
-import pt.unl.fct.di.novasys.babel.core.SelfConfiguredProtocol;
+import pt.unl.fct.di.novasys.babel.core.SelfConfigurableProtocol;
 
-public record WaitingContact(byte[] anouncement, SelfConfiguredProtocol proto) {
+public record WaitingContact(byte[] anouncement, SelfConfigurableProtocol proto) {
 }

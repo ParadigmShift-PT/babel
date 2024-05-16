@@ -176,8 +176,8 @@ public class Babel {
      * 
      * @param scProto the protocol to be set up
      */
-    public void setupSelfConfiguration(SelfConfiguredProtocol scProto) {
-        Class<? extends SelfConfiguredProtocol> scProtoClass = scProto.getClass();
+    public void setupSelfConfiguration(SelfConfigurableProtocol scProto) {
+        Class<? extends SelfConfigurableProtocol> scProtoClass = scProto.getClass();
         Field[] fields = scProtoClass.getDeclaredFields();
         try {
             if (scProto.getContact() == null) {
@@ -259,7 +259,7 @@ public class Babel {
         timersThread.start();
         for (GenericProtocol proto : protocolMap.values()) {
             logger.info("Starting " + proto.getProtoName());
-            if (discovery != null && proto instanceof SelfConfiguredProtocol scProto) {
+            if (discovery != null && proto instanceof SelfConfigurableProtocol scProto) {
                 setupSelfConfiguration(scProto);
             } else {
                 proto.startEventThread();

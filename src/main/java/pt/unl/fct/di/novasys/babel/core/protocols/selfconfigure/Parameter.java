@@ -2,8 +2,8 @@ package pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure;
 
 import java.lang.reflect.Method;
 
-import pt.unl.fct.di.novasys.babel.core.SelfConfiguredProtocol;
+import pt.unl.fct.di.novasys.babel.core.SelfConfigurableProtocol;
 
-public record Parameter(Method getter, Method setter, SelfConfiguredProtocol proto) {
+public record Parameter(Method getter, Method setter, SelfConfigurableProtocol proto) {
     
 }

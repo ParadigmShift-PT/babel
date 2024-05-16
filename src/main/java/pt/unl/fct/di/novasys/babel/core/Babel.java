@@ -5,9 +5,8 @@ import pt.unl.fct.di.novasys.babel.internal.BabelMessage;
 import pt.unl.fct.di.novasys.babel.internal.IPCEvent;
 import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
 import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
-import pt.unl.fct.di.novasys.babel.core.protocols.discovery.DiscoveryProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.SelfConfigurationProtocol;
-import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
+import pt.unl.fct.di.novasys.babel.core.protocols.discovery.DiscoveryProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
@@ -97,6 +96,9 @@ public class Babel {
     private final Map<Short, GenericProtocol> protocolMap;
     private final Map<String, GenericProtocol> protocolByNameMap;
     private final Map<Short, Set<GenericProtocol>> subscribers;
+   
+    
+    public final static String PAR_DISCOVERY_PROTOCOL = "babel.discovery";
     private DiscoveryProtocol discovery;
     private SelfConfigurationProtocol selfConfiguration;
 
@@ -217,7 +219,21 @@ public class Babel {
      * Begins the execution of all protocols registered in Babel
      */
     public void start() {
-        this.discovery = new DiscoveryProtocol();
+    	
+    	if(props.contains(PAR_DISCOVERY_PROTOCOL)) {
+               try {
+				@SuppressWarnings("unchecked")
+				Class<? extends DiscoveryProtocol> discoveryClass = (Class<? extends DiscoveryProtocol>) Class.forName(props.getProperty(PAR_DISCOVERY_PROTOCOL));
+               	this.discovery = (DiscoveryProtocol) discoveryClass.getConstructors()[0].newInstance();
+               } catch (Exception e) {
+                   e.printStackTrace();
+                   System.err.println("Unable to load DiscoveryProtocol: '" + props.getProperty(PAR_DISCOVERY_PROTOCOL) + "'");
+               }
+           } else {
+           	this.discovery = null;
+           }
+           
+    	
         this.selfConfiguration = new SelfConfigurationProtocol();
 
         try {
@@ -230,9 +246,10 @@ public class Babel {
         startTime = System.currentTimeMillis();
         started = true;
         try {
-            discovery.init(props);
+            if(this.discovery != null)
+            	discovery.init(props);
             selfConfiguration.init(props);
-        } catch (IOException | HandlerRegistrationException e) {
+        } catch (Exception e) {
             e.printStackTrace();
             throw new RuntimeException(
                     "Something went wrong while starting the Discovery or Self Configuration Protocol");
@@ -242,7 +259,7 @@ public class Babel {
         timersThread.start();
         for (GenericProtocol proto : protocolMap.values()) {
             logger.info("Starting " + proto.getProtoName());
-            if (proto instanceof SelfConfiguredProtocol scProto) {
+            if (discovery != null && proto instanceof SelfConfiguredProtocol scProto) {
                 setupSelfConfiguration(scProto);
             } else {
                 proto.startEventThread();
@@ -495,7 +512,8 @@ public class Babel {
      * @throws InvalidParameterException if the console parameters are not in the
      *                                   format: prop=value
      */
-    public static Properties loadConfig(String[] args, String defaultConfigFile)
+
+    public Properties loadConfig(String[] args, String defaultConfigFile)
             throws IOException, InvalidParameterException {
 
         props = new Properties(args.length);
@@ -513,6 +531,7 @@ public class Babel {
             else
                 throw new InvalidParameterException("Unknown parameter: " + arg);
         }
+        
         return props;
     }
 

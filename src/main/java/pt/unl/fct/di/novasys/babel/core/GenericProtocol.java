@@ -1,6 +1,6 @@
 package pt.unl.fct.di.novasys.babel.core;
 
-import pt.unl.fct.di.novasys.babel.core.protocol.DiscoverableProtocol;
+import pt.unl.fct.di.novasys.babel.core.protocols.discovery.DiscoveryProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.handlers.*;
@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.logging.Handler;
 
 /**
  * An abstract class that represent a generic protocol
@@ -39,9 +40,6 @@ public abstract class GenericProtocol {
     private final Thread executionThread;
     private final String protoName;
     private final short protoId;
-    private boolean configured;
-    private boolean needsContact;
-    private boolean started;
 
     private int defaultChannel;
 
@@ -51,7 +49,7 @@ public abstract class GenericProtocol {
     private final Map<Short, ReplyHandler<? extends ProtoReply>> replyHandlers;
     private final Map<Short, NotificationHandler<? extends ProtoNotification>> notificationHandlers;
 
-    private static final Babel babel = Babel.getInstance();
+    public static final Babel babel = Babel.getInstance();
 
     //Debug
     ProtocolMetrics metrics = new ProtocolMetrics();
@@ -85,10 +83,6 @@ public abstract class GenericProtocol {
         this.requestHandlers = new HashMap<>();
         this.replyHandlers = new HashMap<>();
         this.notificationHandlers = new HashMap<>();
-
-        this.configured = true;
-        this.needsContact = true;
-        this.started = false;
 
         //tmx.setThreadContentionMonitoringEnabled(true);
     }
@@ -125,29 +119,6 @@ public abstract class GenericProtocol {
     }
 
     /**
-     * Returns whether or not this protocol needs to discover a contact to start
-     * 
-     * @return true if it needs a contact
-     */
-    public final boolean needsContact() {
-        return needsContact;
-    }
-
-    /**
-     * Sets the protocol to start.
-     * 
-     * Do not evoke directly.
-     */
-    void setToStart() {
-        started = true;
-    }
-
-    /**
-     * Starts the protocol
-     */
-    public abstract void start();
-
-    /**
      * Start the event thread of the protocol
      */
     public final void startEventThread() {
@@ -157,6 +128,13 @@ public abstract class GenericProtocol {
 
         }
     }
+
+    /**
+     * Initializes the protocol with the given properties
+     * 
+     * @param props properties
+     */
+    public abstract void init(Properties props) throws HandlerRegistrationException, IOException;
 
     public ProtocolMetrics getMetrics() {
         return metrics;
@@ -466,8 +444,6 @@ public abstract class GenericProtocol {
      * @param channelId the channel to create the connection in
      */
     protected final void openConnection(Host peer, int channelId) {
-        if (!started)
-            throw new RuntimeException("Can't open connections without starting first");
         babel.openConnection(channelId, peer, protoId);
     }
 
@@ -514,8 +490,6 @@ public abstract class GenericProtocol {
      * @throws NoSuchProtocolException if the protocol does not exists
      */
     protected final void sendRequest(ProtoRequest request, short destination) throws NoSuchProtocolException {
-        if (!started)
-            throw new RuntimeException("Can't send request without starting first");
         babel.sendIPC(new IPCEvent(request, protoId, destination));
     }
 
@@ -527,8 +501,6 @@ public abstract class GenericProtocol {
      * @throws NoSuchProtocolException if the protocol does not exists
      */
     protected final void sendReply(ProtoReply reply, short destination) throws NoSuchProtocolException {
-        if (!started)
-            throw new RuntimeException("Can't send reply without starting first");
         babel.sendIPC(new IPCEvent(reply, protoId, destination));
     }
 
@@ -563,8 +535,6 @@ public abstract class GenericProtocol {
      * @param n the notification event to trigger
      */
     protected final void triggerNotification(ProtoNotification n) {
-        if (!started) 
-            throw new RuntimeException("Can't trigger notifications without starting first");
         babel.triggerNotification(new NotificationEvent(n, protoId));
     }
 
@@ -579,8 +549,6 @@ public abstract class GenericProtocol {
      * @return unique identifier of the timer set
      */
     protected long setupPeriodicTimer(ProtoTimer timer, long first, long period) {
-        if (!started)
-            throw new RuntimeException("Can't setup periodic timer without starting first");
         return babel.setupPeriodicTimer(timer, this, first, period);
     }
 
@@ -592,8 +560,6 @@ public abstract class GenericProtocol {
      * @return unique identifier of the t set
      */
     protected long setupTimer(ProtoTimer t, long timeout) {
-        if (!started)
-            throw new RuntimeException("Can't setup timer without starting first");
         return babel.setupTimer(t, this, timeout);
     }
 

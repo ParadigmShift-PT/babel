@@ -11,13 +11,15 @@ import java.security.UnrecoverableEntryException;
 import pt.unl.fct.di.novasys.babel.internal.PeerIdEncoder;
 
 public class PrivateIdStore extends IdStore {
+    public static final String DEFAULT_ALIAS = "default";
+
     public PrivateIdStore() {
         super(new KeyStore.PasswordProtection(new char[0])); //TODO using empty passwords for now
     }
 
-    public PrivateKeyEntry getCredential(byte[] id) {
+    public PrivateKeyEntry getCredential(String alias) {
         try {
-            return (PrivateKeyEntry) keyStore.getEntry(PeerIdEncoder.encodeToString(id), protParam);
+            return (PrivateKeyEntry) keyStore.getEntry(alias, protParam);
         } catch (NoSuchAlgorithmException|UnrecoverableEntryException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
@@ -26,6 +28,14 @@ public class PrivateIdStore extends IdStore {
             assert false; // The keystore has to have been initialized at this point
             return null;
         }
+    }
+
+    public PrivateKeyEntry getDefaultCredential() {
+        return getCredential(DEFAULT_ALIAS);
+    }
+
+    public PrivateKeyEntry getCredential(byte[] id) {
+        return getCredential(PeerIdEncoder.encodeToString(id));
     }
 
     public void setCredential(byte[] id, PrivateKey privateKey, Certificate certificate) {

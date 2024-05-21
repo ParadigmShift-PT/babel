@@ -36,6 +36,10 @@ public abstract class IdStore {
         this.protParam = protParam;
     }
 
+    public KeyStore getKeyStore() {
+        return keyStore;
+    }
+
     //TODO load(String filepath)
     //TODO store(String filepath)
 

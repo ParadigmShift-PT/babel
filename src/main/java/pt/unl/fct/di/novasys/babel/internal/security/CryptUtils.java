@@ -6,6 +6,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
@@ -26,6 +27,7 @@ import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateHolder;
 import org.bouncycastle.cert.jcajce.JcaX509v1CertificateBuilder;
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
@@ -36,7 +38,7 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
  */
 public class CryptUtils {
     /** The Bouncy Castle JCA provider */
-    public static final String PROVIDER = "BC";
+    public static final Provider PROVIDER = new BouncyCastleProvider();
     public static final String PK_ALGO = "RSA";
     public static final String HASH_ALGO = "SHA256";
     public static final String SIG_ALGO = HASH_ALGO+"with"+PK_ALGO;
@@ -67,7 +69,7 @@ public class CryptUtils {
         try {
             keyRnd = SecureRandom.getInstance("DEFAULT", PROVIDER);
             nonceAndIVRnd = SecureRandom.getInstance("NonceAndIVRnd", PROVIDER);
-        } catch (NoSuchAlgorithmException|NoSuchProviderException never) {}
+        } catch (NoSuchAlgorithmException never) {}
         this.keyRnd = keyRnd;
         this.nonceAndIVRnd = nonceAndIVRnd;
 
@@ -85,13 +87,18 @@ public class CryptUtils {
             KeyPairGenerator keyPairGen = KeyPairGenerator.getInstance(PK_ALGO, PROVIDER);
             keyPairGen.initialize(rsaParamSpec, keyRnd);
             keyPair = keyPairGen.generateKeyPair();
-        } catch (NoSuchAlgorithmException|NoSuchProviderException|InvalidAlgorithmParameterException never) {}
+        } catch (NoSuchAlgorithmException|InvalidAlgorithmParameterException never) {}
         return keyPair;
     }
 
-    public Certificate createSelfSignedCertificate(KeyPair keyPair, String identity, int validDays) {
-        // TODO choose something less tied to names and addresses...
-        // TODO I think I can create my own "Style". I.e., custom RelativeDistinguishedNames. See p. 200
+    /**
+     * TODO MOVE THIS OUT OF THIS CLASS
+     */
+    public X509Certificate createSelfSignedX509Certificate(KeyPair keyPair, String identity, int validDays) {
+        /* TODO Make this either use
+         *   - Subject Alternative Name extension's OtherName (https://security.stackexchange.com/a/276878/308650)
+         *   - libp2p's extension (https://github.com/libp2p/specs/blob/master/tls/tls.md#libp2p-public-key-extension)
+         */
         X500Name myName = new X500NameBuilder(BCStyle.INSTANCE)
             .addRDN(X500_PEER_ID_OID, identity)
             .build();
@@ -118,25 +125,20 @@ public class CryptUtils {
         } catch (OperatorCreationException|CertificateException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
-            return null;
+            throw new RuntimeException("Unhandled exception: " + e);
         }
     }
 
     /**
+     * TODO MOVE THIS OUT OF THIS CLASS
      * @param cert A X509Certificate
      */
-    public static String getX509CertificatePeerId(X509Certificate cert) {
-        try {
-            X509CertificateHolder certHolder = new JcaX509CertificateHolder(cert);
-            X500Name x500name = certHolder.getSubject();
-            RDN name = x500name.getRDNs(X500_PEER_ID_OID)[0];
+    public String getX509CertificatePeerId(X509Certificate cert) throws CertificateEncodingException {
+        X509CertificateHolder certHolder = new JcaX509CertificateHolder(cert);
+        X500Name x500name = certHolder.getSubject();
+        RDN name = x500name.getRDNs(X500_PEER_ID_OID)[0];
 
-            return IETFUtils.valueToString(name.getFirst().getValue());
-        } catch (CertificateEncodingException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-            return null;
-        }
+        return IETFUtils.valueToString(name.getFirst().getValue());
     }
 
     private static Date calculateDate(int daysInFuture) {

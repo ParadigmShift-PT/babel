@@ -5,6 +5,9 @@ import pt.unl.fct.di.novasys.babel.internal.BabelMessage;
 import pt.unl.fct.di.novasys.babel.internal.IPCEvent;
 import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
 import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
+import pt.unl.fct.di.novasys.babel.internal.security.PrivateIdStore;
+import pt.unl.fct.di.novasys.babel.internal.security.PublicIdStore;
+import pt.unl.fct.di.novasys.babel.internal.security.x509.X509CertificateVerifier;
 import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
@@ -13,6 +16,7 @@ import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
 import pt.unl.fct.di.novasys.channel.IChannel;
 import pt.unl.fct.di.novasys.channel.accrual.AccrualChannel;
+import pt.unl.fct.di.novasys.channel.signed.SignedTCPChannel;
 import pt.unl.fct.di.novasys.channel.simpleclientserver.SimpleClientChannel;
 import pt.unl.fct.di.novasys.channel.simpleclientserver.SimpleServerChannel;
 import pt.unl.fct.di.novasys.channel.tcp.SharedTCPChannel;
@@ -103,6 +107,11 @@ public class Babel {
     private long startTime;
     private boolean started = false;
 
+    // Security
+    // TODO organize better
+    private final PrivateIdStore myIds;
+    private final PublicIdStore knownIds;
+
     private Babel() {
         //Protocols
         this.protocolMap = new ConcurrentHashMap<>();
@@ -132,6 +141,14 @@ public class Babel {
         // Initialize security features
         // TODO make these be loaded only if a protocol would use them
         java.security.Security.addProvider(new BouncyCastleProvider());
+        myIds = new PrivateIdStore();
+        knownIds = new PublicIdStore();
+
+        registerChannelInitializer(
+            SignedTCPChannel.NAME,
+            new SignedTCPChannelInitializer(myIds.getKeyStore(), new char[0], PrivateIdStore.DEFAULT_ALIAS, new X509CertificateVerifier())
+        );
+
     }
 
     private void timerLoop() {

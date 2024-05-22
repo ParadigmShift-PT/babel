@@ -237,8 +237,8 @@ public class Babel {
         this.selfConfiguration = new SelfConfigurationProtocol();
 
         try {
-            registerProtocol(this.discovery);
-            registerProtocol(this.selfConfiguration);
+        	if(this.discovery != null) registerProtocol(this.discovery);
+            if(this.selfConfiguration != null) registerProtocol(this.selfConfiguration);
         } catch (Exception e) {
             e.printStackTrace();
         }

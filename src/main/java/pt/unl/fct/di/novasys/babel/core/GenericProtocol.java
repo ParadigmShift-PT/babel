@@ -29,7 +29,7 @@ import java.util.logging.Handler;
  * <p>
  * Users should extend this class to implement their protocols
  */
-@SuppressWarnings({"unused", "SameParameterValue"})
+@SuppressWarnings({"unused"})
 public abstract class GenericProtocol {
 
     private static final Logger logger = LogManager.getLogger(GenericProtocol.class);

@@ -99,6 +99,7 @@ public class Babel {
    
     
     public final static String PAR_DISCOVERY_PROTOCOL = "babel.discovery";
+    public final static String PAR_SELF_CONFIGURATION_PROTOCOL = "babel.selfconfiguration";
     private DiscoveryProtocol discovery;
     private SelfConfigurationProtocol selfConfiguration;
 
@@ -233,8 +234,19 @@ public class Babel {
            	this.discovery = null;
            }
            
-    	
-        this.selfConfiguration = new SelfConfigurationProtocol();
+    	if(props.contains(PAR_SELF_CONFIGURATION_PROTOCOL)) {
+    			try {
+    				@SuppressWarnings("unchecked")
+    				Class<? extends SelfConfigurationProtocol> selfConfigurationClass = (Class<? extends SelfConfigurationProtocol>) Class.forName(props.getProperty(PAR_SELF_CONFIGURATION_PROTOCOL));
+    				this.selfConfiguration = (SelfConfigurationProtocol) selfConfigurationClass.getConstructors()[0].newInstance();
+    			} catch (Exception e) {
+                    e.printStackTrace();
+                    System.err.println("Unable to load SelfConfigurationProtocol: '" + props.getProperty(PAR_SELF_CONFIGURATION_PROTOCOL) + "'");
+                }
+    	} else {
+    		this.selfConfiguration = null;
+    	}
+
 
         try {
         	if(this.discovery != null) registerProtocol(this.discovery);
@@ -248,7 +260,8 @@ public class Babel {
         try {
             if(this.discovery != null)
             	discovery.init(props);
-            selfConfiguration.init(props);
+            if(this.selfConfiguration != null)
+            	selfConfiguration.init(props);
         } catch (Exception e) {
             e.printStackTrace();
             throw new RuntimeException(
@@ -259,7 +272,7 @@ public class Babel {
         timersThread.start();
         for (GenericProtocol proto : protocolMap.values()) {
             logger.info("Starting " + proto.getProtoName());
-            if (discovery != null && proto instanceof SelfConfigurableProtocol scProto) {
+            if (selfConfiguration != null && proto instanceof SelfConfigurableProtocol scProto) {
                 setupSelfConfiguration(scProto);
             } else {
                 proto.startEventThread();

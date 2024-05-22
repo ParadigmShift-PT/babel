@@ -39,13 +39,13 @@ public class BroadcastDiscoveryProtocol extends DiscoveryProtocol {
 
     public static final int DEFAULT_PORT = 1025;
     public static final int ANOUNCEMENT_COOLDOWN = 1000;
-    public static final short PROTO_ID = 32767;
+    public static final short PROTO_ID = 32700;
     public static final String PROTO_NAME = "BabelBroadcastDiscovery";
     public static final int DATAGRAM_SIZE = 65535;
     @SuppressWarnings("unchecked")
     private static final ISerializer<ServiceMessage> serializer = (ISerializer<ServiceMessage>) ServiceMessage.serializer;
 
-    public static final String PAR_DISCOVERY_BROADCAST_INTERFACE = "babel.discocvery.broadcast.interface";
+    public static final String PAR_DISCOVERY_BROADCAST_INTERFACE = "babel.discovery.broadcast.interface";
     public static final String PAR_DISCOVERY_BROADCAST_PORT = "babel.discovery.broadcast.port";
  
     private DatagramSocket socket;
@@ -67,13 +67,13 @@ public class BroadcastDiscoveryProtocol extends DiscoveryProtocol {
         servicesWaiting = new ConcurrentHashMap<>();
 
         this.bcastPort = DEFAULT_PORT;
-        if (props.contains(PAR_DISCOVERY_BROADCAST_PORT)) {
+        if (props.containsKey(PAR_DISCOVERY_BROADCAST_PORT)) {
            this.bcastPort = Integer.parseInt(props.getProperty(PAR_DISCOVERY_BROADCAST_PORT));
         }
 
         Set<NetworkInterface>broadcastInterfaces = new HashSet<NetworkInterface>();
         
-        if (!props.contains(PAR_DISCOVERY_BROADCAST_INTERFACE)) {
+        if (!props.containsKey(PAR_DISCOVERY_BROADCAST_INTERFACE)) {
             Iterator<NetworkInterface> iterator = NetworkInterface.networkInterfaces().distinct().iterator();
         	while(iterator.hasNext()) {
         		NetworkInterface n = iterator.next();

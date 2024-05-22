@@ -1,5 +1,5 @@
 package pt.unl.fct.di.novasys.babel.core.protocols.discovery;
-
+	
 import static io.netty.buffer.Unpooled.wrappedBuffer;
 
 import java.io.IOException;
@@ -38,21 +38,24 @@ import pt.unl.fct.di.novasys.network.data.Host;
 public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
     private static final Logger logger = LogManager.getLogger(MulticastDiscoveryProtocol.class);
 
-    public static final int DEFAULT_PORT = 1025;
+    public static final int DEFAULT_MULTICAST_PORT = 1025;
+    public static final int DEFAULT_UNICAST_PORT = 1026;
     public static final String MULTICAST_ADDRESS = "233.138.122.123";
     public static final int ANOUNCEMENT_COOLDOWN = 1000;
-    public static final short PROTO_ID = 32767;
+    public static final short PROTO_ID = 32500;
     public static final String PROTO_NAME = "BabelMulticastDiscovery";
     public static final int DATAGRAM_SIZE = 65535;
     @SuppressWarnings("unchecked")
     private static final ISerializer<ServiceMessage> serializer = (ISerializer<ServiceMessage>) ServiceMessage.serializer;
 
-    public static final String PAR_DISCOVERY_MULTICAST_INTERFACE = "babel.discocvery.multicast.interface";
+    public static final String PAR_DISCOVERY_MULTICAST_INTERFACE = "babel.discovery.multicast.interface";
     public static final String PAR_DISCOVERY_MULTICAST_ADDRESS = "babel.discovery.multicast.addr";
     public static final String PAR_DISCOVERY_MULTICAST_PORT = "babel.discovery.multicast.port";
     public static final String PAR_DISCOVERY_UNICAST_INTERFACE = "babel.discovery.unicast.interface";
     public static final String PAR_DISCOVERY_UNICAST_ADDRESS = "babel.discovery.unicast.address";
- 
+    public static final String PAR_DISCOVERY_UNICAST_PORT = "babel.discovery.unicast.port";
+    
+    
     private MulticastSocket multicastSocket;
     private DatagramSocket unicastSocket;
     private Map<String, byte[]> servicesToReplyMessage;
@@ -69,18 +72,19 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
         
     @Override
     public void init(Properties props) throws HandlerRegistrationException, IOException {
+    	System.err.println(" =======> INITIALIZATION OF THE MULTICAST DISCOVERY PROTOCOL <====== ");
     	servicesToReplyMessage = new ConcurrentHashMap<>();
         servicesWaiting = new ConcurrentHashMap<>();
 
-        int targetPort = DEFAULT_PORT;
-        if (props.contains(PAR_DISCOVERY_MULTICAST_PORT)) {
+        int targetPort = DEFAULT_MULTICAST_PORT;
+        if (props.containsKey(PAR_DISCOVERY_MULTICAST_PORT)) {
             targetPort = Integer.parseInt(props.getProperty(PAR_DISCOVERY_MULTICAST_PORT));
         }
 
         multicastSocketAddress = new InetSocketAddress(props.getProperty(PAR_DISCOVERY_MULTICAST_ADDRESS, MULTICAST_ADDRESS), targetPort);
    
         NetworkInterface networkInterface;
-        if (!props.contains(PAR_DISCOVERY_MULTICAST_INTERFACE)) {
+        if (!props.containsKey(PAR_DISCOVERY_MULTICAST_INTERFACE)) {
             // Bind to all?? interface that supports multicast
             networkInterface = NetworkInterface.networkInterfaces()
                     .filter(i -> {
@@ -94,20 +98,20 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
                     .findAny()
                     .orElseThrow(() -> new RuntimeException("No network interface supports multicast"));
         } else {
-            networkInterface = NetworkInterface.getByInetAddress(InetAddress.getByName(props.getProperty(PAR_DISCOVERY_MULTICAST_INTERFACE)));
+            networkInterface = NetworkInterface.getByName(props.getProperty(PAR_DISCOVERY_MULTICAST_INTERFACE));
         }
+        
         multicastSocket = new MulticastSocket(targetPort);
+        System.err.println("Multicast is going to use interface: " + networkInterface.getDisplayName());
         multicastSocket.joinGroup(multicastSocketAddress, networkInterface);
-
-        registerTimerHandler(AnoucementTimer.TIMER_ID, this::announce);
 
         logger.info("DiscoveryProtocol set up");
         
         InetAddress address = null;
         
-        if(props.contains(PAR_DISCOVERY_UNICAST_ADDRESS)) {
+        if(props.containsKey(PAR_DISCOVERY_UNICAST_ADDRESS)) {
         	address = InetAddress.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_ADDRESS));
-        } else if(props.contains(PAR_DISCOVERY_UNICAST_INTERFACE)) {
+        } else if(props.containsKey(PAR_DISCOVERY_UNICAST_INTERFACE)) {
         	List<InterfaceAddress> l =  NetworkInterface.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_INTERFACE)).getInterfaceAddresses();
         	for(InterfaceAddress a: l) {
         		if (a.getAddress() != null) {
@@ -133,8 +137,14 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
          	}
         }
         
-        myself = new Host(address, targetPort);
-
+        
+        int unicastPort = DEFAULT_UNICAST_PORT;
+        if(props.containsKey(PAR_DISCOVERY_UNICAST_PORT))
+        	unicastPort = Integer.parseInt(props.getProperty(PAR_DISCOVERY_UNICAST_PORT));
+        
+        myself = new Host(address, unicastPort);
+        unicastSocket = new DatagramSocket(unicastPort, address);
+        
         registerTimerHandler(AnoucementTimer.TIMER_ID, this::announce);
 
         setupPeriodicTimer(new AnoucementTimer(), ANOUNCEMENT_COOLDOWN, ANOUNCEMENT_COOLDOWN);
@@ -149,13 +159,16 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
 
     private void announce(AnoucementTimer timer, long timerId) {
         logger.info("Firing anouncements");
+        System.err.println("Sendind announcemnets");
         try {
             for (var message : servicesWaiting.entrySet()) {
                 byte[] anouncement = message.getValue().anouncement();
                 DatagramPacket packet = new DatagramPacket(anouncement, anouncement.length,
                         multicastSocketAddress.getAddress(), multicastSocketAddress.getPort());
                 multicastSocket.send(packet);
+                
                 logger.info("Anounced search for " + message.getKey());
+                System.err.println("Sendind announcemnet for " + message.getKey());
             }
         } catch (IOException e) {
             e.printStackTrace();

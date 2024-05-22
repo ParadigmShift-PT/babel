@@ -177,7 +177,7 @@ public class Babel {
 	 * @param scProto the protocol to be set up
 	 */
 	public void setupSelfConfiguration(SelfConfigurableProtocol scProto) {
-
+		
 		if (discovery != null) {
 			try {
 				if (scProto.getContact() == null) {
@@ -229,28 +229,44 @@ public class Babel {
 	 */
 	public void start() {
 
-		if (props.contains(PAR_DISCOVERY_PROTOCOL)) {
+		System.err.println("About to start the babel thread");
+		System.err.println("------ Config values: ------");
+		for(Object key: props.keySet()) {
+			System.err.println(key + ": " + props.get(key));
+		}
+		System.err.println("--- End of configuration ---");
+		
+		if (props.containsKey(PAR_DISCOVERY_PROTOCOL)) {
 			try {
+				System.err.println("Attempting to load Discovery Protocol: " + props.getProperty(PAR_DISCOVERY_PROTOCOL));
 				@SuppressWarnings("unchecked")
 				Class<? extends DiscoveryProtocol> discoveryClass = (Class<? extends DiscoveryProtocol>) Class
 						.forName(props.getProperty(PAR_DISCOVERY_PROTOCOL));
-				this.discovery = (DiscoveryProtocol) discoveryClass.getConstructors()[0].newInstance();
+				this.discovery = (DiscoveryProtocol) discoveryClass.getDeclaredConstructor().newInstance();
 			} catch (Exception e) {
 				e.printStackTrace();
-				System.err.println(
-						"Unable to load DiscoveryProtocol: '" + props.getProperty(PAR_DISCOVERY_PROTOCOL) + "'");
+				Class c = null;
+				try {
+					c = Class.forName("pt.unl.fct.di.novasys.babel.core.protocols.discovery.MulticastDiscovery");
+				} catch (ClassNotFoundException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+				if (c != null)
+					System.err.println("Class exists");
+				System.err.println("Unable to load DiscoveryProtocol: '" + props.getProperty(PAR_DISCOVERY_PROTOCOL) + "'");
 			}
 		} else {
+			System.err.println("No Discovery Protocol was requested to be loaded.");
 			this.discovery = null;
 		}
 
-		if (props.contains(PAR_SELF_CONFIGURATION_PROTOCOL)) {
+		if (props.containsKey(PAR_SELF_CONFIGURATION_PROTOCOL)) {
 			try {
 				@SuppressWarnings("unchecked")
 				Class<? extends SelfConfigurationProtocol> selfConfigurationClass = (Class<? extends SelfConfigurationProtocol>) Class
 						.forName(props.getProperty(PAR_SELF_CONFIGURATION_PROTOCOL));
-				this.selfConfiguration = (SelfConfigurationProtocol) selfConfigurationClass.getConstructors()[0]
-						.newInstance();
+				this.selfConfiguration = (SelfConfigurationProtocol) selfConfigurationClass.getDeclaredConstructor().newInstance();
 			} catch (Exception e) {
 				e.printStackTrace();
 				System.err.println("Unable to load SelfConfigurationProtocol: '"
@@ -286,9 +302,12 @@ public class Babel {
 		timersThread.start();
 		for (GenericProtocol proto : protocolMap.values()) {
 			logger.info("Starting " + proto.getProtoName());
+			System.err.println("Considernig protocol: " + proto.getClass().getCanonicalName());
 			if ((discovery != null || selfConfiguration != null) && proto instanceof SelfConfigurableProtocol scProto) {
+				System.err.println("Registering it.");
 				setupSelfConfiguration(scProto);
 			} else {
+				System.err.println("Skipping it.");
 				proto.startEventThread();
 			}
 		}
@@ -537,10 +556,18 @@ public class Babel {
 		props = new Properties(args.length);
 		var argsList = Arrays.asList(args);
 		String configFile = extractConfigFileFromArguments(argsList, defaultConfigFile);
+		
+		System.err.println("config file being loaded: " + configFile);
 
 		if (configFile != null) {
 			props.load(new FileInputStream(configFile));
 		}
+		
+		System.err.println("------ Config values: ------");
+		for(Object key: props.keySet()) {
+			System.err.println(key + ": " + props.get(key));
+		}
+		System.err.println("--- End of configuration ---");
 		// Override with launch parameter props
 		for (String arg : argsList) {
 			String[] property = arg.split("=");

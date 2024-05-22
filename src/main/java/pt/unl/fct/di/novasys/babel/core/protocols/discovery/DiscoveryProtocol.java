@@ -12,10 +12,12 @@ public abstract class DiscoveryProtocol extends GenericProtocol {
   
 	public DiscoveryProtocol(String protoName, short protoId) {
 		super(protoName, protoId);
+		System.setProperty("java.net.preferIPv4Stack" , "true");
 	}
 
 	public DiscoveryProtocol(String protoName, short protoId, BlockingQueue<InternalEvent> policy) {
 		super(protoName, protoId, policy);
+		System.setProperty("java.net.preferIPv4Stack" , "true");
 	}
 
     public abstract void serviceSearchListenRequest(String serviceName, Host host) throws IOException;

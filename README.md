@@ -8,7 +8,7 @@ The current core (version 0.1.0) supports Configurable discovery mechanisms for 
 
 Currently Multicast and Broadcast discovery is supported. Broadcast is still under testing.
 
-##Authors
+## Authors
 
 - Rafael Matos (rd.matos@campus.fct.unl.pt)
 - João Leitão (jc.leitao@fct.unl.pt)

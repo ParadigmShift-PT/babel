@@ -175,7 +175,7 @@ public class BroadcastDiscoveryProtocol extends DiscoveryProtocol {
         ServiceMessage message = new ServiceMessage(serviceName, host, myself, false);
         serializer.serialize(message, messageByteBuf);
 
-        servicesToReplyMessage.put(serviceName, messageBytes);
+        servicesToReplyMessage.put(serviceName, messageByteBuf.slice().array());
     }
 
     public void serviceSearchAnounceRequest(String serviceName, SelfConfigurableProtocol sourceProtocol, Host host)
@@ -187,7 +187,7 @@ public class BroadcastDiscoveryProtocol extends DiscoveryProtocol {
         ServiceMessage message = new ServiceMessage(serviceName, host, myself, true);
         serializer.serialize(message, messageByteBuf);
 
-        servicesWaiting.put(serviceName, new WaitingContact(messageBytes, sourceProtocol));
+        servicesWaiting.put(serviceName, new WaitingContact(messageByteBuf.slice().array(), sourceProtocol));
     }
 
     public Host getMyself() {

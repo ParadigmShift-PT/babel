@@ -3,6 +3,7 @@ package pt.unl.fct.di.novasys.babel.core.protocols.discovery;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.InterfaceAddress;
@@ -45,9 +46,6 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
 	public static final String PAR_DISCOVERY_MULTICAST_INTERFACE = "babel.discovery.multicast.interface";
 	public static final String PAR_DISCOVERY_MULTICAST_ADDRESS = "babel.discovery.multicast.addr";
 	public static final String PAR_DISCOVERY_MULTICAST_PORT = "babel.discovery.multicast.port";
-	public static final String PAR_DISCOVERY_UNICAST_INTERFACE = "babel.discovery.unicast.interface";
-	public static final String PAR_DISCOVERY_UNICAST_ADDRESS = "babel.discovery.unicast.address";
-	public static final String PAR_DISCOVERY_UNICAST_PORT = "babel.discovery.unicast.port";
 
 	private MulticastSocket multicastSocket;
 	private DatagramSocket unicastSocket;
@@ -105,7 +103,7 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
 			List<InterfaceAddress> l = NetworkInterface.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_INTERFACE))
 					.getInterfaceAddresses();
 			for (InterfaceAddress a : l) {
-				if (a.getAddress() != null) {
+				if (a.getAddress() != null && a.getAddress() instanceof Inet4Address) {
 					address = a.getAddress();
 					break;
 				}
@@ -118,7 +116,7 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
 				NetworkInterface n = iterator.next();
 				if (!n.isLoopback() && !n.isVirtual() && n.isUp() && !n.isPointToPoint()) {
 					for (InterfaceAddress a : n.getInterfaceAddresses()) {
-						if (a.getAddress() != null)
+						if (a.getAddress() != null && a.getAddress() instanceof Inet4Address)
 							address = a.getAddress();
 						break;
 					}

@@ -3,6 +3,7 @@ package pt.unl.fct.di.novasys.babel.core.protocols.discovery;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.InterfaceAddress;
@@ -79,6 +80,7 @@ public class BroadcastDiscoveryProtocol extends DiscoveryProtocol {
 			broadcastInterfaces.add(NetworkInterface.getByName(props.getProperty(PAR_DISCOVERY_BROADCAST_INTERFACE)));
 		}
 
+		this.broadcastAddresses = new HashSet<InetAddress>();
 		for (NetworkInterface n : broadcastInterfaces)
 			for (InterfaceAddress a : n.getInterfaceAddresses())
 				this.broadcastAddresses.add(a.getBroadcast());
@@ -87,7 +89,38 @@ public class BroadcastDiscoveryProtocol extends DiscoveryProtocol {
 			throw new RuntimeException("No available broadcast address in network interface");
 		}
 
-		socket = new DatagramSocket(bcastPort);
+		InetAddress address = null;
+
+		if (props.containsKey(PAR_DISCOVERY_UNICAST_ADDRESS)) {
+			address = InetAddress.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_ADDRESS));
+		} else if (props.containsKey(PAR_DISCOVERY_UNICAST_INTERFACE)) {
+			List<InterfaceAddress> l = NetworkInterface.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_INTERFACE))
+					.getInterfaceAddresses();
+			for (InterfaceAddress a : l) {
+				if (a.getAddress() != null && a.getAddress() instanceof Inet4Address) {
+					address = a.getAddress();
+					break;
+				}
+				if (address != null)
+					break;
+			}
+		} else {
+			Iterator<NetworkInterface> iterator = NetworkInterface.networkInterfaces().distinct().iterator();
+			while (iterator.hasNext()) {
+				NetworkInterface n = iterator.next();
+				if (!n.isLoopback() && !n.isVirtual() && n.isUp() && !n.isPointToPoint()) {
+					for (InterfaceAddress a : n.getInterfaceAddresses()) {
+						if (a.getAddress() != null && a.getAddress() instanceof Inet4Address)
+							address = a.getAddress();
+						break;
+					}
+					if (address != null)
+						break;
+				}
+			}
+		}
+		
+		socket = new DatagramSocket(bcastPort, address);
 		discoveryHost = new Host(socket.getLocalAddress(), socket.getLocalPort());
 		socket.setBroadcast(true);
 

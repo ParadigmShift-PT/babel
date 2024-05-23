@@ -41,6 +41,8 @@ public abstract class GenericProtocol {
     private final String protoName;
     private final short protoId;
 
+    private boolean protocolThreadedStarted;
+    
     private int defaultChannel;
 
     private final Map<Integer, ChannelHandlers> channels;
@@ -71,6 +73,8 @@ public abstract class GenericProtocol {
         this.queue = policy;
         this.protoId = protoId;
         this.protoName = protoName;
+        
+        this.protocolThreadedStarted = false;
 
         //TODO change to event loop (simplifies the deliver->poll->handle process)
         //TODO only change if performance better
@@ -87,6 +91,14 @@ public abstract class GenericProtocol {
         //tmx.setThreadContentionMonitoringEnabled(true);
     }
 
+    /**
+     * Provides information if the protocol thread of this protocol was already stated in the past.
+     * @return true if the protocol thread was started in the past
+     */
+    public final boolean hasProtocolThreadStarted() {
+    	return this.protocolThreadedStarted;
+    }
+    
     /**
      * Create a generic protocol with the provided name and numeric identifier
      * and network service
@@ -124,6 +136,7 @@ public abstract class GenericProtocol {
     public final void startEventThread() {
         try {
             this.executionThread.start();
+            this.protocolThreadedStarted = true;
         } catch (IllegalThreadStateException e) {
 
         }

@@ -9,7 +9,6 @@ import java.util.Collection;
 import java.util.List;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 /**

@@ -176,7 +176,7 @@ public class Babel {
 	}
 
 	private void setupDiscoverable(DiscoverableProtocol dcProto) {
-			discovery.registerProtocol(dcProto);
+		discovery.registerProtocol(dcProto);
 	}
 
 	public void setupSelfConfiguration(SelfConfigurableProtocol scProto) {
@@ -213,8 +213,9 @@ public class Babel {
 				logger.debug("Attempting to load Discovery Protocol: " + props.getProperty(PAR_DISCOVERY_PROTOCOL));
 				@SuppressWarnings("unchecked")
 				Class<? extends DiscoveryProtocol> discoveryClass = (Class<? extends DiscoveryProtocol>) Class
-						.forName(props.getProperty(PAR_DISCOVERY_PROTOCOL));
-				this.discovery = (DiscoveryProtocol) discoveryClass.getDeclaredConstructor().newInstance();
+						.forName("pt.unl.fct.di.novasys.babel.core.protocols.discovery."
+								+ props.getProperty(PAR_DISCOVERY_PROTOCOL));
+				this.discovery = discoveryClass.getDeclaredConstructor().newInstance();
 			} catch (Exception e) {
 				e.printStackTrace();
 				logger.error("Unable to load DiscoveryProtocol: '" + props.getProperty(PAR_DISCOVERY_PROTOCOL) + "'");
@@ -226,17 +227,20 @@ public class Babel {
 
 		if (props.containsKey(PAR_SELF_CONFIGURATION_PROTOCOL)) {
 			try {
+				logger.debug("Attemptimg to load Self Configuration Protocl: "
+						+ props.getProperty(PAR_SELF_CONFIGURATION_PROTOCOL));
 				@SuppressWarnings("unchecked")
 				Class<? extends SelfConfigurationProtocol> selfConfigurationClass = (Class<? extends SelfConfigurationProtocol>) Class
-						.forName(props.getProperty(PAR_SELF_CONFIGURATION_PROTOCOL));
-				this.selfConfiguration = (SelfConfigurationProtocol) selfConfigurationClass.getDeclaredConstructor()
-						.newInstance();
+						.forName("pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure."
+								+ props.getProperty(PAR_SELF_CONFIGURATION_PROTOCOL));
+				this.selfConfiguration = selfConfigurationClass.getDeclaredConstructor().newInstance();
 			} catch (Exception e) {
 				e.printStackTrace();
 				logger.error("Unable to load SelfConfigurationProtocol: '"
 						+ props.getProperty(PAR_SELF_CONFIGURATION_PROTOCOL) + "'");
 			}
 		} else {
+			logger.debug("No Self Configuration Protocol was requested to be loaded");
 			this.selfConfiguration = null;
 		}
 
@@ -274,7 +278,7 @@ public class Babel {
 			}
 
 			if (proto instanceof DiscoverableProtocol dcProto) {
-				if(dcProto.readyToStart()) {
+				if (dcProto.readyToStart()) {
 					dcProto.start();
 					dcProto.startEventThread();
 				}
@@ -521,7 +525,7 @@ public class Babel {
 	 *                                   format: prop=value
 	 */
 
-	public Properties loadConfig(String[] args, String defaultConfigFile)
+	public static Properties loadConfig(String[] args, String defaultConfigFile)
 			throws IOException, InvalidParameterException {
 
 		props = new Properties(args.length);
@@ -546,7 +550,7 @@ public class Babel {
 			in.close();
 		}
 
-		if(logger.isDebugEnabled()) {
+		if (logger.isDebugEnabled()) {
 			logger.debug("------ Config values: ------");
 			for (Object key : props.keySet()) {
 				logger.debug(key + ": " + props.get(key));

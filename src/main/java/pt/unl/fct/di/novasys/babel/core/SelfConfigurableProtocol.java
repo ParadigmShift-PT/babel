@@ -3,6 +3,7 @@ package pt.unl.fct.di.novasys.babel.core;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 public abstract class SelfConfigurableProtocol extends DiscoverableProtocol {
+    public static final String DEFAULT_PORT = "19349";
 
     private Host whispererContact;
 

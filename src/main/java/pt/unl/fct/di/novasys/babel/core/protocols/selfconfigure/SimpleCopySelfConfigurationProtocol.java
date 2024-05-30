@@ -28,9 +28,8 @@ import pt.unl.fct.di.novasys.network.data.Host;
 public class SimpleCopySelfConfigurationProtocol extends SelfConfigurationProtocol {
     private static final Logger logger = LogManager.getLogger(SimpleCopySelfConfigurationProtocol.class);
 
-    public static final String DEFAULT_PORT = "19349";
-    public static final short PROTO_ID = 604;
-    public static final String PROTO_NAME = "BabelSelfConfiguration";
+    public static final short PROTO_ID = 32000;
+    public static final String PROTO_NAME = "BabelSimpleCopySelfConfiguration";
     public static final int SEARCH_COOLDOWN = 5000;
 
     private final Map<String, Map<String, Parameter>> protocolToParameterToConfigure;
@@ -61,7 +60,7 @@ public class SimpleCopySelfConfigurationProtocol extends SelfConfigurationProtoc
         } else {
             address = NetworkingUtilities.getAddress(networkInterface);
         }
-        String port = props.getProperty("BabelWhisperer.Unicast.Port", DEFAULT_PORT);
+        String port = props.getProperty("BabelWhisperer.Unicast.Port", SelfConfigurableProtocol.DEFAULT_PORT);
         Properties channelProps = new Properties(2);
         channelProps.setProperty(TCPChannel.ADDRESS_KEY, address);
         channelProps.setProperty(TCPChannel.PORT_KEY, port);
@@ -248,5 +247,11 @@ public class SimpleCopySelfConfigurationProtocol extends SelfConfigurationProtoc
     private void uponOutConnectionFailed(OutConnectionFailed<ProtoMessage> event, int channel) {
         logger.debug(event);
         System.exit(1);
+    }
+
+    @Override
+    public void uponNewWhisperer() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'uponNewWhisperer'");
     }
 }

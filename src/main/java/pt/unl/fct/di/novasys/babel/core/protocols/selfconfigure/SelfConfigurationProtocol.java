@@ -24,4 +24,6 @@ public abstract class SelfConfigurationProtocol extends GenericProtocol {
 
     public abstract void uponParameterMessage(ParameterMessage msg, Host from, short sourceProto, int channelId);
 
+    public abstract void uponNewWhisperer();
+
 }

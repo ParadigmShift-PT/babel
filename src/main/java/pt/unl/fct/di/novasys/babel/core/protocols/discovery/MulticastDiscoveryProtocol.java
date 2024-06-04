@@ -20,6 +20,7 @@ import java.util.Properties;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.babel.core.DiscoverableProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.messages.ServiceMessage;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.timers.AnoucementTimer;
@@ -63,6 +64,14 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
 
 	@Override
 	public void init(Properties props) throws HandlerRegistrationException, IOException {
+		if(!props.containsKey(PAR_DISCOVERY_UNICAST_INTERFACE) && props.containsKey(Babel.PAR_DEFAULT_INTERFACE))
+			props.put(PAR_DISCOVERY_UNICAST_INTERFACE, props.get(Babel.PAR_DEFAULT_INTERFACE));
+		if(!props.containsKey(PAR_DISCOVERY_MULTICAST_INTERFACE) && props.containsKey(Babel.PAR_DEFAULT_INTERFACE))
+			props.put(PAR_DISCOVERY_MULTICAST_INTERFACE, props.get(Babel.PAR_DEFAULT_INTERFACE));
+		if(!props.containsKey(PAR_DISCOVERY_UNICAST_ADDRESS) && props.containsKey(Babel.PAR_DEFAULT_ADDRESS))
+			props.put(PAR_DISCOVERY_UNICAST_ADDRESS, props.get(Babel.PAR_DEFAULT_ADDRESS));
+		
+		
 		discoveryProtocolsData = new HashMap<String, ServiceMessage>();
 		protocolsWaiting = new HashMap<String, DiscoverableProtocol>();
 

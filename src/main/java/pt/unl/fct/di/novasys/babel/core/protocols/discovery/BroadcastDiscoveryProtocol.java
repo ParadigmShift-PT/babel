@@ -20,6 +20,7 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.babel.core.DiscoverableProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.messages.ServiceMessage;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.timers.AnoucementTimer;
@@ -58,6 +59,9 @@ public class BroadcastDiscoveryProtocol extends DiscoveryProtocol {
 
 	@Override
 	public void init(Properties props) throws HandlerRegistrationException, IOException {
+		if(!props.containsKey(PAR_DISCOVERY_BROADCAST_INTERFACE) && props.containsKey(Babel.PAR_DEFAULT_INTERFACE))
+			props.put(PAR_DISCOVERY_BROADCAST_INTERFACE, props.get(Babel.PAR_DEFAULT_INTERFACE));
+		
 		discoveryProtocolsData = new HashMap<String, ServiceMessage>();
 		protocolsWaiting = new HashMap<String, DiscoverableProtocol>();
 

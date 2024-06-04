@@ -97,8 +97,12 @@ public class Babel {
 	private final Map<String, GenericProtocol> protocolByNameMap;
 	private final Map<Short, Set<GenericProtocol>> subscribers;
 
+	public final static String PAR_DEFAULT_INTERFACE = "babel.interface";
+	public final static String PAR_DEFAULT_ADDRESS = "babel.address";
+	public final static String PAR_DEFATUL_PORT = "babel.port";
 	public final static String PAR_DISCOVERY_PROTOCOL = "babel.discovery";
 	public final static String PAR_SELF_CONFIGURATION_PROTOCOL = "babel.selfconfiguration";
+	
 	private DiscoveryProtocol discovery;
 	private SelfConfigurationProtocol selfConfiguration;
 

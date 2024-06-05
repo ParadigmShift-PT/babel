@@ -9,6 +9,10 @@ public abstract class SelfConfigurableProtocol extends DiscoverableProtocol {
     public SelfConfigurableProtocol(String protoName, short protoId, Host myself) {
         super(protoName, protoId, myself);
     }
+    
+    public SelfConfigurableProtocol(String protoName, short protoId) {
+        super(protoName, protoId);
+    }
 
     public void setWhispererContact(Host whisperer) {
         this.whispererContact = whisperer;

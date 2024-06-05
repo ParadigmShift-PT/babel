@@ -536,7 +536,9 @@ public class Babel {
 				in = new FileInputStream(configFile);
 			} catch(FileNotFoundException e) {
 				//trying to load the file from within a Jar resource file
-				in = getClass().getResourceAsStream(configFile);
+				in = getClass().getResourceAsStream("/"+configFile);
+				if(in == null)
+					throw e;
 			}
 			
 			props.load(in);

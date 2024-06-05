@@ -4,10 +4,11 @@ import pt.unl.fct.di.novasys.network.data.Host;
 
 public abstract class DiscoverableProtocol extends GenericProtocol {
 
-    private Host myself;
+    private final Host myself;
 
-    public DiscoverableProtocol(String protoName, short protoId) {
+    public DiscoverableProtocol(String protoName, short protoId, Host myself) {
         super(protoName, protoId);
+        this.myself = myself;
       
     }
     
@@ -48,11 +49,6 @@ public abstract class DiscoverableProtocol extends GenericProtocol {
 	 */
     public abstract void addContact(Host host);
     
-
-    public void setMyself(Host host) {
-        this.myself = host;
-    }
-
     public Host getMyself() {
         return this.myself;
     }

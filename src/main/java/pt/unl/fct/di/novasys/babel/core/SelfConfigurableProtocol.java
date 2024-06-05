@@ -6,8 +6,8 @@ public abstract class SelfConfigurableProtocol extends DiscoverableProtocol {
 
     private Host whispererContact;
 
-    public SelfConfigurableProtocol(String protoName, short protoId) {
-        super(protoName, protoId);
+    public SelfConfigurableProtocol(String protoName, short protoId, Host myself) {
+        super(protoName, protoId, myself);
     }
 
     public void setWhispererContact(Host whisperer) {

@@ -28,7 +28,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -529,7 +531,17 @@ public class Babel {
 		logger.debug("config file being loaded: " + configFile);
 
 		if (configFile != null) {
-			props.load(new FileInputStream(configFile));
+			InputStream in = null;
+			try {
+				in = new FileInputStream(configFile);
+			} catch(FileNotFoundException e) {
+				//trying to load the file from within a Jar resource file
+				in = getClass().getResourceAsStream(configFile);
+			}
+			
+			props.load(in);
+			
+			in.close();
 		}
 
 		if(logger.isDebugEnabled()) {

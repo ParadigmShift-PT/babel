@@ -3,11 +3,15 @@ package pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -25,21 +29,22 @@ import pt.unl.fct.di.novasys.channel.tcp.events.OutConnectionFailed;
 import pt.unl.fct.di.novasys.channel.tcp.events.OutConnectionUp;
 import pt.unl.fct.di.novasys.network.data.Host;
 
-public class SimpleCopySelfConfigurationProtocol extends SelfConfigurationProtocol {
-    private static final Logger logger = LogManager.getLogger(SimpleCopySelfConfigurationProtocol.class);
+public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
+    private static final Logger logger = LogManager.getLogger(CopySelfConfigurationProtocol.class);
 
     public static final short PROTO_ID = 32000;
-    public static final String PROTO_NAME = "BabelSimpleCopySelfConfiguration";
+    public static final String PROTO_NAME = "BabelCopySelfConfiguration";
     public static final int SEARCH_COOLDOWN = 5000;
 
-    private final Map<String, Map<String, Parameter>> protocolToParameterToConfigure;
-    private final Map<String, Map<String, Parameter>> protocolToParameterConfigured;
-    private final Map<String, SelfConfigurableProtocol> protocolMap;
-    private final Map<Host, ParameterMessage> msgToSend;
+    protected final Map<String, Map<String, Pair<Parameter, Map<String, Integer>>>> protocolToParameterToConfigure;
+    protected final Map<String, Map<String, Parameter>> protocolToParameterConfigured;
+    protected final Map<String, SelfConfigurableProtocol> protocolMap;
+    protected final Map<Host, ParameterMessage> msgToSend;
 
     private int defaultChannelID;
+    private int confirmationsNeeded = 1;
 
-    public SimpleCopySelfConfigurationProtocol() {
+    public CopySelfConfigurationProtocol() {
         super(PROTO_NAME, PROTO_ID);
 
         protocolToParameterToConfigure = new ConcurrentHashMap<>();
@@ -61,6 +66,10 @@ public class SimpleCopySelfConfigurationProtocol extends SelfConfigurationProtoc
             address = NetworkingUtilities.getAddress(networkInterface);
         }
         String port = props.getProperty("BabelWhisperer.Unicast.Port", SelfConfigurableProtocol.DEFAULT_PORT);
+        String confirmations = props.getProperty("BabelWhisperer.Confirmations");
+        if (confirmations != null) {
+            confirmationsNeeded = Integer.valueOf(confirmations);
+        }
         Properties channelProps = new Properties(2);
         channelProps.setProperty(TCPChannel.ADDRESS_KEY, address);
         channelProps.setProperty(TCPChannel.PORT_KEY, port);
@@ -85,12 +94,12 @@ public class SimpleCopySelfConfigurationProtocol extends SelfConfigurationProtoc
     public void addProtocolParameterToConfigure(String parameterName, Method setter, Method getter,
             SelfConfigurableProtocol proto) {
         Parameter parameter = new Parameter(getter, setter, proto);
-        Map<String, Parameter> protocolParameters = protocolToParameterToConfigure.get(proto.getProtoName());
+        var protocolParameters = protocolToParameterToConfigure.get(proto.getProtoName());
         if (protocolParameters == null) {
             protocolParameters = new ConcurrentHashMap<>();
             protocolToParameterToConfigure.put(proto.getProtoName(), protocolParameters);
         }
-        protocolParameters.put(parameterName, parameter);
+        protocolParameters.put(parameterName, new ImmutablePair<>(parameter, new HashMap<>()));
         protocolMap.put(proto.getProtoName(), proto);
     }
 
@@ -132,18 +141,33 @@ public class SimpleCopySelfConfigurationProtocol extends SelfConfigurationProtoc
         for (var protoEntry : receivedParams.entrySet()) {
             SelfConfigurableProtocol proto = protocolMap.get(protoEntry.getKey());
             boolean wasNotReady = proto.readyToStart();
-            Map<String, Parameter> thisProtocolToConfigure = protocolToParameterToConfigure.get(protoEntry.getKey());
-            Map<String, Parameter> thisProtocolConfigured = protocolToParameterConfigured.get(protoEntry.getKey());
+            var thisProtocolToConfigure = protocolToParameterToConfigure.get(protoEntry.getKey());
+            var thisProtocolConfigured = protocolToParameterConfigured.get(protoEntry.getKey());
             for (var paramEntry : protoEntry.getValue().entrySet()) {
-                Parameter paramToConfigure = thisProtocolToConfigure != null
+                var paramToConfigure = thisProtocolToConfigure != null
                         ? thisProtocolToConfigure.get(paramEntry.getKey())
                         : null;
-                Parameter paramConfigured = thisProtocolConfigured != null
+                var paramConfigured = thisProtocolConfigured != null
                         ? thisProtocolConfigured.get(paramEntry.getKey())
                         : null;
                 if (paramEntry.getValue() != null && paramToConfigure != null) {
+                    var possibilities = paramToConfigure.getRight();
+                    int confirmations = possibilities.get(paramEntry.getValue());
+                    possibilities.put(paramEntry.getValue(), confirmations + 1);
+                    String confirmedValue = possibilities.entrySet().stream()
+                            .max(new Comparator<Entry<String, Integer>>() {
+                                @Override
+                                public int compare(Entry<String, Integer> o1, Entry<String, Integer> o2) {
+                                    int compare = o1.getValue().compareTo(o2.getValue());
+                                    if (compare == 0) {
+                                        return o1.getKey().compareTo(o2.getKey());
+                                    }
+                                    return compare;
+                                }
+
+                            }).get().getKey();
                     try {
-                        paramToConfigure.setter().invoke(proto, paramEntry.getValue());
+                        paramToConfigure.getLeft().setter().invoke(proto, confirmedValue);
                     } catch (IllegalAccessException | InvocationTargetException e) {
                         throw new RuntimeException("Protocol badly constructed");
                     }
@@ -167,7 +191,8 @@ public class SimpleCopySelfConfigurationProtocol extends SelfConfigurationProtoc
             } else {
                 msgToSend.put(from, replyMsg);
             }
-            if (oldMsg != null && oldMsg.getAllProtocolParams().size() > 0 || replyMsg.getAllProtocolParams().size() > 0) {
+            if (oldMsg != null && oldMsg.getAllProtocolParams().size() > 0
+                    || replyMsg.getAllProtocolParams().size() > 0) {
                 openConnection(from);
             }
         }
@@ -246,12 +271,5 @@ public class SimpleCopySelfConfigurationProtocol extends SelfConfigurationProtoc
      */
     private void uponOutConnectionFailed(OutConnectionFailed<ProtoMessage> event, int channel) {
         logger.debug(event);
-        System.exit(1);
-    }
-
-    @Override
-    public void uponNewWhisperer() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'uponNewWhisperer'");
     }
 }

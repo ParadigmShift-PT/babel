@@ -64,14 +64,13 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
 
 	@Override
 	public void init(Properties props) throws HandlerRegistrationException, IOException {
-		if(!props.containsKey(PAR_DISCOVERY_UNICAST_INTERFACE) && props.containsKey(Babel.PAR_DEFAULT_INTERFACE))
+		if (!props.containsKey(PAR_DISCOVERY_UNICAST_INTERFACE) && props.containsKey(Babel.PAR_DEFAULT_INTERFACE))
 			props.put(PAR_DISCOVERY_UNICAST_INTERFACE, props.get(Babel.PAR_DEFAULT_INTERFACE));
-		if(!props.containsKey(PAR_DISCOVERY_MULTICAST_INTERFACE) && props.containsKey(Babel.PAR_DEFAULT_INTERFACE))
+		if (!props.containsKey(PAR_DISCOVERY_MULTICAST_INTERFACE) && props.containsKey(Babel.PAR_DEFAULT_INTERFACE))
 			props.put(PAR_DISCOVERY_MULTICAST_INTERFACE, props.get(Babel.PAR_DEFAULT_INTERFACE));
-		if(!props.containsKey(PAR_DISCOVERY_UNICAST_ADDRESS) && props.containsKey(Babel.PAR_DEFAULT_ADDRESS))
+		if (!props.containsKey(PAR_DISCOVERY_UNICAST_ADDRESS) && props.containsKey(Babel.PAR_DEFAULT_ADDRESS))
 			props.put(PAR_DISCOVERY_UNICAST_ADDRESS, props.get(Babel.PAR_DEFAULT_ADDRESS));
-		
-		
+
 		discoveryProtocolsData = new HashMap<String, ServiceMessage>();
 		protocolsWaiting = new HashMap<String, DiscoverableProtocol>();
 
@@ -157,15 +156,18 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
 	private void announce(AnoucementTimer timer, long timerId) {
 		logger.info("Firing anouncements");
 
-		if (protocolsWaiting.size() == 0) {
-			logger.debug("No protocols waiting registered");
-			return;
-		}
-
 		List<ServiceMessage> pendingServices = new ArrayList<ServiceMessage>();
-		for (String protocol : protocolsWaiting.keySet()) {
-			pendingServices.add(this.discoveryProtocolsData.get(protocol));
-			logger.debug("Added protocol " + protocol + " to seend buffer");
+		
+		synchronized (protocolsWaiting) {
+			if (protocolsWaiting.size() == 0) {
+				logger.debug("No protocols waiting registered");
+				return;
+			}
+
+			for (String protocol : protocolsWaiting.keySet()) {
+				pendingServices.add(this.discoveryProtocolsData.get(protocol));
+				logger.debug("Added protocol " + protocol + " to seend buffer");
+			}
 		}
 
 		try {
@@ -174,7 +176,9 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
 			for (byte[] m : announces) {
 				unicastSocket.send(new DatagramPacket(m, m.length, multicastSocketAddress.getAddress(),
 						multicastSocketAddress.getPort()));
-				logger.debug("Sent one multicast message");
+				logger.debug("Sent one multicast message to " + multicastSocketAddress.getAddress() + ":"
+						+ multicastSocketAddress.getPort() + " from " + unicastSocket.getLocalAddress() + ":"
+						+ unicastSocket.getLocalPort());
 			}
 
 		} catch (Exception e) {
@@ -204,6 +208,8 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
 				DatagramPacket packet = new DatagramPacket(new byte[ServiceMessage.DATAGRAM_SIZE],
 						ServiceMessage.DATAGRAM_SIZE);
 				socket.receive(packet);
+				logger.debug("Discovery has received a message from " + packet.getAddress().getHostAddress() + ":" + packet.getPort() +
+						"on " + (socket instanceof MulticastSocket ? "MulticastSocket" : "UnicastSocket"));
 
 				// Check if this message is mine, if so drop it silently
 				if (packet.getAddress().equals(this.unicastSocket.getLocalAddress())
@@ -216,7 +222,6 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
 				System.arraycopy(packet.getData(), 0, data, 0, packet.getLength());
 				List<ServiceMessage> messages = ServiceMessage.manyFromDatagram(data);
 
-			
 				if (messages.size() > 0) {
 					if (messages.getFirst().isProbe()) {
 						// Prepare responses for all services that requested a contact that we are
@@ -226,7 +231,7 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
 							ServiceMessage reply = this.discoveryProtocolsData.get(m.getServiceName());
 							if (reply != null) {
 								replies.add(reply);
-							} 
+							}
 						}
 
 						for (byte[] bm : ServiceMessage.convertToMessage(replies, false)) {
@@ -253,7 +258,7 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
 										dp.start();
 										dp.startEventThread();
 									}
-								} 
+								}
 							}
 						}
 					}

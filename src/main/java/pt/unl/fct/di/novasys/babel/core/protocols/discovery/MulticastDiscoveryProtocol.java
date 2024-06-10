@@ -11,6 +11,7 @@ import java.net.MulticastSocket;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -87,7 +88,14 @@ public class MulticastDiscoveryProtocol extends DiscoveryProtocol {
 			// Bind to all?? interface that supports multicast
 			networkInterface = NetworkInterface.networkInterfaces().filter(i -> {
 				try {
-					return i.supportsMulticast();
+					boolean supportsIPv4 = false;
+					Enumeration<InetAddress> addresses = i.getInetAddresses();
+					while (addresses.hasMoreElements())
+						if (addresses.nextElement() instanceof Inet4Address) {
+							supportsIPv4 = true; break;
+						}
+					
+					return i.supportsMulticast() && supportsIPv4 && i.isUp() && !i.isLoopback();
 				} catch (SocketException e) {
 					e.printStackTrace();
 					return false;

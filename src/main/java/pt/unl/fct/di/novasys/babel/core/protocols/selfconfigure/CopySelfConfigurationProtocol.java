@@ -9,9 +9,11 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Pair;
+import org.apache.commons.lang3.tuple.MutableTriple;
+import org.apache.commons.lang3.tuple.Triple;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -35,8 +37,9 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
     public static final short PROTO_ID = 32000;
     public static final String PROTO_NAME = "BabelCopySelfConfiguration";
     public static final int SEARCH_COOLDOWN = 5000;
+    public static final int CONFIRMATION_TIMEOUT = 30000;
 
-    protected final Map<String, Map<String, Pair<Parameter, Map<String, Integer>>>> protocolToParameterToConfigure;
+    protected final Map<String, Map<String, MutableTriple<Parameter, CountDownLatch, Map<String, Integer>>>> protocolToParameterToConfigure;
     protected final Map<String, Map<String, Parameter>> protocolToParameterConfigured;
     protected final Map<String, SelfConfigurableProtocol> protocolMap;
     protected final Map<Host, ParameterMessage> msgToSend;
@@ -99,7 +102,7 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
             protocolParameters = new ConcurrentHashMap<>();
             protocolToParameterToConfigure.put(proto.getProtoName(), protocolParameters);
         }
-        protocolParameters.put(parameterName, new ImmutablePair<>(parameter, new HashMap<>()));
+        protocolParameters.put(parameterName, new MutableTriple<>(parameter, null, new HashMap<>()));
         protocolMap.put(proto.getProtoName(), proto);
     }
 
@@ -134,6 +137,38 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
         }
     }
 
+    private void countdownParameter(SelfConfigurableProtocol proto,
+            Triple<Parameter, CountDownLatch, Map<String, Integer>> paramToConfigure) {
+        try {
+            paramToConfigure.getMiddle().await(CONFIRMATION_TIMEOUT, TimeUnit.MILLISECONDS);
+            String confirmedValue = paramToConfigure.getRight().entrySet().stream()
+                    .max(new Comparator<Entry<String, Integer>>() {
+                        @Override
+                        public int compare(Entry<String, Integer> o1, Entry<String, Integer> o2) {
+                            int compare = o1.getValue().compareTo(o2.getValue());
+                            if (compare == 0) {
+                                return o1.getKey().compareTo(o2.getKey());
+                            }
+                            return compare;
+                        }
+                    }).get().getKey();
+            paramToConfigure.getLeft().setter().invoke(proto, confirmedValue);
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new RuntimeException("Protocol badly constructed");
+        } catch (InterruptedException e) {
+            throw new RuntimeException(
+                    "Interrupted while waiting for confirmation for " + paramToConfigure.getLeft().getter().getName());
+        }
+    }
+
+    private void addFoundConfiguration(String config,
+            Triple<Parameter, CountDownLatch, Map<String, Integer>> paramToConfigure) {
+        var possibilities = paramToConfigure.getRight();
+        int confirmations = possibilities.get(config);
+        possibilities.put(config, confirmations + 1);
+        paramToConfigure.getMiddle().countDown();
+    }
+
     public void uponParameterMessage(ParameterMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Got parameter message from " + from);
         var receivedParams = msg.getAllProtocolParams();
@@ -151,26 +186,11 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
                         ? thisProtocolConfigured.get(paramEntry.getKey())
                         : null;
                 if (paramEntry.getValue() != null && paramToConfigure != null) {
-                    var possibilities = paramToConfigure.getRight();
-                    int confirmations = possibilities.get(paramEntry.getValue());
-                    possibilities.put(paramEntry.getValue(), confirmations + 1);
-                    String confirmedValue = possibilities.entrySet().stream()
-                            .max(new Comparator<Entry<String, Integer>>() {
-                                @Override
-                                public int compare(Entry<String, Integer> o1, Entry<String, Integer> o2) {
-                                    int compare = o1.getValue().compareTo(o2.getValue());
-                                    if (compare == 0) {
-                                        return o1.getKey().compareTo(o2.getKey());
-                                    }
-                                    return compare;
-                                }
-
-                            }).get().getKey();
-                    try {
-                        paramToConfigure.getLeft().setter().invoke(proto, confirmedValue);
-                    } catch (IllegalAccessException | InvocationTargetException e) {
-                        throw new RuntimeException("Protocol badly constructed");
+                    if (paramToConfigure.getMiddle() == null) {
+                        paramToConfigure.setMiddle(new CountDownLatch(confirmationsNeeded));
+                        new Thread(() -> countdownParameter(proto, paramToConfigure)).start();
                     }
+                    addFoundConfiguration(paramEntry.getValue(), paramToConfigure);
                 } else if (paramEntry.getValue() == null && paramConfigured != null) {
                     try {
                         String value = (String) paramConfigured.getter().invoke(proto);

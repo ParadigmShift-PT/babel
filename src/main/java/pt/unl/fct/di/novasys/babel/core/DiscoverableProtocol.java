@@ -61,7 +61,4 @@ public abstract class DiscoverableProtocol extends GenericProtocol {
     public Host getMyself() {
         return this.myself;
     }
-
-
-
 }

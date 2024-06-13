@@ -39,6 +39,8 @@ public abstract class GenericProtocol {
     private final String protoName;
     private final short protoId;
 
+    private final boolean isSecureProtocol;
+
     private int defaultChannel;
 
     private final Map<Integer, ChannelHandlers> channels;
@@ -83,6 +85,15 @@ public abstract class GenericProtocol {
         this.notificationHandlers = new HashMap<>();
 
         //tmx.setThreadContentionMonitoringEnabled(true);
+
+        this.isSecureProtocol = this.getClass().isAnnotationPresent(SecureProtocol.class);
+    }
+
+    /**
+     * @return whether this protocol has the {@link SecureProtocol} annotation.
+     */
+    protected boolean isSecureProtocol() { //TODO should this be public?
+        return this.isSecureProtocol;
     }
 
     /**

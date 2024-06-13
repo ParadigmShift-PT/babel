@@ -15,6 +15,7 @@ import pt.unl.fct.di.novasys.babel.internal.security.CryptUtils;
 import pt.unl.fct.di.novasys.channel.signed.CertificateVerifier;
 import pt.unl.fct.di.novasys.channel.signed.exceptions.UntrustedCertificateEntityException;
 
+// TODO Remove. This was made for a scrapped implementation of authentication on the network layer. But behaviour can be copied
 public class X509CertificateVerifier implements CertificateVerifier {
     private static String CERT_TYPE = "X.509";
 

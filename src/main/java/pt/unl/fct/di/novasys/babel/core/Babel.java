@@ -7,7 +7,6 @@ import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
 import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
 import pt.unl.fct.di.novasys.babel.internal.security.PrivateIdStore;
 import pt.unl.fct.di.novasys.babel.internal.security.PublicIdStore;
-import pt.unl.fct.di.novasys.babel.internal.security.x509.X509CertificateVerifier;
 import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
@@ -16,13 +15,16 @@ import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
 import pt.unl.fct.di.novasys.channel.IChannel;
 import pt.unl.fct.di.novasys.channel.accrual.AccrualChannel;
-import pt.unl.fct.di.novasys.channel.signed.SignedTCPChannel;
+import pt.unl.fct.di.novasys.channel.secure.SecureIChannel;
+import pt.unl.fct.di.novasys.channel.secure.auth.AuthChannel;
 import pt.unl.fct.di.novasys.channel.simpleclientserver.SimpleClientChannel;
 import pt.unl.fct.di.novasys.channel.simpleclientserver.SimpleServerChannel;
 import pt.unl.fct.di.novasys.channel.tcp.SharedTCPChannel;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
 import pt.unl.fct.di.novasys.network.ISerializer;
 import pt.unl.fct.di.novasys.network.data.Host;
+import pt.unl.fct.di.novasys.network.security.IKeyManager;
+import pt.unl.fct.di.novasys.network.security.ITrustManager;
 
 import org.apache.commons.lang3.tuple.Triple;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -99,9 +101,12 @@ public class Babel {
 
     //Channels
     private final Map<String, ChannelInitializer<? extends IChannel<BabelMessage>>> initializers;
+    private final Map<String, SecureChannelInitializer<?>> secureChannelInitializers;
 
     private final Map<Integer,
             Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer>> channelMap;
+    private final Map<Integer,
+            Triple<SecureIChannel<BabelMessage>, SecureChannelToProtoForwarder, BabelMessageSerializer>> secureChannelMap;
     private final AtomicInteger channelIdGenerator;
 
     private long startTime;
@@ -144,11 +149,7 @@ public class Babel {
         myIds = new PrivateIdStore();
         knownIds = new PublicIdStore();
 
-        registerChannelInitializer(
-            SignedTCPChannel.NAME,
-            new SignedTCPChannelInitializer(myIds.getKeyStore(), new char[0], PrivateIdStore.DEFAULT_ALIAS, new X509CertificateVerifier())
-        );
-
+        registerChannelInitializer(AuthChannel.NAME, new AuthChannelInitializer());
     }
 
     private void timerLoop() {
@@ -209,7 +210,7 @@ public class Babel {
     // ----------------------------- NETWORK
 
     /**
-     * Registers a new channel in babel
+     * Registers a new channel in Babel.
      *
      * @param name        the channel name
      * @param initializer the channel initializer
@@ -224,7 +225,22 @@ public class Babel {
     }
 
     /**
-     * Creates a channel for a protocol
+     * Registers a new secure channel in Babel.
+     *
+     * @param name        the channel name
+     * @param initializer the channel initializer
+     */
+    public void registerChannelInitializer(String name, SecureChannelInitializer<?> initializer) {
+        var old = secureChannelInitializers.putIfAbsent(name, initializer);
+        if (old != null) {
+            throw new IllegalArgumentException("Initializer for secure channel with name " + name +
+                    " already registered: " + old);
+        }
+    }
+
+
+    /**
+     * Creates a channel for a protocol. <p>
      * Called by {@link GenericProtocol}. Do not evoke directly.
      *
      * @param channelName the name of the channel to create
@@ -237,7 +253,10 @@ public class Babel {
             throws IOException {
         ChannelInitializer<? extends IChannel<?>> initializer = initializers.get(channelName);
         if (initializer == null)
-            throw new IllegalArgumentException("Channel initializer not registered: " + channelName);
+            throw new IllegalArgumentException("Channel initializer not registered: " + channelName +
+                    (secureChannelInitializers.containsKey(channelName)
+                            ? ". Did you mean to use createSecureChannel() instead?"
+                            : ""));
 
         int channelId = channelIdGenerator.incrementAndGet();
         BabelMessageSerializer serializer = new BabelMessageSerializer(new ConcurrentHashMap<>());
@@ -247,14 +266,63 @@ public class Babel {
         return channelId;
     }
 
+    IKeyManager defaultKeyManager; //TODO this is just a placeholder as it is never set yet
+    ITrustManager defaultTrustManager; //TODO this is just a placeholder as it is never set yet
+
+    /**
+     * Creates a secure channel for a protocol, using the default key and trust managers. <p>
+     * Called by {@link GenericProtocol}. Do not evoke directly.
+     *
+     * @param channelName the name of the channel to create
+     * @param protoId     the protocol numeric identifier
+     * @param props       the properties required by the channel
+     * @return the channel Id
+     * @throws IOException if channel creation fails
+     */
+    int createSecureChannel(String channelName, short protoId, Properties props)
+            throws IOException {
+        return createSecureChannel(channelName, protoId, props, defaultKeyManager, defaultTrustManager);
+    }
+
+    /**
+     * Creates a secure channel for a protocol. <p>
+     * Called by {@link GenericProtocol}. Do not evoke directly.
+     *
+     * @param channelName the name of the channel to create
+     * @param protoId     the protocol numeric identifier
+     * @param props       the properties required by the channel
+     * @param
+     * @return the channel Id
+     * @throws IOException if channel creation fails
+     */
+    int createSecureChannel(String channelName, short protoId, Properties props,
+            IKeyManager keyManager, ITrustManager trustManager)
+            throws IOException {
+        SecureChannelInitializer<?> initializer = secureChannelInitializers.get(channelName);
+        if (initializer == null)
+            throw new IllegalArgumentException("Secure channel initializer not registered: " + channelName +
+                    (initializers.containsKey(channelName)
+                            ? ". Did you mean to use createChannel(...) instead?"
+                            : ""));
+
+        int channelId = channelIdGenerator.incrementAndGet();
+        BabelMessageSerializer serializer = new BabelMessageSerializer(new ConcurrentHashMap<>());
+        SecureChannelToProtoForwarder forwarder = new SecureChannelToProtoForwarder(channelId);
+        SecureIChannel<BabelMessage> newChannel = initializer.initialize(serializer, forwarder, trustManager, keyManager, props, protoId);
+        secureChannelMap.put(channelId, Triple.of(newChannel, forwarder, serializer));
+        return channelId;
+    }
+
     /**
      * Registers interest in receiving events from a channel.
      *
      * @param consumerProto the protocol that will receive events generated by the new channel
      *                      Called by {@link GenericProtocol}. Do not evoke directly.
+     * @throws IllegalArgumentException if {@code channelId} refers to a secure channel but {@code consumerProto}
+     *                                  is not a {@link SecureProtocol}.
      */
     void registerChannelInterest(int channelId, short protoId, GenericProtocol consumerProto) {
-        ChannelToProtoForwarder forwarder = channelMap.get(channelId).getMiddle();
+        ChannelToProtoForwarder forwarder = getChannelSecureOrNot(channelId).getMiddle();
         forwarder.addConsumer(protoId, consumerProto);
     }
 
@@ -264,10 +332,25 @@ public class Babel {
      */
     void sendMessage(int channelId, int connection, BabelMessage msg, Host target) {
         Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry =
-                channelMap.get(channelId);
+                getChannelSecureOrNot(channelId);
         if (channelEntry == null)
             throw new AssertionError("Sending message to non-existing channelId " + channelId);
         channelEntry.getLeft().sendMessage(msg, target, connection);
+    }
+
+    /**
+     * Sends a message to a peer using its id and the given channel and connection.
+     * Called by {@link GenericProtocol}. Do not evoke directly.
+     */
+    // TODO should this method have a different name (sendSecureMessage)? I's say no but let's see
+    void sendMessage(int channelId, int connection, BabelMessage msg, byte[] targetId) {
+        var channelEntry = secureChannelMap.get(channelId);
+        if (channelEntry == null)
+            throw new AssertionError("Sending message to non-existing secure channelId " + channelId +
+                    (channelMap.containsKey(channelId)
+                            ? ". Did you mean to use sendMessage( ... , Host) instead?"
+                            : ""));
+        channelEntry.getLeft().sendMessage(msg, targetId, connection);
     }
 
     /**
@@ -276,10 +359,24 @@ public class Babel {
      */
     void closeConnection(int channelId, Host target, int connection) {
         Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry =
-                channelMap.get(channelId);
+                getChannelSecureOrNot(channelId);
         if (channelEntry == null)
             throw new AssertionError("Closing connection in non-existing channelId " + channelId);
         channelEntry.getLeft().closeConnection(target, connection);
+    }
+
+    /**
+     * Closes a secure connection to a peer in a given channel.
+     * Called by {@link GenericProtocol}. Do not evoke directly.
+     */
+    void closeConnection(int channelId, byte[] targetId, int connection) {
+        var channelEntry = secureChannelMap.get(channelId);
+        if (channelEntry == null)
+            throw new AssertionError("Closing connection in non-existing secure channelId " + channelId +
+                    (channelMap.containsKey(channelId)
+                            ? ". Did you mean to use closeConnection( ... , Host) instead?"
+                            : ""));
+        channelEntry.getLeft().closeConnection(targetId, connection);
     }
 
     /**
@@ -288,9 +385,24 @@ public class Babel {
      */
     void openConnection(int channelId, Host target, int connection) {
         Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry =
-                channelMap.get(channelId);
+                getChannelSecureOrNot(channelId);
         if (channelEntry == null)
             throw new AssertionError("Opening connection in non-existing channelId " + channelId);
+        channelEntry.getLeft().openConnection(target, connection);
+    }
+
+    /**
+     * Opens a secure connection to a peer in the given channel.
+     * Called by {@link GenericProtocol}. Do not evoke directly.
+     */
+    // TODO should this method have a different name (openSecureConnection)?
+    void openConnection(int channelId, Host target, byte[] targetId, int connection) {
+        var channelEntry = secureChannelMap.get(channelId);
+        if (channelEntry == null)
+            throw new AssertionError("Opening connection in non-existing secure channelId " + channelId +
+                    (channelMap.containsKey(channelId)
+                            ? ". Did you mean to use openConnection(...) without specifying the peer id instead?"
+                            : ""));
         channelEntry.getLeft().openConnection(target, connection);
     }
 
@@ -300,12 +412,25 @@ public class Babel {
      */
     void registerSerializer(int channelId, short msgCode, ISerializer<? extends ProtoMessage> serializer) {
         Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry =
-                channelMap.get(channelId);
+                getChannelSecureOrNot(channelId);
         if (channelEntry == null)
             throw new AssertionError("Registering serializer in non-existing channelId " + channelId);
         channelEntry.getRight().registerProtoSerializer(msgCode, serializer);
     }
 
+    /**
+     * Gets a channel entry from channelMap or secureChannelMap. Whichever one has the {@code channelId} key.
+     */
+    private Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> getChannelSecureOrNot(int channelId) {
+        var channelEntry = channelMap.get(channelId);
+        if (channelEntry == null) {
+            var secure = secureChannelMap.get(channelId);
+            channelEntry = Triple.of(secure.getLeft(), secure.getMiddle(), secure.getRight());
+        }
+        return channelEntry;
+    }
+
+    // TODO make the missing adaptations for secure channel support from here down
     // ----------------------------- REQUEST / REPLY / NOTIFY
 
     /**

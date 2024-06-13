@@ -6,7 +6,7 @@
 
     <groupId>pt.unl.fct.di.novasys.babel</groupId>
     <artifactId>babel-core</artifactId>
-    <version>1.1.crypt.0</version>
+    <version>1.crypt.0</version>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -98,8 +98,8 @@
     <dependencies>
         <dependency>
             <groupId>pt.unl.fct.di.novasys</groupId>
-            <artifactId>network-layer</artifactId>
-            <version>[2.1.43.crypt.0,3.0.0)</version>
+            <artifactId>network-layer-secure</artifactId>
+            <version>2.9.0</version>
         </dependency>
         <!-- Bouncy Castle dependencies for cryptography https://www.bouncycastle.org/ -->
         <dependency> <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcprov-jdk18on -->

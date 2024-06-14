@@ -208,9 +208,10 @@ public class Babel {
 		}
 	}
 
-	public void askRunningDiscovery(GenericProtocol proto, boolean listen) {
+	public void askRunningDiscovery(GenericProtocol proto, Host myself, boolean listen) {
 		for (var discovery : discoveries) {
-			proto.sendRequest(new RequestDiscovery(proto.getProtoName(), listen), discovery.getProtoId());
+			proto.sendRequest(new RequestDiscovery(proto.getProtoName(), myself, proto.getProtoName(), listen),
+					discovery.getProtoId());
 		}
 	}
 
@@ -244,7 +245,6 @@ public class Babel {
 				Class<? extends SelfConfigurationProtocol> selfConfigurationClass = (Class<? extends SelfConfigurationProtocol>) Class
 						.forName(props.getProperty(PAR_SELF_CONFIGURATION_PROTOCOL));
 				this.selfConfiguration = selfConfigurationClass.getDeclaredConstructor().newInstance();
-				selfConfiguration.registerReplyHandler(FoundServiceReply.REPLY_ID, null);
 			} catch (Exception e) {
 				e.printStackTrace();
 				logger.error("Unable to load SelfConfigurationProtocol: '"
@@ -279,7 +279,7 @@ public class Babel {
 		timersThread.start();
 		for (GenericProtocol proto : protocolMap.values()) {
 			logger.info("Starting " + proto.getProtoName());
-			if (discoveries != null && proto instanceof DiscoverableProtocol dcProto) {
+			if (discoveries.size() != 0 && proto instanceof DiscoverableProtocol dcProto) {
 				setupDiscoverable(dcProto);
 			}
 			if (selfConfiguration != null && proto instanceof SelfConfigurableProtocol scProto) {
@@ -295,6 +295,8 @@ public class Babel {
 				proto.startEventThread();
 			}
 		}
+		if (selfConfiguration != null)
+			askRunningDiscovery(selfConfiguration, selfConfiguration.getMyself(), true);
 	}
 
 	/**

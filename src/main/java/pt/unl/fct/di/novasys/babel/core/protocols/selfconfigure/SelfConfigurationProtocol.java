@@ -23,4 +23,6 @@ public abstract class SelfConfigurationProtocol extends GenericProtocol {
     public abstract void search(SearchTimer timer, long timerId) ;
 
     public abstract void uponParameterMessage(ParameterMessage msg, Host from, short sourceProto, int channelId);
+
+    public abstract Host getMyself();
 }

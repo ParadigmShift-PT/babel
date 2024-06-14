@@ -3,6 +3,7 @@ package pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.InetAddress;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -51,6 +52,8 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
     protected final Map<Host, ParameterMessage> msgToSend;
     protected final Map<String, Set<Host>> whisperers;
 
+    private Host myself;
+
     private int defaultChannelID;
     private int confirmationsNeeded = 1;
 
@@ -85,6 +88,7 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
         channelProps.setProperty(TCPChannel.ADDRESS_KEY, address);
         channelProps.setProperty(TCPChannel.PORT_KEY, port);
         defaultChannelID = createChannel(TCPChannel.NAME, channelProps);
+        myself = new Host(InetAddress.getByName(address), Integer.valueOf(port));
 
         registerChannelEventHandler(defaultChannelID, InConnectionDown.EVENT_ID, this::uponInConnectionDown);
         registerChannelEventHandler(defaultChannelID, InConnectionUp.EVENT_ID, this::uponInConnectionUp);
@@ -100,8 +104,6 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
         registerTimerHandler(SearchTimer.TIMER_ID, this::search);
 
         setupPeriodicTimer(new SearchTimer(), SEARCH_COOLDOWN, SEARCH_COOLDOWN);
-
-        babel.askRunningDiscovery(this, true);
 
         registerReplyHandler(FoundServiceReply.REPLY_ID, this::uponFoundServiceReply);
     }
@@ -168,6 +170,11 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
                         }
                     }).get().getKey();
             paramToConfigure.getLeft().setter().invoke(proto, confirmedValue);
+            synchronized (proto) {
+                if (proto.readyToStart()) {
+                    babel.setupSelfConfiguration(proto);
+                }
+            }
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException("Protocol badly constructed");
         } catch (InterruptedException e) {
@@ -180,8 +187,8 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
             Triple<Parameter, CountDownLatch, Pair<Map<String, Integer>, Set<Host>>> paramToConfigure, Host from) {
         if (paramToConfigure.getRight().getRight().add(from)) {
             var possibilities = paramToConfigure.getRight().getLeft();
-            int confirmations = possibilities.get(config);
-            possibilities.put(config, confirmations + 1);
+            Integer confirmations = possibilities.get(config);
+            possibilities.put(config, confirmations == null ? 1 : confirmations.intValue() + 1);
             paramToConfigure.getMiddle().countDown();
         }
     }
@@ -192,7 +199,6 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
         ParameterMessage replyMsg = new ParameterMessage();
         for (var protoEntry : receivedParams.entrySet()) {
             SelfConfigurableProtocol proto = protocolMap.get(protoEntry.getKey());
-            boolean wasNotReady = proto.readyToStart();
             var thisProtocolToConfigure = protocolToParameterToConfigure.get(protoEntry.getKey());
             var thisProtocolConfigured = protocolToParameterConfigured.get(protoEntry.getKey());
             for (var paramEntry : protoEntry.getValue().entrySet()) {
@@ -216,9 +222,6 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
                         throw new RuntimeException("Protocol badly constructed");
                     }
                 }
-            }
-            if (!wasNotReady && proto.readyToStart()) {
-                babel.setupSelfConfiguration(proto);
             }
         }
         synchronized (msgToSend) {
@@ -318,5 +321,9 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
             whisperers.put("*", serviceWhisperers);
         }
         serviceWhisperers.add(reply.getServiceHost());
+    }
+
+    public Host getMyself() {
+        return myself;
     }
 }

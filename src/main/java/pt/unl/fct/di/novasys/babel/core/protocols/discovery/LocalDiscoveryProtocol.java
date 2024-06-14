@@ -135,18 +135,31 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
     private void announce(AnoucementTimer timer, long timerId) {
         logger.info("Firing anouncements");
 
-        if (protocolsWaiting.size() == 0) {
+        if (protocolsWaiting.size() == 0 && runningProtcolsWaiting.size() == 0) {
             logger.debug("No protocols waiting registered");
             return;
         }
 
-        if (!pendingServices.equals(protocolsWaiting.keySet())) {
-            pendingServices.removeIf((service) -> !protocolsWaiting.keySet().contains(service.getServiceName()));
-            for (String protocol : protocolsWaiting.keySet()) {
-                pendingServices.add(this.discoveryProtocolsData.get(protocol));
-                logger.debug("Added protocol " + protocol + " to send buffer");
-            }
+        pendingServices.clear();
+        for (String protocol : protocolsWaiting.keySet()) {
+            pendingServices.add(this.discoveryProtocolsData.get(protocol));
+            logger.debug("Added protocol " + protocol + " to send buffer");
         }
+        for (String protocol : runningProtcolsWaiting.keySet()) {
+            pendingServices.add(this.discoveryProtocolsData.get(protocol));
+            logger.debug("Added protocol " + protocol + " to send buffer");
+        }
+
+        /*
+         * if (!pendingServices.equals(protocolsWaiting.keySet())) {
+         * pendingServices.removeIf((service) ->
+         * !protocolsWaiting.keySet().contains(service.getServiceName()));
+         * for (String protocol : protocolsWaiting.keySet()) {
+         * pendingServices.add(this.discoveryProtocolsData.get(protocol));
+         * logger.debug("Added protocol " + protocol + " to send buffer");
+         * }
+         * }
+         */
 
         try {
             List<byte[]> announces = ServiceMessage.convertToMessage(pendingServices, true);
@@ -233,7 +246,8 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                                     }
                                 }
                                 Short dpID = this.runningProtcolsWaiting.get(m.getServiceName());
-                                sendReply(new FoundServiceReply(m.getServiceHost()), dpID);
+                                if (dpID != null)
+                                    sendReply(new FoundServiceReply(m.getServiceHost()), dpID);
                             }
                         }
                     }
@@ -249,9 +263,12 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
     }
 
     public void uponRequestDiscovery(RequestDiscovery request, short sourceProtocol) {
-        if (request.getListen())
+        logger.debug("Received discovery request for " + request.getServiceName() + " from proto " + sourceProtocol);
+        if (request.getListen()) {
+            this.discoveryProtocolsData.put(request.getServiceName(),
+                    new ServiceMessage(request.getProtoName(), request.getMyself(), discoveryHost));
             runningProtcolsWaiting.put(request.getServiceName(), sourceProtocol);
-        else
+        } else
             runningProtcolsWaiting.remove(request.getServiceName());
     }
 }

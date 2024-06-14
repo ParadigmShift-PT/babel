@@ -7,6 +7,7 @@ import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
 import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
 import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.SelfConfigurationProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.DiscoveryProtocol;
+import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
@@ -104,8 +105,8 @@ public class Babel {
 	public final static String PAR_DEFAULT_PORT = "babel.port";
 	public final static String PAR_DISCOVERY_PROTOCOL = "babel.discovery";
 	public final static String PAR_SELF_CONFIGURATION_PROTOCOL = "babel.selfconfiguration";
-	
-	private DiscoveryProtocol discovery;
+
+	private final List<DiscoveryProtocol> discoveries;
 	private SelfConfigurationProtocol selfConfiguration;
 
 	// Timers
@@ -128,6 +129,7 @@ public class Babel {
 		this.protocolMap = new ConcurrentHashMap<>();
 		this.protocolByNameMap = new ConcurrentHashMap<>();
 		this.subscribers = new ConcurrentHashMap<>();
+		this.discoveries = new ArrayList<>();
 
 		// Timers
 		allTimers = new HashMap<>();
@@ -176,7 +178,7 @@ public class Babel {
 	}
 
 	private void setupDiscoverable(DiscoverableProtocol dcProto) {
-		discovery.registerProtocol(dcProto);
+		discoveries.forEach((discovery) -> discovery.registerProtocol(dcProto));
 	}
 
 	public void setupSelfConfiguration(SelfConfigurableProtocol scProto) {
@@ -211,18 +213,19 @@ public class Babel {
 		if (props.containsKey(PAR_DISCOVERY_PROTOCOL)) {
 			try {
 				logger.debug("Attempting to load Discovery Protocol: " + props.getProperty(PAR_DISCOVERY_PROTOCOL));
-				@SuppressWarnings("unchecked")
-				Class<? extends DiscoveryProtocol> discoveryClass = (Class<? extends DiscoveryProtocol>) Class
-						.forName("pt.unl.fct.di.novasys.babel.core.protocols.discovery."
-								+ props.getProperty(PAR_DISCOVERY_PROTOCOL));
-				this.discovery = discoveryClass.getDeclaredConstructor().newInstance();
+				String[] discoveryClassNames = props.getProperty(PAR_DISCOVERY_PROTOCOL).split(";");
+				for (var className : discoveryClassNames) {
+					@SuppressWarnings("unchecked")
+					Class<? extends DiscoveryProtocol> discoveryClass = (Class<? extends DiscoveryProtocol>) Class
+							.forName(className);
+					this.discoveries.add(discoveryClass.getDeclaredConstructor().newInstance());
+				}
 			} catch (Exception e) {
 				e.printStackTrace();
 				logger.error("Unable to load DiscoveryProtocol: '" + props.getProperty(PAR_DISCOVERY_PROTOCOL) + "'");
 			}
 		} else {
 			logger.debug("No Discovery Protocol was requested to be loaded.");
-			this.discovery = null;
 		}
 
 		if (props.containsKey(PAR_SELF_CONFIGURATION_PROTOCOL)) {
@@ -231,9 +234,11 @@ public class Babel {
 						+ props.getProperty(PAR_SELF_CONFIGURATION_PROTOCOL));
 				@SuppressWarnings("unchecked")
 				Class<? extends SelfConfigurationProtocol> selfConfigurationClass = (Class<? extends SelfConfigurationProtocol>) Class
-						.forName("pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure."
-								+ props.getProperty(PAR_SELF_CONFIGURATION_PROTOCOL));
+						.forName(props.getProperty(PAR_SELF_CONFIGURATION_PROTOCOL));
 				this.selfConfiguration = selfConfigurationClass.getDeclaredConstructor().newInstance();
+				for (var discovery : discoveries) {
+					discovery.registerProtocol(selfConfiguration);
+				}
 			} catch (Exception e) {
 				e.printStackTrace();
 				logger.error("Unable to load SelfConfigurationProtocol: '"
@@ -245,32 +250,30 @@ public class Babel {
 		}
 
 		try {
-			if (this.discovery != null)
-				registerProtocol(this.discovery);
+			for (var discovery : discoveries)
+				registerProtocol(discovery);
 			if (this.selfConfiguration != null)
 				registerProtocol(this.selfConfiguration);
-		} catch (Exception e) {
-			e.printStackTrace();
+		} catch (ProtocolAlreadyExistsException e) {
+			throw new RuntimeException(e);
 		}
 
 		startTime = System.currentTimeMillis();
 		started = true;
 		try {
-			if (this.discovery != null)
+			for (var discovery : discoveries)
 				discovery.init(props);
 			if (this.selfConfiguration != null)
 				selfConfiguration.init(props);
-		} catch (Exception e) {
-			e.printStackTrace();
-			throw new RuntimeException(
-					"Something went wrong while starting the Discovery or Self Configuration Protocol");
+		} catch (HandlerRegistrationException | IOException e) {
+			throw new RuntimeException(e);
 		}
 
 		MetricsManager.getInstance().start();
 		timersThread.start();
 		for (GenericProtocol proto : protocolMap.values()) {
 			logger.info("Starting " + proto.getProtoName());
-			if (discovery != null && proto instanceof DiscoverableProtocol dcProto) {
+			if (discoveries != null && proto instanceof DiscoverableProtocol dcProto) {
 				setupDiscoverable(dcProto);
 			}
 			if (selfConfiguration != null && proto instanceof SelfConfigurableProtocol scProto) {
@@ -463,15 +466,10 @@ public class Babel {
 	 * @param period   the periodicity of the timer event
 	 */
 	long setupPeriodicTimer(ProtoTimer t, GenericProtocol consumer, long first, long period) {
-		logger.info(this);
 		long id = timersCounter.incrementAndGet();
 		TimerEvent newTimer = new TimerEvent(t, id, consumer, getMillisSinceStart() + first, true, period);
 		allTimers.put(newTimer.getUuid(), newTimer);
 		timerQueue.add(newTimer);
-		for (var timer : protocolMap.values()) {
-			logger.info(timer);
-		}
-		logger.info(timersCounter);
 		timersThread.interrupt();
 		return id;
 	}
@@ -538,16 +536,18 @@ public class Babel {
 			InputStream in = null;
 			try {
 				in = new FileInputStream(configFile);
-			} catch(FileNotFoundException e) {
-				/* //trying to load the file from within a Jar resource file
-				in = getClass().getResourceAsStream("/"+configFile);
-				if(in == null)
-					throw e; */
-                // TODO:  NOT WORKING
+			} catch (FileNotFoundException e) {
+				/*
+				 * //trying to load the file from within a Jar resource file
+				 * in = getClass().getResourceAsStream("/"+configFile);
+				 * if(in == null)
+				 * throw e;
+				 */
+				// TODO: NOT WORKING
 			}
-			
+
 			props.load(in);
-			
+
 			in.close();
 		}
 

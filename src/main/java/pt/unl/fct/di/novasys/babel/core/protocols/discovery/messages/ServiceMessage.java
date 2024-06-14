@@ -25,9 +25,6 @@ public class ServiceMessage {
     private final Host serviceHost;
     private final Host discoveryHost;
 
-
-
-
     public ServiceMessage(String serviceName, Host serviceHost, Host discoveryHost) {
     	this.id = ServiceMessage.probeID;
         this.serviceName = serviceName;

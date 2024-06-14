@@ -6,6 +6,7 @@ import pt.unl.fct.di.novasys.network.data.Bytes;
  * Utility to be used by IKeyStores and ITrustManagers to help them interact with
  * Key and Trust Stores.
  */
+// TODO make possible for users to create and defina a default mapper using reflection
 public interface IdAliasMapper {
     public String getAlias(byte[] id);
 
@@ -14,5 +15,4 @@ public interface IdAliasMapper {
     public String getDefaultAlias();
 
     public byte[] getId(String alias);
-
 }

@@ -8,6 +8,7 @@ import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
 import pt.unl.fct.di.novasys.babel.internal.security.PrivateIdStore;
 import pt.unl.fct.di.novasys.babel.internal.security.PublicIdStore;
 import pt.unl.fct.di.novasys.babel.core.security.X509BabelKeyManager;
+import pt.unl.fct.di.novasys.babel.core.security.X509BabelTrustManager;
 import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
@@ -156,10 +157,13 @@ public class Babel {
         myIds = new PrivateIdStore();
         knownIds = new PublicIdStore();
 
+        //var trustStore = System.getProperty("javax.net.ssl.trustStore"); ?
+        //var trustStorePassword = System.getProperty("javax.net.ssl.trustStorePassword"); ?
+
         // TODO this is just a placeholder to allow for testing... Make the keystores be selected, read from props, or lazy loadaded (for ad-hoc ids)
         try {
             defaultKeyManager = new X509BabelKeyManager(myIds.getKeyStore(), "");
-            // defaultTrustManager = ...
+            defaultTrustManager = new X509BabelTrustManager();
         } catch (KeyStoreException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();

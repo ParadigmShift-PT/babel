@@ -23,8 +23,8 @@ import pt.unl.fct.di.novasys.channel.tcp.SharedTCPChannel;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
 import pt.unl.fct.di.novasys.network.ISerializer;
 import pt.unl.fct.di.novasys.network.data.Host;
-import pt.unl.fct.di.novasys.network.security.IKeyManager;
-import pt.unl.fct.di.novasys.network.security.ITrustManager;
+import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
+import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
 import org.apache.commons.lang3.tuple.Triple;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -268,8 +268,8 @@ public class Babel {
         return channelId;
     }
 
-    IKeyManager defaultKeyManager = null; //TODO this is just a placeholder as it is never set yet
-    ITrustManager defaultTrustManager = null; //TODO this is just a placeholder as it is never set yet
+    X509IKeyManager defaultKeyManager = null; //TODO this is just a placeholder as it is never set yet
+    X509ITrustManager defaultTrustManager = null; //TODO this is just a placeholder as it is never set yet
 
     /**
      * Creates a secure channel for a protocol. <p>
@@ -284,7 +284,7 @@ public class Babel {
      * @throws IOException if channel creation fails
      */
     int createSecureChannel(String channelName, short protoId, Properties props,
-            Optional<IKeyManager> keyManager, Optional<ITrustManager> trustManager)
+            Optional<X509IKeyManager> keyManager, Optional<X509ITrustManager> trustManager)
             throws IOException {
         SecureChannelInitializer<?> initializer = secureChannelInitializers.get(channelName);
         if (initializer == null)

@@ -10,8 +10,8 @@ import pt.unl.fct.di.novasys.babel.generic.*;
 import pt.unl.fct.di.novasys.channel.ChannelEvent;
 import pt.unl.fct.di.novasys.network.ISerializer;
 import pt.unl.fct.di.novasys.network.data.Host;
-import pt.unl.fct.di.novasys.network.security.IKeyManager;
-import pt.unl.fct.di.novasys.network.security.ITrustManager;
+import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
+import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -352,7 +352,7 @@ public abstract class GenericProtocol {
      * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
      */
     protected final int createSecureChannel(String channelName, Properties props,
-            IKeyManager keyManager) throws IOException {
+            X509IKeyManager keyManager) throws IOException {
         return createSecureChannel(channelName, props, keyManager, null);
     }
 
@@ -368,7 +368,7 @@ public abstract class GenericProtocol {
      * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
      */
     protected final int createSecureChannel(String channelName, Properties props,
-            ITrustManager trustManager) throws IOException {
+            X509ITrustManager trustManager) throws IOException {
         return createSecureChannel(channelName, props, null, trustManager);
     }
 
@@ -385,7 +385,7 @@ public abstract class GenericProtocol {
      * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
      */
     protected final int createSecureChannel(String channelName, Properties props,
-            IKeyManager keyManager, ITrustManager trustManager) throws IOException {
+            X509IKeyManager keyManager, X509ITrustManager trustManager) throws IOException {
         int channelId = babel.createSecureChannel(channelName, this.protoId, props,
                 Optional.ofNullable(keyManager), Optional.ofNullable(trustManager));
         registerSharedChannel(channelId); // TODO registerSharedSecureChannel to setDefaultSecureChannel?
@@ -626,8 +626,8 @@ public abstract class GenericProtocol {
      * Depending on the channel, this method may be unnecessary/forbidden. <p>
      *
      * <i>Note:</i> If choosing your own identity for this connection is desired, consider
-     * creating a new secure channel with a {@link IKeyManager#singleKeyManager(byte[])}
-     * or {@link IKeyManager#singleKeyManager(String)}.
+     * creating a new secure channel with a {@link X509IKeyManager#singleKeyManager(byte[])}
+     * or {@link X509IKeyManager#singleKeyManager(String)}.
      *
      * @param peer      the ip/port to create the connection to.
      * @param peerId    the id of the peer expected to connect to. If the connected
@@ -642,8 +642,8 @@ public abstract class GenericProtocol {
      * Depending on the channel, this method may be unnecessary/forbidden. <p>
      *
      * <i>Note:</i> If choosing your own identity for this connection is desired, consider
-     * creating a new secure channel with a {@link IKeyManager#singleKeyManager(byte[])}
-     * or {@link IKeyManager#singleKeyManager(String)}.
+     * creating a new secure channel with a {@link X509IKeyManager#singleKeyManager(byte[])}
+     * or {@link X509IKeyManager#singleKeyManager(String)}.
      *
      * @param peer      the ip/port to create the connection to.
      * @param peerId    the id of the peer expected to connect to. If the connected

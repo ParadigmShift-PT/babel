@@ -10,15 +10,21 @@ import pt.unl.fct.di.novasys.babel.generic.*;
 import pt.unl.fct.di.novasys.channel.ChannelEvent;
 import pt.unl.fct.di.novasys.network.ISerializer;
 import pt.unl.fct.di.novasys.network.data.Host;
+import pt.unl.fct.di.novasys.network.security.IKeyManager;
+import pt.unl.fct.di.novasys.network.security.ITrustManager;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+
+import javax.net.ssl.KeyManager;
 
 /**
  * An abstract class that represent a generic protocol
@@ -92,7 +98,7 @@ public abstract class GenericProtocol {
     /**
      * @return whether this protocol has the {@link SecureProtocol} annotation.
      */
-    protected boolean isSecureProtocol() { //TODO should this be public?
+    boolean isSecureProtocol() { //TODO should this be protected?
         return this.isSecureProtocol;
     }
 
@@ -312,10 +318,77 @@ public abstract class GenericProtocol {
      * @param channelName the name of the channel
      * @param props       channel-specific properties. See the documentation for each channel.
      * @return the id of the newly created channel
+     * @throws IllegalArgumentException if there's no insecure channel with {@code channelName}.
      */
     protected final int createChannel(String channelName, Properties props) throws IOException {
         int channelId = babel.createChannel(channelName, this.protoId, props);
         registerSharedChannel(channelId);
+        return channelId;
+    }
+
+    /**
+     * Creates a new secure channel with the default key and trust managers.
+     *
+     * @param channelName  the name of the channel
+     * @param props        channel-specific properties. See the documentation for each channel.
+     *
+     * @return the id of the newly created channel
+     * @throws UnsupportedOperationException if this protocol doesn't have the {@link SecureProtocol} annotation.
+     * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
+     */
+    protected final int createSecureChannel(String channelName, Properties props) throws IOException {
+        return createSecureChannel(channelName, props, null, null);
+    }
+
+    /**
+     * Creates a new secure channel with the default trust manager.
+     *
+     * @param channelName  the name of the channel
+     * @param props        channel-specific properties. See the documentation for each channel.
+     * @param keyManager   the key manager to be used by the channel.
+     *
+     * @return the id of the newly created channel
+     * @throws UnsupportedOperationException if this protocol doesn't have the {@link SecureProtocol} annotation.
+     * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
+     */
+    protected final int createSecureChannel(String channelName, Properties props,
+            IKeyManager keyManager) throws IOException {
+        return createSecureChannel(channelName, props, keyManager, null);
+    }
+
+    /**
+     * Creates a new secure channel with the default key manager.
+     *
+     * @param channelName  the name of the channel
+     * @param props        channel-specific properties. See the documentation for each channel.
+     * @param trustManager the trust manager to be used by the channel.
+     *
+     * @return the id of the newly created channel
+     * @throws UnsupportedOperationException if this protocol doesn't have the {@link SecureProtocol} annotation.
+     * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
+     */
+    protected final int createSecureChannel(String channelName, Properties props,
+            ITrustManager trustManager) throws IOException {
+        return createSecureChannel(channelName, props, null, trustManager);
+    }
+
+    /**
+     * Creates a new secure channel.
+     *
+     * @param channelName  the name of the channel
+     * @param props        channel-specific properties. See the documentation for each channel.
+     * @param keyManager   the key manager to be used by the channel.
+     * @param trustManager the trust manager to be used by the channel.
+     *
+     * @return the id of the newly created channel
+     * @throws UnsupportedOperationException if this protocol doesn't have the {@link SecureProtocol} annotation.
+     * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
+     */
+    protected final int createSecureChannel(String channelName, Properties props,
+            IKeyManager keyManager, ITrustManager trustManager) throws IOException {
+        int channelId = babel.createSecureChannel(channelName, this.protoId, props,
+                Optional.ofNullable(keyManager), Optional.ofNullable(trustManager));
+        registerSharedChannel(channelId); // TODO registerSharedSecureChannel to setDefaultSecureChannel?
         return channelId;
     }
 
@@ -337,6 +410,8 @@ public abstract class GenericProtocol {
         defaultChannel = channelId;
     }
 
+    // TODO setDefaultSecureChannel?
+
     /**
      * Sends a message to a specified destination, using the default channel.
      * May require the use of {@link #openConnection(Host)} beforehand.
@@ -352,7 +427,7 @@ public abstract class GenericProtocol {
      * Sends a message to a specified destination using the given channel.
      * May require the use of {@link #openConnection(Host)} beforehand.
      *
-     * @param channelId     the channel to send the message through
+     * @param channelId   the channel to send the message through
      * @param msg         the message to send
      * @param destination the ip/port to send the message to
      */
@@ -388,7 +463,7 @@ public abstract class GenericProtocol {
      * Sends a message to a specified destination, using a specific connection in a given channel.
      * May require the use of {@link #openConnection(Host)} beforehand.
      *
-     * @param channelId     the channel to send the message through
+     * @param channelId   the channel to send the message through
      * @param connection  the channel-specific connection to use.
      * @param msg         the message to send
      * @param destination the ip/port to send the message to
@@ -432,6 +507,100 @@ public abstract class GenericProtocol {
     }
 
     /**
+     * Sends a message to the peer id, using the default secure channel. //TODO make the default secure channel different from the default channel??
+     * May require the use of {@link #openConnection(Host, byte[])} beforehand.
+     *
+     * @param msg           the message to send
+     * @param destinationId the peer id to send the message to
+     */
+    protected final void sendMessage(ProtoMessage msg, byte[] destinationId) {
+        sendMessage(defaultChannel, msg, this.protoId, destinationId, 0);
+    }
+
+    /**
+     * Sends a message to the peer id, using the given secure channel.
+     * May require the use of {@link #openConnection(Host, byte[])} beforehand.
+     *
+     * @param channelId     the secure channel to send the message through
+     * @param msg           the message to send
+     * @param destinationId the peer id to send the message to
+     */
+    protected final void sendMessage(int channelId, ProtoMessage msg, byte[] destinationId) {
+        sendMessage(channelId, msg, this.protoId, destinationId, 0);
+    }
+
+    /**
+     * Sends a message to a different protocol for the specified peer id, using the default secure channel.
+     * May require the use of {@link #openConnection(Host, byte[])} beforehand.
+     *
+     * @param msg           the message to send
+     * @param destProto     the target protocol for the message.
+     * @param destinationId the peer id to send the message to
+     */
+    protected final void sendMessage(ProtoMessage msg, short destProto, byte[] destinationId) {
+        sendMessage(defaultChannel, msg, destProto, destinationId, 0);
+    }
+
+    /**
+     * Sends a message to a specified peer id, using the default secure channel, and a specific connection.
+     * May require the use of {@link #openConnection(Host, byte[])} beforehand.
+     *
+     * @param msg           the message to send
+     * @param destinationId the peer id to send the message to
+     * @param connection    the channel-specific connection to use.
+     */
+    protected final void sendMessage(ProtoMessage msg, byte[] destinationId, int connection) {
+        sendMessage(defaultChannel, msg, this.protoId, destinationId, connection);
+    }
+
+    /**
+     * Sends a message to a specified peer id, using a specific connection in the given secure channel.
+     * May require the use of {@link #openConnection(Host, byte[])} beforehand.
+     *
+     * @param channelId     the channel to send the message through
+     * @param msg           the message to send
+     * @param destinationId the peer id to send the message to
+     * @param connection    the channel-specific connection to use.
+     */
+    protected final void sendMessage(int channelId, ProtoMessage msg, byte[] destinationId, int connection) {
+        sendMessage(channelId, msg, this.protoId, destinationId, connection);
+    }
+
+    /**
+     * Sends a message to a different protocol for the specified peer id,
+     * using a specific connection in the default secure channel.
+     * May require the use of {@link #openConnection(Host, byte[])} beforehand.
+     *
+     * @param msg           the message to send
+     * @param destProto     the target protocol for the message.
+     * @param destinationId the peer id to send the message to
+     * @param connection    the channel-specific connection to use.
+     */
+    protected final void sendMessage(ProtoMessage msg, short destProto, byte[] destinationId, int connection) {
+        sendMessage(defaultChannel, msg, destProto, destinationId, connection);
+    }
+
+    /**
+     * Sends a message to a different protocol for the speecified peer id,
+     * using a specific connection in the given channel.
+     * May require the use of {@link #openConnection(Host, byte[])} beforehand.
+     *
+     * @param channelId     the channel to send the message through
+     * @param destProto     the target protocol for the message.
+     * @param connection    the channel-specific connection to use.
+     * @param msg           the message to send
+     * @param destinationId the peer id to send the message to
+     */
+    protected final void sendMessage(int channelId, ProtoMessage msg, short destProto,
+                                     byte[] destinationId, int connection) {
+        getChannelOrThrow(channelId);
+        if (logger.isDebugEnabled())
+            logger.debug("Sending: " + msg + " to " + PeerIdEncoder.encodeToString(destinationId) + " proto " + destProto +
+                    " channel " + channelId);
+        babel.sendMessage(channelId, connection, new BabelMessage(msg, this.protoId, destProto), destinationId);
+    }
+
+    /**
      * Open a connection to the given peer using the default channel.
      * Depending on the channel, this method may be unnecessary/forbidden.
      *
@@ -450,6 +619,39 @@ public abstract class GenericProtocol {
      */
     protected final void openConnection(Host peer, int channelId) {
         babel.openConnection(channelId, peer, protoId);
+    }
+
+    /**
+     * Open a connection to the given peer with the specified id using the default secure channel.
+     * Depending on the channel, this method may be unnecessary/forbidden. <p>
+     *
+     * <i>Note:</i> If choosing your own identity for this connection is desired, consider
+     * creating a new secure channel with a {@link IKeyManager#singleKeyManager(byte[])}
+     * or {@link IKeyManager#singleKeyManager(String)}.
+     *
+     * @param peer      the ip/port to create the connection to.
+     * @param peerId    the id of the peer expected to connect to. If the connected
+     *                  peer doesn't prove to have the specified id, the connection fails.
+     */
+    protected final void openConnection(Host peer, byte[] peerId) {
+        openConnection(peer, peerId, defaultChannel);
+    }
+
+    /**
+     * Open a connection to the given peer with the specified id using the given secure channel.
+     * Depending on the channel, this method may be unnecessary/forbidden. <p>
+     *
+     * <i>Note:</i> If choosing your own identity for this connection is desired, consider
+     * creating a new secure channel with a {@link IKeyManager#singleKeyManager(byte[])}
+     * or {@link IKeyManager#singleKeyManager(String)}.
+     *
+     * @param peer      the ip/port to create the connection to.
+     * @param peerId    the id of the peer expected to connect to. If the connected
+     *                  peer doesn't prove to have the specified id, the connection fails.
+     * @param channelId the secure channel to create the connection in.
+     */
+    protected final void openConnection(Host peer, byte[] peerId, int channelId) {
+        babel.openConnection(channelId, peer, peerId, protoId);
     }
 
     /**
@@ -484,6 +686,40 @@ public abstract class GenericProtocol {
     protected final void closeConnection(Host peer, int channelId, int connection) {
         babel.closeConnection(channelId, peer, connection);
     }
+
+    /**
+     * Closes the connection to the peer with the given id in the default secure channel.
+     * Depending on the channel, this method may be unnecessary/forbidden.
+     *
+     * @param peerId the id of the peer to close the connection to.
+     */
+    protected final void closeConnection(byte[] peerId) {
+        closeConnection(peerId, defaultChannel);
+    }
+
+    /**
+     * Closes the connection to the peer with the given id in the given secure channel.
+     * Depending on the channel, this method may be unnecessary/forbidden.
+     *
+     * @param peerId    the id of the peer to close the connection to.
+     * @param channelId the secure channel to close the connection in
+     */
+    protected final void closeConnection(byte[] peerId, int channelId) {
+        closeConnection(peerId, channelId, protoId);
+    }
+
+    /**
+     * Closes a specific connection to the peer with the given id in the given secure channel.
+     * Depending on the channel, this method may be unnecessary/forbidden.
+     *
+     * @param peerId    the id of the peer to close the connection to.
+     * @param channelId  the channel to close the connection in
+     * @param connection the channel-specific connection to close
+     */
+    protected final void closeConnection(byte[] peerId, int channelId, int connection) {
+        babel.closeConnection(channelId, peerId, connection);
+    }
+
 
     /* ------------------ IPC BABEL PROXY -------------------------------------------------*/
 

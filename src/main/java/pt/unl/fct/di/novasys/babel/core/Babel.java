@@ -205,6 +205,8 @@ public class Babel {
                     "Protocol conflicts on name: " + p.getProtoName() + " (id: " + this.protocolByNameMap.get(
                             p.getProtoName()).getProtoId() + ")");
         }
+
+        //TODO if (p.isSecureProtocol()) activate security features ?
     }
 
     // ----------------------------- NETWORK
@@ -266,37 +268,23 @@ public class Babel {
         return channelId;
     }
 
-    IKeyManager defaultKeyManager; //TODO this is just a placeholder as it is never set yet
-    ITrustManager defaultTrustManager; //TODO this is just a placeholder as it is never set yet
-
-    /**
-     * Creates a secure channel for a protocol, using the default key and trust managers. <p>
-     * Called by {@link GenericProtocol}. Do not evoke directly.
-     *
-     * @param channelName the name of the channel to create
-     * @param protoId     the protocol numeric identifier
-     * @param props       the properties required by the channel
-     * @return the channel Id
-     * @throws IOException if channel creation fails
-     */
-    int createSecureChannel(String channelName, short protoId, Properties props)
-            throws IOException {
-        return createSecureChannel(channelName, protoId, props, defaultKeyManager, defaultTrustManager);
-    }
+    IKeyManager defaultKeyManager = null; //TODO this is just a placeholder as it is never set yet
+    ITrustManager defaultTrustManager = null; //TODO this is just a placeholder as it is never set yet
 
     /**
      * Creates a secure channel for a protocol. <p>
      * Called by {@link GenericProtocol}. Do not evoke directly.
      *
-     * @param channelName the name of the channel to create
-     * @param protoId     the protocol numeric identifier
-     * @param props       the properties required by the channel
-     * @param
+     * @param channelName  the name of the channel to create
+     * @param protoId      the protocol numeric identifier
+     * @param props        the properties required by the channel
+     * @param keyManager   the key manager to be used by the channel. If empty, the default is used.
+     * @param trustManager the trust manager to be used by the channel. If empty, the default is used.
      * @return the channel Id
      * @throws IOException if channel creation fails
      */
     int createSecureChannel(String channelName, short protoId, Properties props,
-            IKeyManager keyManager, ITrustManager trustManager)
+            Optional<IKeyManager> keyManager, Optional<ITrustManager> trustManager)
             throws IOException {
         SecureChannelInitializer<?> initializer = secureChannelInitializers.get(channelName);
         if (initializer == null)
@@ -308,7 +296,8 @@ public class Babel {
         int channelId = channelIdGenerator.incrementAndGet();
         BabelMessageSerializer serializer = new BabelMessageSerializer(new ConcurrentHashMap<>());
         SecureChannelToProtoForwarder forwarder = new SecureChannelToProtoForwarder(channelId);
-        SecureIChannel<BabelMessage> newChannel = initializer.initialize(serializer, forwarder, trustManager, keyManager, props, protoId);
+        SecureIChannel<BabelMessage> newChannel = initializer.initialize(serializer, forwarder,
+                trustManager.orElse(defaultTrustManager), keyManager.orElse(defaultKeyManager), props, protoId);
         secureChannelMap.put(channelId, Triple.of(newChannel, forwarder, serializer));
         return channelId;
     }
@@ -323,6 +312,7 @@ public class Babel {
      */
     void registerChannelInterest(int channelId, short protoId, GenericProtocol consumerProto) {
         ChannelToProtoForwarder forwarder = getChannelSecureOrNot(channelId).getMiddle();
+        // TODO this probably doesn't perform the check that the protocol is secure if the channel is secure, because of method resolution...
         forwarder.addConsumer(protoId, consumerProto);
     }
 
@@ -339,16 +329,15 @@ public class Babel {
     }
 
     /**
-     * Sends a message to a peer using its id and the given channel and connection.
+     * Sends a message to a peer using its id and the given secure channel and connection.
      * Called by {@link GenericProtocol}. Do not evoke directly.
      */
-    // TODO should this method have a different name (sendSecureMessage)? I's say no but let's see
     void sendMessage(int channelId, int connection, BabelMessage msg, byte[] targetId) {
         var channelEntry = secureChannelMap.get(channelId);
         if (channelEntry == null)
             throw new AssertionError("Sending message to non-existing secure channelId " + channelId +
                     (channelMap.containsKey(channelId)
-                            ? ". Did you mean to use sendMessage( ... , Host) instead?"
+                            ? ". Did you mean to use sendMessage( ... , Host) instead (i.e. to an insecure channel)?"
                             : ""));
         channelEntry.getLeft().sendMessage(msg, targetId, connection);
     }
@@ -374,7 +363,7 @@ public class Babel {
         if (channelEntry == null)
             throw new AssertionError("Closing connection in non-existing secure channelId " + channelId +
                     (channelMap.containsKey(channelId)
-                            ? ". Did you mean to use closeConnection( ... , Host) instead?"
+                            ? ". Did you mean to use closeConnection( ... , Host) instead (i.e. to an insecure channel)?"
                             : ""));
         channelEntry.getLeft().closeConnection(targetId, connection);
     }
@@ -395,13 +384,12 @@ public class Babel {
      * Opens a secure connection to a peer in the given channel.
      * Called by {@link GenericProtocol}. Do not evoke directly.
      */
-    // TODO should this method have a different name (openSecureConnection)?
     void openConnection(int channelId, Host target, byte[] targetId, int connection) {
         var channelEntry = secureChannelMap.get(channelId);
         if (channelEntry == null)
             throw new AssertionError("Opening connection in non-existing secure channelId " + channelId +
                     (channelMap.containsKey(channelId)
-                            ? ". Did you mean to use openConnection(...) without specifying the peer id instead?"
+                            ? ". Did you mean to use openConnection(...) without specifying the peer id (i.e. to an insecure connection)?"
                             : ""));
         channelEntry.getLeft().openConnection(target, connection);
     }
@@ -430,7 +418,6 @@ public class Babel {
         return channelEntry;
     }
 
-    // TODO make the missing adaptations for secure channel support from here down
     // ----------------------------- REQUEST / REPLY / NOTIFY
 
     /**
@@ -581,6 +568,8 @@ public class Babel {
         }
         return config;
     }
+
+    // TODO loadKeystore and loadTrustStore?
 
     public long getMillisSinceStart() {
         return started ? System.currentTimeMillis() - startTime : 0;

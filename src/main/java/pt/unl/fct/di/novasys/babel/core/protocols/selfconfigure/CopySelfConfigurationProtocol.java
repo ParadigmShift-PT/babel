@@ -5,19 +5,24 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.MutableTriple;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import pt.unl.fct.di.novasys.babel.core.SelfConfigurableProtocol;
+import pt.unl.fct.di.novasys.babel.core.protocols.discovery.requests.FoundServiceReply;
 import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.messages.ParameterMessage;
 import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.timers.SearchTimer;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
@@ -34,15 +39,17 @@ import pt.unl.fct.di.novasys.network.data.Host;
 public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
     private static final Logger logger = LogManager.getLogger(CopySelfConfigurationProtocol.class);
 
+    public static final String DEFAULT_PORT = "19349";
     public static final short PROTO_ID = 32000;
     public static final String PROTO_NAME = "BabelCopySelfConfiguration";
     public static final int SEARCH_COOLDOWN = 5000;
     public static final int CONFIRMATION_TIMEOUT = 30000;
 
-    protected final Map<String, Map<String, MutableTriple<Parameter, CountDownLatch, Map<String, Integer>>>> protocolToParameterToConfigure;
+    protected final Map<String, Map<String, MutableTriple<Parameter, CountDownLatch, Pair<Map<String, Integer>, Set<Host>>>>> protocolToParameterToConfigure;
     protected final Map<String, Map<String, Parameter>> protocolToParameterConfigured;
     protected final Map<String, SelfConfigurableProtocol> protocolMap;
     protected final Map<Host, ParameterMessage> msgToSend;
+    protected final Map<String, Set<Host>> whisperers;
 
     private int defaultChannelID;
     private int confirmationsNeeded = 1;
@@ -54,6 +61,7 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
         protocolToParameterConfigured = new ConcurrentHashMap<>();
         protocolMap = new ConcurrentHashMap<>();
         msgToSend = new HashMap<>();
+        whisperers = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -68,7 +76,7 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
         } else {
             address = NetworkingUtilities.getAddress(networkInterface);
         }
-        String port = props.getProperty("BabelWhisperer.Unicast.Port", SelfConfigurableProtocol.DEFAULT_PORT);
+        String port = props.getProperty("BabelWhisperer.Unicast.Port", DEFAULT_PORT);
         String confirmations = props.getProperty("BabelWhisperer.Confirmations");
         if (confirmations != null) {
             confirmationsNeeded = Integer.valueOf(confirmations);
@@ -92,6 +100,10 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
         registerTimerHandler(SearchTimer.TIMER_ID, this::search);
 
         setupPeriodicTimer(new SearchTimer(), SEARCH_COOLDOWN, SEARCH_COOLDOWN);
+
+        babel.askRunningDiscovery(this, true);
+
+        registerReplyHandler(FoundServiceReply.REPLY_ID, this::uponFoundServiceReply);
     }
 
     public void addProtocolParameterToConfigure(String parameterName, Method setter, Method getter,
@@ -102,7 +114,8 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
             protocolParameters = new ConcurrentHashMap<>();
             protocolToParameterToConfigure.put(proto.getProtoName(), protocolParameters);
         }
-        protocolParameters.put(parameterName, new MutableTriple<>(parameter, null, new HashMap<>()));
+        protocolParameters.put(parameterName,
+                new MutableTriple<>(parameter, null, new ImmutablePair<>(new HashMap<>(), new HashSet<>())));
         protocolMap.put(proto.getProtoName(), proto);
     }
 
@@ -121,27 +134,29 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
     public void search(SearchTimer timer, long timerId) {
         logger.info("Trying to search");
         for (var protoEntry : protocolToParameterToConfigure.entrySet()) {
-            Host protoHost = protocolMap.get(protoEntry.getKey()).getWhisperer();
+            Set<Host> protoHost = whisperers.get("*");
             synchronized (msgToSend) {
-                ParameterMessage msg = msgToSend.get(protoHost);
-                if (msg == null) {
-                    msg = new ParameterMessage();
-                    msgToSend.put(protoHost, msg);
-                    logger.info("Opening connection to " + protoHost);
-                    openConnection(protoHost, defaultChannelID);
-                }
-                for (var paramEntry : protoEntry.getValue().entrySet()) {
-                    msg.addAskingParameter(protoEntry.getKey(), paramEntry.getKey());
+                for (var host : protoHost) {
+                    ParameterMessage msg = msgToSend.get(host);
+                    if (msg == null) {
+                        msg = new ParameterMessage();
+                        msgToSend.put(host, msg);
+                        logger.info("Opening connection to " + protoHost);
+                        openConnection(host, defaultChannelID);
+                    }
+                    for (var paramEntry : protoEntry.getValue().entrySet()) {
+                        msg.addAskingParameter(protoEntry.getKey(), paramEntry.getKey());
+                    }
                 }
             }
         }
     }
 
     private void countdownParameter(SelfConfigurableProtocol proto,
-            Triple<Parameter, CountDownLatch, Map<String, Integer>> paramToConfigure) {
+            Triple<Parameter, CountDownLatch, Pair<Map<String, Integer>, Set<Host>>> paramToConfigure) {
         try {
             paramToConfigure.getMiddle().await(CONFIRMATION_TIMEOUT, TimeUnit.MILLISECONDS);
-            String confirmedValue = paramToConfigure.getRight().entrySet().stream()
+            String confirmedValue = paramToConfigure.getRight().getLeft().entrySet().stream()
                     .max(new Comparator<Entry<String, Integer>>() {
                         @Override
                         public int compare(Entry<String, Integer> o1, Entry<String, Integer> o2) {
@@ -162,11 +177,13 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
     }
 
     private void addFoundConfiguration(String config,
-            Triple<Parameter, CountDownLatch, Map<String, Integer>> paramToConfigure) {
-        var possibilities = paramToConfigure.getRight();
-        int confirmations = possibilities.get(config);
-        possibilities.put(config, confirmations + 1);
-        paramToConfigure.getMiddle().countDown();
+            Triple<Parameter, CountDownLatch, Pair<Map<String, Integer>, Set<Host>>> paramToConfigure, Host from) {
+        if (paramToConfigure.getRight().getRight().add(from)) {
+            var possibilities = paramToConfigure.getRight().getLeft();
+            int confirmations = possibilities.get(config);
+            possibilities.put(config, confirmations + 1);
+            paramToConfigure.getMiddle().countDown();
+        }
     }
 
     public void uponParameterMessage(ParameterMessage msg, Host from, short sourceProto, int channelId) {
@@ -190,7 +207,7 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
                         paramToConfigure.setMiddle(new CountDownLatch(confirmationsNeeded));
                         new Thread(() -> countdownParameter(proto, paramToConfigure)).start();
                     }
-                    addFoundConfiguration(paramEntry.getValue(), paramToConfigure);
+                    addFoundConfiguration(paramEntry.getValue(), paramToConfigure, from);
                 } else if (paramEntry.getValue() == null && paramConfigured != null) {
                     try {
                         String value = (String) paramConfigured.getter().invoke(proto);
@@ -291,5 +308,15 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
      */
     private void uponOutConnectionFailed(OutConnectionFailed<ProtoMessage> event, int channel) {
         logger.debug(event);
+    }
+
+    private void uponFoundServiceReply(FoundServiceReply reply, short sourceProto) {
+        // TODO CREATE A MESSAGE TO ASK WHAT CONFIGS THE NEW GUY HAS
+        var serviceWhisperers = whisperers.get("*");
+        if (serviceWhisperers == null) {
+            serviceWhisperers = ConcurrentHashMap.newKeySet();
+            whisperers.put("*", serviceWhisperers);
+        }
+        serviceWhisperers.add(reply.getServiceHost());
     }
 }

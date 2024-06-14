@@ -25,6 +25,8 @@ import org.apache.logging.log4j.Logger;
 
 import pt.unl.fct.di.novasys.babel.core.DiscoverableProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.messages.ServiceMessage;
+import pt.unl.fct.di.novasys.babel.core.protocols.discovery.requests.FoundServiceReply;
+import pt.unl.fct.di.novasys.babel.core.protocols.discovery.requests.RequestDiscovery;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.timers.AnoucementTimer;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.network.data.Host;
@@ -45,6 +47,7 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
     private DatagramSocket socket;
     private Map<String, ServiceMessage> discoveryProtocolsData;
     private Map<String, DiscoverableProtocol> protocolsWaiting;
+    private Map<String, Short> runningProtcolsWaiting;
     private Host discoveryHost;
     private Set<InetSocketAddress> socketAddresses;
     private Set<ServiceMessage> pendingServices;
@@ -113,6 +116,7 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
         protocolsWaiting = new ConcurrentHashMap<>();
         socketAddresses = new HashSet<>();
         pendingServices = new HashSet<>();
+        runningProtcolsWaiting = new ConcurrentHashMap<>();
 
         registerTimerHandler(AnoucementTimer.TIMER_ID, this::announce);
 
@@ -185,7 +189,8 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                 }
 
                 logger.debug("Receive a message with " + packet.getLength() + " bytes.");
-                List<ServiceMessage> messages = ServiceMessage.manyFromDatagram(Arrays.copyOfRange(packet.getData(), 0, packet.getLength()));
+                List<ServiceMessage> messages = ServiceMessage
+                        .manyFromDatagram(Arrays.copyOfRange(packet.getData(), 0, packet.getLength()));
 
                 if (messages.size() > 0) {
                     if (messages.getFirst().isProbe()) {
@@ -227,6 +232,8 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                                         }
                                     }
                                 }
+                                Short dpID = this.runningProtcolsWaiting.get(m.getServiceName());
+                                sendReply(new FoundServiceReply(m.getServiceHost()), dpID);
                             }
                         }
                     }
@@ -239,5 +246,12 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                 e.printStackTrace();
             }
         }
+    }
+
+    public void uponRequestDiscovery(RequestDiscovery request, short sourceProtocol) {
+        if (request.getListen())
+            runningProtcolsWaiting.put(request.getServiceName(), sourceProtocol);
+        else
+            runningProtcolsWaiting.remove(request.getServiceName());
     }
 }

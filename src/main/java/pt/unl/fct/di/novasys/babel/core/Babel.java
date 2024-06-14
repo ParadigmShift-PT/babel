@@ -7,6 +7,8 @@ import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
 import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
 import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.SelfConfigurationProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.DiscoveryProtocol;
+import pt.unl.fct.di.novasys.babel.core.protocols.discovery.requests.FoundServiceReply;
+import pt.unl.fct.di.novasys.babel.core.protocols.discovery.requests.RequestDiscovery;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
@@ -206,6 +208,12 @@ public class Babel {
 		}
 	}
 
+	public void askRunningDiscovery(GenericProtocol proto, boolean listen) {
+		for (var discovery : discoveries) {
+			proto.sendRequest(new RequestDiscovery(proto.getProtoName(), listen), discovery.getProtoId());
+		}
+	}
+
 	/**
 	 * Begins the execution of all protocols registered in Babel
 	 */
@@ -236,9 +244,7 @@ public class Babel {
 				Class<? extends SelfConfigurationProtocol> selfConfigurationClass = (Class<? extends SelfConfigurationProtocol>) Class
 						.forName(props.getProperty(PAR_SELF_CONFIGURATION_PROTOCOL));
 				this.selfConfiguration = selfConfigurationClass.getDeclaredConstructor().newInstance();
-				for (var discovery : discoveries) {
-					discovery.registerProtocol(selfConfiguration);
-				}
+				selfConfiguration.registerReplyHandler(FoundServiceReply.REPLY_ID, null);
 			} catch (Exception e) {
 				e.printStackTrace();
 				logger.error("Unable to load SelfConfigurationProtocol: '"

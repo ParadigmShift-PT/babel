@@ -1,3 +1,4 @@
+/*
 package pt.unl.fct.di.novasys.babel.internal.security.x509;
 
 import java.security.InvalidKeyException;
@@ -39,3 +40,4 @@ public class X509CertificateVerifier implements CertificateVerifier {
             throw new UntrustedCertificateEntityException(x509Certificate);
     }
 }
+*/

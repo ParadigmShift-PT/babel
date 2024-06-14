@@ -17,32 +17,35 @@ public class PeerIdEncoder {
         return encoder.encodeToString(peerId);
     }
 
-    public static byte[] decodeString(String peerId) {
+    public static byte[] decode(String peerId) {
         return decoder.decode(peerId);
     }
 
-    public static byte[] fromPublicKey(PublicKey publicKey, String hashAlgorithm) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance(hashAlgorithm, CryptUtils.PROVIDER);
-            digest.update(publicKey.getEncoded());
-            return digest.digest();
-        } catch (NoSuchAlgorithmException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-            throw new RuntimeException("Unhandled exception: " + e);
-        }
+    public static String withoutEscapeBackslashes(String peerId) {
+        return peerId.replaceAll("\\\\(\\\\)?", "$1");
+    }
+
+    public static byte[] fromPublicKey(PublicKey publicKey, String hashAlgorithm) throws NoSuchAlgorithmException {
+        MessageDigest digest = MessageDigest.getInstance(hashAlgorithm, CryptUtils.PROVIDER);
+        digest.update(publicKey.getEncoded());
+        return digest.digest();
     }
 
     public static byte[] fromPublicKey(PublicKey publicKey) {
-        return fromPublicKey(publicKey, DEFAULT_HASH_ALG);
+        try {
+            return fromPublicKey(publicKey, DEFAULT_HASH_ALG);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e); // Shouldn't happen
+        }
     }
 
-    public static String stringFromPublicKey(PublicKey publicKey, String hashAlgorithm) {
-        return encodeToString( fromPublicKey(publicKey, hashAlgorithm) );
+    public static String stringFromPublicKey(PublicKey publicKey, String hashAlgorithm)
+            throws NoSuchAlgorithmException {
+        return encodeToString(fromPublicKey(publicKey, hashAlgorithm));
     }
 
     public static String stringFromPublicKey(PublicKey publicKey) {
-        return encodeToString( fromPublicKey(publicKey) );
+        return encodeToString(fromPublicKey(publicKey));
     }
 
 }

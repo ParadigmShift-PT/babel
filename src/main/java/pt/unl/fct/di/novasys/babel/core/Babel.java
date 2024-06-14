@@ -7,6 +7,7 @@ import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
 import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
 import pt.unl.fct.di.novasys.babel.internal.security.PrivateIdStore;
 import pt.unl.fct.di.novasys.babel.internal.security.PublicIdStore;
+import pt.unl.fct.di.novasys.babel.core.security.X509BabelKeyManager;
 import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
@@ -31,6 +32,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.security.KeyStoreException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -117,6 +119,9 @@ public class Babel {
     private final PrivateIdStore myIds;
     private final PublicIdStore knownIds;
 
+    private X509IKeyManager defaultKeyManager;
+    private X509ITrustManager defaultTrustManager; //TODO this is just a placeholder as it is never set yet
+
     private Babel() {
         //Protocols
         this.protocolMap = new ConcurrentHashMap<>();
@@ -131,8 +136,10 @@ public class Babel {
 
         //Channels
         channelMap = new ConcurrentHashMap<>();
+        secureChannelMap = new ConcurrentHashMap<>();
         channelIdGenerator = new AtomicInteger(0);
         this.initializers = new ConcurrentHashMap<>();
+        this.secureChannelInitializers = new ConcurrentHashMap<>();
 
         registerChannelInitializer(SimpleClientChannel.NAME, new SimpleClientChannelInitializer());
         registerChannelInitializer(SimpleServerChannel.NAME, new SimpleServerChannelInitializer());
@@ -148,6 +155,15 @@ public class Babel {
         java.security.Security.addProvider(new BouncyCastleProvider());
         myIds = new PrivateIdStore();
         knownIds = new PublicIdStore();
+
+        // TODO this is just a placeholder to allow for testing... Make the keystores be selected, read from props, or lazy loadaded (for ad-hoc ids)
+        try {
+            defaultKeyManager = new X509BabelKeyManager(myIds.getKeyStore(), "");
+            // defaultTrustManager = ...
+        } catch (KeyStoreException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
 
         registerChannelInitializer(AuthChannel.NAME, new AuthChannelInitializer());
     }
@@ -267,9 +283,6 @@ public class Babel {
         channelMap.put(channelId, Triple.of(newChannel, forwarder, serializer));
         return channelId;
     }
-
-    X509IKeyManager defaultKeyManager = null; //TODO this is just a placeholder as it is never set yet
-    X509ITrustManager defaultTrustManager = null; //TODO this is just a placeholder as it is never set yet
 
     /**
      * Creates a secure channel for a protocol. <p>

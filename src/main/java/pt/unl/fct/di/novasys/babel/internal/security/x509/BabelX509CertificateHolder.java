@@ -26,7 +26,7 @@ public class BabelX509CertificateHolder implements BabelCertificateHolder<X509Ce
     @Override
     public byte[] getPeerId() throws CertificateEncodingException {
         String idString = CryptUtils.getInstance().getX509CertificatePeerId(certificate);
-        return PeerIdEncoder.decodeString(idString);
+        return PeerIdEncoder.decode(idString);
     }
 
     @Override

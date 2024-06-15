@@ -28,7 +28,7 @@ public class SecureChannelToProtoForwarder extends ChannelToProtoForwarder
     @Override
     public void addConsumer(short protoId, GenericProtocol consumer) {
         if (consumer.isSecureProtocol())
-            addConsumer(protoId, consumer);
+            super.addConsumer(protoId, consumer);
         else
             throw new IllegalArgumentException(
                     "Tried to to add a non-secure protcol as a listener for a secure channel");

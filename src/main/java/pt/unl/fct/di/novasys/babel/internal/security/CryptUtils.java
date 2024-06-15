@@ -5,10 +5,8 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.Provider;
 import java.security.SecureRandom;
-import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -58,20 +56,16 @@ public class CryptUtils {
     private static final BigInteger RSA_PUBLIC_EXPONENT = RSAKeyGenParameterSpec.F4;
 
     private final SecureRandom keyRnd;
-    private final SecureRandom nonceAndIVRnd;
 
     private final RSAKeyGenParameterSpec rsaParamSpec;
 
     private static CryptUtils instance;
     private CryptUtils() {
         SecureRandom keyRnd = null;
-        SecureRandom nonceAndIVRnd = null;
         try {
             keyRnd = SecureRandom.getInstance("DEFAULT", PROVIDER);
-            nonceAndIVRnd = SecureRandom.getInstance("NonceAndIVRnd", PROVIDER);
         } catch (NoSuchAlgorithmException never) {}
         this.keyRnd = keyRnd;
-        this.nonceAndIVRnd = nonceAndIVRnd;
 
         this.rsaParamSpec = new RSAKeyGenParameterSpec(RSA_KEY_SIZE, RSA_PUBLIC_EXPONENT);
     }

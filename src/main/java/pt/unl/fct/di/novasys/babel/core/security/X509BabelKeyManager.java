@@ -21,8 +21,6 @@ import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 public class X509BabelKeyManager extends X509IKeyManager {
     private final static Logger logger = LogManager.getLogger(X509BabelKeyManager.class);
 
-    static final String DEFAULT_ID_ALIAS = "default";
-
     private final IdAliasMapper idAliasMapper;
 
     private final KeyStore keyStore;
@@ -44,6 +42,7 @@ public class X509BabelKeyManager extends X509IKeyManager {
      */
     public X509BabelKeyManager(KeyStore keyStore, char[] pwd) throws KeyStoreException {
         this(keyStore, pwd, new PeerIdAliasMapper());
+        // TODO choose a default alias instead of just passing an empty id alias mapper
     }
 
     /**
@@ -94,7 +93,13 @@ public class X509BabelKeyManager extends X509IKeyManager {
     @Override
     public X509Certificate[] getCertificateChain(String alias) {
         try {
-            return (X509Certificate[]) keyStore.getCertificateChain(alias);
+            var chain = keyStore.getCertificateChain(alias);
+
+            var x509Chain = new X509Certificate[chain.length];
+            for (int i = 0; i < chain.length; i++)
+                x509Chain[i] = (X509Certificate) chain[i];
+
+            return x509Chain;
         } catch (ClassCastException e) {
             logger.error("getCertificateChain(%s): Couldn't cast Certificate[] to X509Certificate[]", alias);
             return null;

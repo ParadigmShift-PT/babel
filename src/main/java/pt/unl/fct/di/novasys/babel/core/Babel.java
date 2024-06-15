@@ -4,9 +4,12 @@ import pt.unl.fct.di.novasys.babel.initializers.*;
 import pt.unl.fct.di.novasys.babel.internal.BabelMessage;
 import pt.unl.fct.di.novasys.babel.internal.IPCEvent;
 import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
+import pt.unl.fct.di.novasys.babel.internal.PeerIdEncoder;
 import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
+import pt.unl.fct.di.novasys.babel.internal.security.CryptUtils;
 import pt.unl.fct.di.novasys.babel.internal.security.PrivateIdStore;
 import pt.unl.fct.di.novasys.babel.internal.security.PublicIdStore;
+import pt.unl.fct.di.novasys.babel.internal.security.keystore.PeerIdAliasMapper;
 import pt.unl.fct.di.novasys.babel.core.security.X509BabelKeyManager;
 import pt.unl.fct.di.novasys.babel.core.security.X509BabelTrustManager;
 import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
@@ -120,8 +123,9 @@ public class Babel {
     private final PrivateIdStore myIds;
     private final PublicIdStore knownIds;
 
+    // TODO interfaces to interact with these...
     private X509IKeyManager defaultKeyManager;
-    private X509ITrustManager defaultTrustManager; //TODO this is just a placeholder as it is never set yet
+    private X509ITrustManager defaultTrustManager;
 
     private Babel() {
         //Protocols
@@ -152,24 +156,30 @@ public class Babel {
         //registerChannelInitializer(MultithreadedTCPChannel.NAME, new MultithreadedTCPChannelInitializer());
 
         // Initialize security features
-        // TODO make these be loaded only if a protocol would use them
+        registerChannelInitializer(AuthChannel.NAME, new AuthChannelInitializer());
+
+        // TODO this is just a placeholder to allow for testing... Make the keystores be selected, read from props, or lazy loadaded (for ad-hoc ids)
         java.security.Security.addProvider(new BouncyCastleProvider());
         myIds = new PrivateIdStore();
         knownIds = new PublicIdStore();
 
+        var keyPair = CryptUtils.getInstance().createRandomKeyPair();
+        var idBytes = PeerIdEncoder.fromPublicKey(keyPair.getPublic());
+        var idStr = PeerIdEncoder.encodeToString(idBytes);
+        var cert = CryptUtils.getInstance().createSelfSignedX509Certificate(keyPair, idStr, 365);
+        myIds.setCredential(idBytes, keyPair.getPrivate(), cert);
+
+        var idAliasMapper = new PeerIdAliasMapper(idStr, idBytes);
+
         //var trustStore = System.getProperty("javax.net.ssl.trustStore"); ?
         //var trustStorePassword = System.getProperty("javax.net.ssl.trustStorePassword"); ?
 
-        // TODO this is just a placeholder to allow for testing... Make the keystores be selected, read from props, or lazy loadaded (for ad-hoc ids)
         try {
-            defaultKeyManager = new X509BabelKeyManager(myIds.getKeyStore(), "");
+            defaultKeyManager = new X509BabelKeyManager(myIds.getKeyStore(), "", idAliasMapper);
             defaultTrustManager = new X509BabelTrustManager();
         } catch (KeyStoreException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
-
-        registerChannelInitializer(AuthChannel.NAME, new AuthChannelInitializer());
     }
 
     private void timerLoop() {
@@ -329,7 +339,6 @@ public class Babel {
      */
     void registerChannelInterest(int channelId, short protoId, GenericProtocol consumerProto) {
         ChannelToProtoForwarder forwarder = getChannelSecureOrNot(channelId).getMiddle();
-        // TODO this probably doesn't perform the check that the protocol is secure if the channel is secure, because of method resolution...
         forwarder.addConsumer(protoId, consumerProto);
     }
 

@@ -40,10 +40,10 @@ public class PrivateIdStore extends IdStore {
 
     public void setCredential(byte[] id, PrivateKey privateKey, Certificate certificate) {
         try {
-            keyStore.setEntry(
-                PeerIdEncoder.encodeToString(id),
-                new KeyStore.PrivateKeyEntry(privateKey, new Certificate[]{certificate}),
-                protParam);
+            var entry = new KeyStore.PrivateKeyEntry(privateKey, new Certificate[]{certificate});
+            keyStore.setEntry(PeerIdEncoder.encodeToString(id), entry, protParam);
+            if (!keyStore.containsAlias(DEFAULT_ALIAS))
+                keyStore.setEntry(DEFAULT_ALIAS, entry, protParam);
         } catch (KeyStoreException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();

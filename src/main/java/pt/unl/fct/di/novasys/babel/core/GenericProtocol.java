@@ -388,7 +388,7 @@ public abstract class GenericProtocol {
             X509IKeyManager keyManager, X509ITrustManager trustManager) throws IOException {
         int channelId = babel.createSecureChannel(channelName, this.protoId, props,
                 Optional.ofNullable(keyManager), Optional.ofNullable(trustManager));
-        registerSharedChannel(channelId); // TODO registerSharedSecureChannel to setDefaultSecureChannel?
+        registerSharedChannel(channelId);
         return channelId;
     }
 

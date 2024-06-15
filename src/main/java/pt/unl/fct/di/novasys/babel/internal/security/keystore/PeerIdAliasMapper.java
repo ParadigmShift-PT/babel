@@ -1,11 +1,26 @@
 package pt.unl.fct.di.novasys.babel.internal.security.keystore;
 
 import pt.unl.fct.di.novasys.babel.internal.PeerIdEncoder;
-import pt.unl.fct.di.novasys.network.data.Bytes;
 
 public class PeerIdAliasMapper implements IdAliasMapper {
 
-    private static final String DEFAULT_ALIAS = "default";
+    private String defaultAlias;
+    private byte[] defaultId;
+
+    public PeerIdAliasMapper() {
+    }
+
+    public PeerIdAliasMapper(String defaultAlias) {
+        setDefaultAlias(defaultAlias);
+    }
+
+    public PeerIdAliasMapper(byte[] defaultId) {
+        setDefaultId(defaultId);
+    }
+
+    public PeerIdAliasMapper(String defaultAlias, byte[] defaultId) {
+        setDefaultAliasAndId(defaultAlias, defaultId);
+    }
 
     @Override
     public String getAlias(byte[] id) {
@@ -13,18 +28,39 @@ public class PeerIdAliasMapper implements IdAliasMapper {
     }
 
     @Override
-    public String getAlias(Bytes id) {
-        return PeerIdEncoder.encodeToString(id.array());
+    public byte[] getId(String alias) {
+        if (alias.equals(defaultAlias))
+            return defaultId;
+        else
+            return PeerIdEncoder.decode(alias);
     }
 
     @Override
     public String getDefaultAlias() {
-        return DEFAULT_ALIAS;
+        return defaultAlias;
     }
 
     @Override
-    public byte[] getId(String alias) {
-        return PeerIdEncoder.decode(alias);
+    public byte[] getDefaultId() {
+        return defaultId;
+    }
+
+    @Override
+    public void setDefaultAlias(String alias) {
+        defaultId = getId(alias);
+        defaultAlias = alias;
+    }
+
+    @Override
+    public void setDefaultId(byte[] id) {
+        defaultAlias = getAlias(id);
+        defaultId = id;
+    }
+
+    @Override
+    public void setDefaultAliasAndId(String alias, byte[] id) {
+        defaultAlias = alias;
+        defaultId = id;
     }
 
 }

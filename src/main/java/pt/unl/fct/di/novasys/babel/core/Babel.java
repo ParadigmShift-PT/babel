@@ -544,12 +544,12 @@ public class Babel {
 			try {
 				in = new FileInputStream(configFile);
 			} catch (FileNotFoundException e) {
-				/*
-				 * //trying to load the file from within a Jar resource file
-				 * in = getClass().getResourceAsStream("/"+configFile);
-				 * if(in == null)
-				 * throw e;
-				 */
+
+				// trying to load the file from within a Jar resource file
+				in = Babel.class.getResourceAsStream("/" + configFile);
+				if (in == null)
+					throw e;
+
 				// TODO: NOT WORKING
 			}
 

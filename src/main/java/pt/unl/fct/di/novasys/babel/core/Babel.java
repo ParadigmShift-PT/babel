@@ -201,7 +201,7 @@ public class Babel {
 						this.selfConfiguration.addProtocolParameterConfigured(field.getName(), setter, getter, scProto);
 					}
 				} catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
-					throw new RuntimeException("Protocol badly constructed");
+					throw new RuntimeException(e);
 				}
 			}
 		}

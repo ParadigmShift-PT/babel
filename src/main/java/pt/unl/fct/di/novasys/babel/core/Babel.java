@@ -7,7 +7,6 @@ import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
 import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
 import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.SelfConfigurationProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.DiscoveryProtocol;
-import pt.unl.fct.di.novasys.babel.core.protocols.discovery.requests.FoundServiceReply;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.requests.RequestDiscovery;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;

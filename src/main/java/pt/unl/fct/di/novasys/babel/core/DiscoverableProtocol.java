@@ -1,5 +1,8 @@
 package pt.unl.fct.di.novasys.babel.core;
 
+import java.util.concurrent.BlockingQueue;
+
+import pt.unl.fct.di.novasys.babel.internal.InternalEvent;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 public abstract class DiscoverableProtocol extends GenericProtocol {
@@ -14,7 +17,16 @@ public abstract class DiscoverableProtocol extends GenericProtocol {
     public DiscoverableProtocol(String protoName, short protoId, Host myself) {
         super(protoName, protoId);
         this.myself = myself;
-      
+    }
+
+    public DiscoverableProtocol(String protoName, short protoId, BlockingQueue<InternalEvent> policy) {
+        super(protoName, protoId, policy);
+        this.myself = null;   
+    }
+
+    public DiscoverableProtocol(String protoName, short protoId, Host myself, BlockingQueue<InternalEvent> policy) {
+        super(protoName, protoId, policy);
+        this.myself = myself;
     }
     
     /**

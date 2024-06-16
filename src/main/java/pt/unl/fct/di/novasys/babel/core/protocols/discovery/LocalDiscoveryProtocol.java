@@ -231,10 +231,11 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                                 DiscoverableProtocol dp = this.protocolsWaiting.get(m.getServiceName());
                                 if (dp != null) {
                                     synchronized (dp) {
-                                        if (dp.hasProtocolThreadStarted() || !dp.needsDiscovery()) {
+                                        if (dp.hasProtocolThreadStarted()) {
                                             this.protocolsWaiting.remove(m.getServiceName());
                                             continue;
                                         }
+
                                         dp.addContact(m.getServiceHost());
                                         if (!dp.needsDiscovery())
                                             this.protocolsWaiting.remove(m.getServiceName());

@@ -127,7 +127,7 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
     public void registerProtocol(DiscoverableProtocol dcProto) {
         this.discoveryProtocolsData.put(dcProto.getProtoName(),
                 new ServiceMessage(dcProto.getProtoName(), dcProto.getMyself(), discoveryHost));
-        if (!dcProto.needsDiscovery()) {
+        if (dcProto.needsDiscovery()) {
             logger.debug("Registered protocol " + dcProto.getProtoName());
             this.protocolsWaiting.put(dcProto.getProtoName(), dcProto);
         }

@@ -73,4 +73,11 @@ public abstract class DiscoverableProtocol extends GenericProtocol {
     public Host getMyself() {
         return this.myself;
     }
+
+    @Override
+    void deliverInternalEvent(InternalEvent event) {
+        //if (readyToStart()) {
+            super.deliverInternalEvent(event);
+        //}
+    }
 }

@@ -111,7 +111,7 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
     public void addProtocolParameterToConfigure(String parameterName, Method setter, Method getter,
             SelfConfigurableProtocol proto) {
         if (protocolToParameterToConfigure.isEmpty()) {
-            babel.askRunningDiscovery(proto, myself, true);
+            babel.askRunningDiscovery(this, myself, true);
         }
         Parameter parameter = new Parameter(getter, setter, proto);
         var protocolParameters = protocolToParameterToConfigure.get(proto.getProtoName());
@@ -178,7 +178,7 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
                     babel.setupSelfConfiguration(proto);
                     protocolToParameterToConfigure.remove(proto.getProtoName());
                     if (protocolToParameterToConfigure.isEmpty()) {
-                        babel.askRunningDiscovery(proto, myself, false);
+                        babel.askRunningDiscovery(this, myself, false);
                     }
                 }
             }

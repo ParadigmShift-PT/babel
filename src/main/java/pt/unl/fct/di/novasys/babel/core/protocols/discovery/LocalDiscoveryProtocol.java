@@ -227,8 +227,8 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                     // we can use
                     // bootstrap our own protocols :)
                     synchronized (protocolsWaiting) {
-                        if (protocolsWaiting.size() > 0) {
-                            for (ServiceMessage m : messages) {
+                        for (ServiceMessage m : messages) {
+                            if (protocolsWaiting.size() > 0) {
                                 DiscoverableProtocol dp = this.protocolsWaiting.get(m.getServiceName());
                                 if (dp != null) {
                                     synchronized (dp) {
@@ -247,9 +247,10 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                                         }
                                     }
                                 }
-                                Short dpID = this.runningProtcolsWaiting.get(m.getServiceName());
-                                if (dpID != null)
-                                    sendReply(new FoundServiceReply(m.getServiceHost()), dpID);
+                            }
+                            Short dpID = this.runningProtcolsWaiting.get(m.getServiceName());
+                            if (dpID != null) {
+                                sendReply(new FoundServiceReply(m.getServiceHost()), dpID);
                             }
                         }
                     }
@@ -266,11 +267,12 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
 
     public void uponRequestDiscovery(RequestDiscovery request, short sourceProtocol) {
         logger.debug("Received discovery request for " + request.getServiceName() + " from proto " + sourceProtocol);
+        this.discoveryProtocolsData.put(request.getServiceName(),
+                new ServiceMessage(request.getProtoName(), request.getMyself(), discoveryHost));
         if (request.getListen()) {
-            this.discoveryProtocolsData.put(request.getServiceName(),
-                    new ServiceMessage(request.getProtoName(), request.getMyself(), discoveryHost));
             runningProtcolsWaiting.put(request.getServiceName(), sourceProtocol);
-        } else
+        } else {
             runningProtcolsWaiting.remove(request.getServiceName());
+        }
     }
 }

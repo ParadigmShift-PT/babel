@@ -591,50 +591,8 @@ public abstract class GenericProtocol {
     /**
      * Used by babel to deliver channel events to protocols. Do not evoke directly.
      */
-    final void deliverChannelEvent(CustomChannelEvent event) {
+    void deliverInternalEvent(InternalEvent event) {
         queue.add(event);
-    }
-
-    /**
-     * Used by babel to deliver channel messages to protocols.
-     */
-    final protected void deliverMessageIn(MessageInEvent msgIn) {
-        queue.add(msgIn);
-    }
-
-    /**
-     * Used by babel to deliver channel message sent events to protocols. Do not evoke directly.
-     */
-    final void deliverMessageSent(MessageSentEvent event) {
-        queue.add(event);
-    }
-
-    /**
-     * Used by babel to deliver channel message failed events to protocols. Do not evoke directly.
-     */
-    final void deliverMessageFailed(MessageFailedEvent event) {
-        queue.add(event);
-    }
-
-    /**
-     * Used by babel to deliver timer events to protocols. Do not evoke directly.
-     */
-    final void deliverTimer(TimerEvent timer) {
-        queue.add(timer);
-    }
-
-    /**
-     * Used by babel to deliver notifications to protocols. Do not evoke directly.
-     */
-    final void deliverNotification(NotificationEvent notification) {
-        queue.add(notification);
-    }
-
-    /**
-     * Used by babel to deliver requests/replies to protocols. Do not evoke directly.
-     */
-    final void deliverIPC(IPCEvent ipc) {
-        queue.add(ipc);
     }
 
     /* ------------------ MAIN LOOP -------------------------------------------------*/

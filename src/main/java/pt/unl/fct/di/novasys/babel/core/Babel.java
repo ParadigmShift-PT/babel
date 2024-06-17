@@ -164,7 +164,7 @@ public class Babel {
 			if (toSleep <= 0) {
 				TimerEvent t = timerQueue.remove();
 				// Deliver
-				t.getConsumer().deliverTimer(t);
+				t.getConsumer().deliverInternalEvent(t);
 				if (t.isPeriodic()) {
 					t.setTriggerTime(now + t.getPeriod());
 					timerQueue.add(t);
@@ -205,12 +205,20 @@ public class Babel {
 				}
 			}
 		}
+		if (scProto.readyToStart()) {
+			scProto.start();
+			scProto.startEventThread();
+		}
 	}
 
 	public void askRunningDiscovery(GenericProtocol proto, Host myself, boolean listen) {
 		for (var discovery : discoveries) {
-			proto.sendRequest(new RequestDiscovery(proto.getProtoName(), myself, proto.getProtoName(), listen),
+			if (discovery.hasProtocolThreadStarted())
+				proto.sendRequest(new RequestDiscovery(proto.getProtoName(), myself, proto.getProtoName(), listen),
 					discovery.getProtoId());
+			else
+				discovery.uponRequestDiscovery(new RequestDiscovery(proto.getProtoName(), myself, proto.getProtoName(), listen),
+					proto.getProtoId());
 		}
 	}
 
@@ -274,6 +282,10 @@ public class Babel {
 			throw new RuntimeException(e);
 		}
 
+		if (selfConfiguration != null) {
+			askRunningDiscovery(selfConfiguration, selfConfiguration.getMyself(), false);
+		}
+
 		MetricsManager.getInstance().start();
 		timersThread.start();
 		for (GenericProtocol proto : protocolMap.values()) {
@@ -294,8 +306,6 @@ public class Babel {
 				proto.startEventThread();
 			}
 		}
-		if (selfConfiguration != null)
-			askRunningDiscovery(selfConfiguration, selfConfiguration.getMyself(), true);
 	}
 
 	/**
@@ -434,7 +444,7 @@ public class Babel {
 			sb.append("]");
 			throw new NoSuchProtocolException(sb.toString());
 		}
-		gp.deliverIPC(ipc);
+		gp.deliverInternalEvent(ipc);
 	}
 
 	/**
@@ -459,7 +469,7 @@ public class Babel {
 	 */
 	void triggerNotification(NotificationEvent n) {
 		for (GenericProtocol c : subscribers.getOrDefault(n.getNotification().getId(), Collections.emptySet())) {
-			c.deliverNotification(n);
+			c.deliverInternalEvent(n);
 		}
 	}
 	// ---------------------------- TIMERS

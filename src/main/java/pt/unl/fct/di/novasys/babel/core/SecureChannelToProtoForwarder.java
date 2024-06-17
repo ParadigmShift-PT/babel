@@ -31,7 +31,7 @@ public class SecureChannelToProtoForwarder extends ChannelToProtoForwarder
             super.addConsumer(protoId, consumer);
         else
             throw new IllegalArgumentException(
-                    "Tried to to add a non-secure protcol as a listener for a secure channel");
+                    "Tried to to add a non-secure protcol as a listener for a secure channel. Consider adding the @SecureProtocol annotation to your protocol.");
     }
 
     @Override

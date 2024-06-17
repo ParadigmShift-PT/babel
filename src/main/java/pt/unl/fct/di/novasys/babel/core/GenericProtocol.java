@@ -187,6 +187,24 @@ public abstract class GenericProtocol {
     /**
      * Register a message inHandler for the protocol to process message events
      * form the network
+     * <p>
+     * The handler's {@code peerId} argument will be {@code null} if the message
+     * event is triggered by a non-secure channel.
+     *
+     * @param cId       the id of the channel
+     * @param msgId     the numeric identifier of the message event
+     * @param inHandler the function to process message event
+     * @throws HandlerRegistrationException if a inHandler for the message id is already registered
+     */
+    protected final <V extends ProtoMessage> void registerMessageHandler(int cId, short msgId,
+                                                                         SecureMessageInHandler<V> inHandler)
+            throws HandlerRegistrationException {
+        registerMessageHandler(cId, msgId, inHandler, null, null);
+    }
+
+    /**
+     * Register a message inHandler for the protocol to process message events
+     * form the network
      *
      * @param cId         the id of the channel
      * @param msgId       the numeric identifier of the message event
@@ -204,6 +222,66 @@ public abstract class GenericProtocol {
     /**
      * Register a message inHandler for the protocol to process message events
      * form the network
+     * <p>
+     * The handler's {@code peerId} argument will be {@code null} if the message
+     * event is triggered by a non-secure channel.
+     *
+     * @param cId         the id of the channel
+     * @param msgId       the numeric identifier of the message event
+     * @param inHandler   the function to handle a received message event
+     * @param sentHandler the function to handle a sent message event
+     * @throws HandlerRegistrationException if a inHandler for the message id is already registered
+     */
+    protected final <V extends ProtoMessage> void registerMessageHandler(int cId, short msgId,
+                                                                         SecureMessageInHandler<V> inHandler,
+                                                                         MessageSentHandler<V> sentHandler)
+            throws HandlerRegistrationException {
+        registerMessageHandler(cId, msgId, inHandler, sentHandler, null);
+    }
+
+    /**
+     * Register a message inHandler for the protocol to process message events
+     * form the network
+     * <p>
+     * The handler's {@code peerId} argument will be {@code null} if the message
+     * event is triggered by a non-secure channel.
+     *
+     * @param cId         the id of the channel
+     * @param msgId       the numeric identifier of the message event
+     * @param inHandler   the function to handle a received message event
+     * @param sentHandler the function to handle a sent message event
+     * @throws HandlerRegistrationException if a inHandler for the message id is already registered
+     */
+    protected final <V extends ProtoMessage> void registerMessageHandler(int cId, short msgId,
+                                                                         MessageInHandler<V> inHandler,
+                                                                         SecureMessageSentHandler<V> sentHandler)
+            throws HandlerRegistrationException {
+        registerMessageHandler(cId, msgId, inHandler, sentHandler, null);
+    }
+
+    /**
+     * Register a message inHandler for the protocol to process message events
+     * form the network
+     * <p>
+     * The handlers' {@code peerId} argument will be {@code null} if the message
+     * event is triggered by a non-secure channel.
+     *
+     * @param cId         the id of the channel
+     * @param msgId       the numeric identifier of the message event
+     * @param inHandler   the function to handle a received message event
+     * @param sentHandler the function to handle a sent message event
+     * @throws HandlerRegistrationException if a inHandler for the message id is already registered
+     */
+    protected final <V extends ProtoMessage> void registerMessageHandler(int cId, short msgId,
+                                                                         SecureMessageInHandler<V> inHandler,
+                                                                         SecureMessageSentHandler<V> sentHandler)
+            throws HandlerRegistrationException {
+        registerMessageHandler(cId, msgId, inHandler, sentHandler, null);
+    }
+
+    /**
+     * Register a message inHandler for the protocol to process message events
+     * form the network
      *
      * @param cId         the id of the channel
      * @param msgId       the numeric identifier of the message event
@@ -211,13 +289,73 @@ public abstract class GenericProtocol {
      * @param failHandler the function to handle a failed message event
      * @throws HandlerRegistrationException if a inHandler for the message id is already registered
      */
-
     protected final <V extends ProtoMessage> void registerMessageHandler(int cId, short msgId,
                                                                          MessageInHandler<V> inHandler,
                                                                          MessageFailedHandler<V> failHandler)
             throws HandlerRegistrationException {
         registerMessageHandler(cId, msgId, inHandler, null, failHandler);
     }
+
+    /**
+     * Register a message inHandler for the protocol to process message events
+     * form the network
+     * <p>
+     * The handler's {@code peerId} argument will be {@code null} if the message
+     * event is triggered by a non-secure channel.
+     *
+     * @param cId         the id of the channel
+     * @param msgId       the numeric identifier of the message event
+     * @param inHandler   the function to handle a received message event
+     * @param failHandler the function to handle a failed message event
+     * @throws HandlerRegistrationException if a inHandler for the message id is already registered
+     */
+    protected final <V extends ProtoMessage> void registerMessageHandler(int cId, short msgId,
+                                                                         SecureMessageInHandler<V> inHandler,
+                                                                         MessageFailedHandler<V> failHandler)
+            throws HandlerRegistrationException {
+        registerMessageHandler(cId, msgId, inHandler, null, failHandler);
+    }
+
+    /**
+     * Register a message inHandler for the protocol to process message events
+     * form the network
+     * <p>
+     * The handler's {@code peerId} argument will be {@code null} if the message
+     * event is triggered by a non-secure channel.
+     *
+     * @param cId         the id of the channel
+     * @param msgId       the numeric identifier of the message event
+     * @param inHandler   the function to handle a received message event
+     * @param failHandler the function to handle a failed message event
+     * @throws HandlerRegistrationException if a inHandler for the message id is already registered
+     */
+    protected final <V extends ProtoMessage> void registerMessageHandler(int cId, short msgId,
+                                                                         MessageInHandler<V> inHandler,
+                                                                         SecureMessageFailedHandler<V> failHandler)
+            throws HandlerRegistrationException {
+        registerMessageHandler(cId, msgId, inHandler, null, failHandler);
+    }
+
+    /**
+     * Register a message inHandler for the protocol to process message events
+     * form the network
+     * <p>
+     * The handlers' {@code peerId} argument will be {@code null} if the message
+     * event is triggered by a non-secure channel.
+     *
+     * @param cId         the id of the channel
+     * @param msgId       the numeric identifier of the message event
+     * @param inHandler   the function to handle a received message event
+     * @param failHandler the function to handle a failed message event
+     * @throws HandlerRegistrationException if a inHandler for the message id is already registered
+     */
+    protected final <V extends ProtoMessage> void registerMessageHandler(int cId, short msgId,
+                                                                         SecureMessageInHandler<V> inHandler,
+                                                                         SecureMessageFailedHandler<V> failHandler)
+            throws HandlerRegistrationException {
+        registerMessageHandler(cId, msgId, inHandler, null, failHandler);
+    }
+
 
     /**
      * Register a message inHandler for the protocol to process message events
@@ -238,6 +376,160 @@ public abstract class GenericProtocol {
         registerHandler(msgId, inHandler, getChannelOrThrow(cId).messageInHandlers);
         if (sentHandler != null) registerHandler(msgId, sentHandler, getChannelOrThrow(cId).messageSentHandlers);
         if (failHandler != null) registerHandler(msgId, failHandler, getChannelOrThrow(cId).messageFailedHandlers);
+    }
+
+    /**
+     * Register a message inHandler for the protocol to process message events
+     * form the network
+     * <p>
+     * The handler's {@code peerId} argument will be {@code null} if the message
+     * event is triggered by a non-secure channel.
+     *
+     * @param cId         the id of the channel
+     * @param msgId       the numeric identifier of the message event
+     * @param inHandler   the function to handle a received message event
+     * @param sentHandler the function to handle a sent message event
+     * @param failHandler the function to handle a failed message event
+     * @throws HandlerRegistrationException if a inHandler for the message id is already registered
+     */
+    protected final <V extends ProtoMessage> void registerMessageHandler(int cId, short msgId,
+                                                                         SecureMessageInHandler<V> inHandler,
+                                                                         MessageSentHandler<V> sentHandler,
+                                                                         MessageFailedHandler<V> failHandler)
+            throws HandlerRegistrationException {
+        registerMessageHandler(cId, msgId, inHandler, sentHandler, failHandler);
+    }
+
+    /**
+     * Register a message inHandler for the protocol to process message events
+     * form the network
+     * <p>
+     * The handler's {@code peerId} argument will be {@code null} if the message
+     * event is triggered by a non-secure channel.
+     *
+     * @param cId         the id of the channel
+     * @param msgId       the numeric identifier of the message event
+     * @param inHandler   the function to handle a received message event
+     * @param sentHandler the function to handle a sent message event
+     * @param failHandler the function to handle a failed message event
+     * @throws HandlerRegistrationException if a inHandler for the message id is already registered
+     */
+    protected final <V extends ProtoMessage> void registerMessageHandler(int cId, short msgId,
+                                                                         MessageInHandler<V> inHandler,
+                                                                         SecureMessageSentHandler<V> sentHandler,
+                                                                         MessageFailedHandler<V> failHandler)
+            throws HandlerRegistrationException {
+        registerMessageHandler(cId, msgId, inHandler, sentHandler, failHandler);
+    }
+
+    /**
+     * Register a message inHandler for the protocol to process message events
+     * form the network
+     * <p>
+     * The handlers' {@code peerId} argument will be {@code null} if the message
+     * event is triggered by a non-secure channel.
+     *
+     * @param cId         the id of the channel
+     * @param msgId       the numeric identifier of the message event
+     * @param inHandler   the function to handle a received message event
+     * @param sentHandler the function to handle a sent message event
+     * @param failHandler the function to handle a failed message event
+     * @throws HandlerRegistrationException if a inHandler for the message id is already registered
+     */
+    protected final <V extends ProtoMessage> void registerMessageHandler(int cId, short msgId,
+                                                                         SecureMessageInHandler<V> inHandler,
+                                                                         SecureMessageSentHandler<V> sentHandler,
+                                                                         MessageFailedHandler<V> failHandler)
+            throws HandlerRegistrationException {
+        registerMessageHandler(cId, msgId, inHandler, sentHandler, failHandler);
+    }
+
+    /**
+     * Register a message inHandler for the protocol to process message events
+     * form the network
+     * <p>
+     * The handler's {@code peerId} argument will be {@code null} if the message
+     * event is triggered by a non-secure channel.
+     *
+     * @param cId         the id of the channel
+     * @param msgId       the numeric identifier of the message event
+     * @param inHandler   the function to handle a received message event
+     * @param sentHandler the function to handle a sent message event
+     * @param failHandler the function to handle a failed message event
+     * @throws HandlerRegistrationException if a inHandler for the message id is already registered
+     */
+    protected final <V extends ProtoMessage> void registerMessageHandler(int cId, short msgId,
+                                                                         MessageInHandler<V> inHandler,
+                                                                         MessageSentHandler<V> sentHandler,
+                                                                         SecureMessageFailedHandler<V> failHandler)
+            throws HandlerRegistrationException {
+        registerMessageHandler(cId, msgId, inHandler, sentHandler, failHandler);
+    }
+
+    /**
+     * Register a message inHandler for the protocol to process message events
+     * form the network
+     * <p>
+     * The handlers' {@code peerId} argument will be {@code null} if the message
+     * event is triggered by a non-secure channel.
+     *
+     * @param cId         the id of the channel
+     * @param msgId       the numeric identifier of the message event
+     * @param inHandler   the function to handle a received message event
+     * @param sentHandler the function to handle a sent message event
+     * @param failHandler the function to handle a failed message event
+     * @throws HandlerRegistrationException if a inHandler for the message id is already registered
+     */
+    protected final <V extends ProtoMessage> void registerMessageHandler(int cId, short msgId,
+                                                                         SecureMessageInHandler<V> inHandler,
+                                                                         MessageSentHandler<V> sentHandler,
+                                                                         SecureMessageFailedHandler<V> failHandler)
+            throws HandlerRegistrationException {
+        registerMessageHandler(cId, msgId, inHandler, sentHandler, failHandler);
+    }
+
+    /**
+     * Register a message inHandler for the protocol to process message events
+     * form the network
+     * <p>
+     * The handlers' {@code peerId} argument will be {@code null} if the message
+     * event is triggered by a non-secure channel.
+     *
+     * @param cId         the id of the channel
+     * @param msgId       the numeric identifier of the message event
+     * @param inHandler   the function to handle a received message event
+     * @param sentHandler the function to handle a sent message event
+     * @param failHandler the function to handle a failed message event
+     * @throws HandlerRegistrationException if a inHandler for the message id is already registered
+     */
+    protected final <V extends ProtoMessage> void registerMessageHandler(int cId, short msgId,
+                                                                         MessageInHandler<V> inHandler,
+                                                                         SecureMessageSentHandler<V> sentHandler,
+                                                                         SecureMessageFailedHandler<V> failHandler)
+            throws HandlerRegistrationException {
+        registerMessageHandler(cId, msgId, inHandler, sentHandler, failHandler);
+    }
+
+    /**
+     * Register a message inHandler for the protocol to process message events
+     * form the network
+     * <p>
+     * The handlers' {@code peerId} argument will be {@code null} if the message
+     * event is triggered by a non-secure channel.
+     *
+     * @param cId         the id of the channel
+     * @param msgId       the numeric identifier of the message event
+     * @param inHandler   the function to handle a received message event
+     * @param sentHandler the function to handle a sent message event
+     * @param failHandler the function to handle a failed message event
+     * @throws HandlerRegistrationException if a inHandler for the message id is already registered
+     */
+    protected final <V extends ProtoMessage> void registerMessageHandler(int cId, short msgId,
+                                                                         SecureMessageInHandler<V> inHandler,
+                                                                         SecureMessageSentHandler<V> sentHandler,
+                                                                         SecureMessageFailedHandler<V> failHandler)
+            throws HandlerRegistrationException {
+        registerMessageHandler(cId, msgId, inHandler, sentHandler, failHandler);
     }
 
     /**
@@ -318,7 +610,7 @@ public abstract class GenericProtocol {
      * @param channelName the name of the channel
      * @param props       channel-specific properties. See the documentation for each channel.
      * @return the id of the newly created channel
-     * @throws IllegalArgumentException if there's no insecure channel with {@code channelName}.
+     * @throws IllegalArgumentException if there's no non-secure channel with {@code channelName}.
      */
     protected final int createChannel(String channelName, Properties props) throws IOException {
         int channelId = babel.createChannel(channelName, this.protoId, props);
@@ -930,7 +1222,7 @@ public abstract class GenericProtocol {
         BabelMessage msg = m.getMsg();
         MessageInHandler h = getChannelOrThrow(m.getChannelId()).messageInHandlers.get(msg.getMessage().getId());
         if (h != null)
-            h.receive(msg.getMessage(), m.getFrom(), msg.getSourceProto(), m.getChannelId());
+            h.receive(msg.getMessage(), m.getFrom(), m.getFromId().orElse(null), msg.getSourceProto(), m.getChannelId());
         else
             logger.warn("Discarding unexpected message (id " + msg.getMessage().getId() + "): " + m);
     }
@@ -939,7 +1231,7 @@ public abstract class GenericProtocol {
         BabelMessage msg = e.getMsg();
         MessageFailedHandler h = getChannelOrThrow(e.getChannelId()).messageFailedHandlers.get(msg.getMessage().getId());
         if (h != null)
-            h.onMessageFailed(msg.getMessage(), e.getTo(), msg.getDestProto(), e.getCause(), e.getChannelId());
+            h.onMessageFailed(msg.getMessage(), e.getTo(), e.getToId().orElse(null), msg.getDestProto(), e.getCause(), e.getChannelId());
         else if (logger.isDebugEnabled())
             logger.debug("Discarding unhandled message failed event " + e);
     }
@@ -948,7 +1240,7 @@ public abstract class GenericProtocol {
         BabelMessage msg = e.getMsg();
         MessageSentHandler h = getChannelOrThrow(e.getChannelId()).messageSentHandlers.get(msg.getMessage().getId());
         if (h != null)
-            h.onMessageSent(msg.getMessage(), e.getTo(), msg.getDestProto(), e.getChannelId());
+            h.onMessageSent(msg.getMessage(), e.getTo(), e.getToId().orElse(null), msg.getDestProto(), e.getChannelId());
     }
 
     private void handleChannelEvent(CustomChannelEvent m) {

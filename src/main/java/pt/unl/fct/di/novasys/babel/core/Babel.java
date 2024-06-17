@@ -363,7 +363,7 @@ public class Babel {
         if (channelEntry == null)
             throw new AssertionError("Sending message to non-existing secure channelId " + channelId +
                     (channelMap.containsKey(channelId)
-                            ? ". Did you mean to use sendMessage( ... , Host) instead (i.e. to an insecure channel)?"
+                            ? ". Did you mean to use sendMessage( ... , Host) instead (i.e. to a non-secure channel)?"
                             : ""));
         channelEntry.getLeft().sendMessage(msg, targetId, connection);
     }
@@ -389,7 +389,7 @@ public class Babel {
         if (channelEntry == null)
             throw new AssertionError("Closing connection in non-existing secure channelId " + channelId +
                     (channelMap.containsKey(channelId)
-                            ? ". Did you mean to use closeConnection( ... , Host) instead (i.e. to an insecure channel)?"
+                            ? ". Did you mean to use closeConnection( ... , Host) instead (i.e. to a non-secure channel)?"
                             : ""));
         channelEntry.getLeft().closeConnection(targetId, connection);
     }
@@ -415,7 +415,7 @@ public class Babel {
         if (channelEntry == null)
             throw new AssertionError("Opening connection in non-existing secure channelId " + channelId +
                     (channelMap.containsKey(channelId)
-                            ? ". Did you mean to use openConnection(...) without specifying the peer id (i.e. to an insecure connection)?"
+                            ? ". Did you mean to use openConnection(...) without specifying the peer id (i.e. to a non-secure connection)?"
                             : ""));
         channelEntry.getLeft().openConnection(target, connection);
     }

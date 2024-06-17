@@ -110,6 +110,9 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
 
     public void addProtocolParameterToConfigure(String parameterName, Method setter, Method getter,
             SelfConfigurableProtocol proto) {
+        if (protocolToParameterToConfigure.isEmpty()) {
+            babel.askRunningDiscovery(proto, myself, true);
+        }
         Parameter parameter = new Parameter(getter, setter, proto);
         var protocolParameters = protocolToParameterToConfigure.get(proto.getProtoName());
         if (protocolParameters == null) {
@@ -173,6 +176,10 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
             synchronized (proto) {
                 if (proto.readyToStart()) {
                     babel.setupSelfConfiguration(proto);
+                    protocolToParameterToConfigure.remove(proto.getProtoName());
+                    if (protocolToParameterToConfigure.isEmpty()) {
+                        babel.askRunningDiscovery(proto, myself, false);
+                    }
                 }
             }
         } catch (IllegalAccessException | InvocationTargetException e) {

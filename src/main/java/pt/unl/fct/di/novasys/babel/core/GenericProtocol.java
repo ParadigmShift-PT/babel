@@ -1,26 +1,44 @@
 package pt.unl.fct.di.novasys.babel.core;
 
-import pt.unl.fct.di.novasys.babel.core.protocols.discovery.DiscoveryProtocol;
-import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
-import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
-import pt.unl.fct.di.novasys.babel.handlers.*;
-import pt.unl.fct.di.novasys.babel.internal.*;
-import pt.unl.fct.di.novasys.babel.metrics.Metric;
-import pt.unl.fct.di.novasys.babel.metrics.MetricsManager;
-import pt.unl.fct.di.novasys.babel.generic.*;
-import pt.unl.fct.di.novasys.channel.ChannelEvent;
-import pt.unl.fct.di.novasys.network.ISerializer;
-import pt.unl.fct.di.novasys.network.data.Host;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.logging.Handler;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
+import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
+import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
+import pt.unl.fct.di.novasys.babel.generic.ProtoNotification;
+import pt.unl.fct.di.novasys.babel.generic.ProtoReply;
+import pt.unl.fct.di.novasys.babel.generic.ProtoRequest;
+import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
+import pt.unl.fct.di.novasys.babel.handlers.ChannelEventHandler;
+import pt.unl.fct.di.novasys.babel.handlers.MessageFailedHandler;
+import pt.unl.fct.di.novasys.babel.handlers.MessageInHandler;
+import pt.unl.fct.di.novasys.babel.handlers.MessageSentHandler;
+import pt.unl.fct.di.novasys.babel.handlers.NotificationHandler;
+import pt.unl.fct.di.novasys.babel.handlers.ReplyHandler;
+import pt.unl.fct.di.novasys.babel.handlers.RequestHandler;
+import pt.unl.fct.di.novasys.babel.handlers.TimerHandler;
+import pt.unl.fct.di.novasys.babel.internal.BabelMessage;
+import pt.unl.fct.di.novasys.babel.internal.CustomChannelEvent;
+import pt.unl.fct.di.novasys.babel.internal.IPCEvent;
+import pt.unl.fct.di.novasys.babel.internal.InternalEvent;
+import pt.unl.fct.di.novasys.babel.internal.MessageFailedEvent;
+import pt.unl.fct.di.novasys.babel.internal.MessageInEvent;
+import pt.unl.fct.di.novasys.babel.internal.MessageSentEvent;
+import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
+import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
+import pt.unl.fct.di.novasys.babel.metrics.Metric;
+import pt.unl.fct.di.novasys.babel.metrics.MetricsManager;
+import pt.unl.fct.di.novasys.channel.ChannelEvent;
+import pt.unl.fct.di.novasys.network.ISerializer;
+import pt.unl.fct.di.novasys.network.data.Host;
 
 /**
  * An abstract class that represent a generic protocol
@@ -296,7 +314,7 @@ public abstract class GenericProtocol {
 
     /* ------------------------- NETWORK/CHANNELS ---------------------- */
 
-    private ChannelHandlers getChannelOrThrow(int channelId) {
+    protected final ChannelHandlers getChannelOrThrow(int channelId) {
         ChannelHandlers handlers = channels.get(channelId);
         if (handlers == null)
             throw new AssertionError("Channel does not exist: " + channelId);
@@ -343,6 +361,16 @@ public abstract class GenericProtocol {
     protected final void setDefaultChannel(int channelId) {
         getChannelOrThrow(channelId);
         defaultChannel = channelId;
+    }
+
+    /**
+     * Returns the default channel for the {@link #sendMessage(ProtoMessage, Host)}, {@link #openConnection(Host)}
+     * and {@link #closeConnection(Host)} methods.
+     * 
+     * @return channel id
+     */
+    protected final int getDefaultChannel() {
+        return defaultChannel;
     }
 
     /**

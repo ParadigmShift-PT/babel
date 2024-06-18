@@ -544,7 +544,7 @@ public class Babel {
 			throws IOException, InvalidParameterException {
 
 		props = new Properties(args.length);
-		var argsList = Arrays.asList(args);
+		List<String> argsList = new ArrayList<String>(Arrays.asList(args));
 		String configFile = extractConfigFileFromArguments(argsList, defaultConfigFile);
 
 		logger.debug("config file being loaded: " + configFile);

@@ -103,8 +103,6 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
 
         registerTimerHandler(SearchTimer.TIMER_ID, this::search);
 
-        setupPeriodicTimer(new SearchTimer(), SEARCH_COOLDOWN, SEARCH_COOLDOWN);
-
         registerReplyHandler(FoundServiceReply.REPLY_ID, this::uponFoundServiceReply);
     }
 
@@ -112,8 +110,9 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
             SelfConfigurableProtocol proto) {
         if (protocolToParameterToConfigure.isEmpty()) {
             babel.askRunningDiscovery(this, myself, true);
+            setupTimer(new SearchTimer(), SEARCH_COOLDOWN);
         }
-        Parameter parameter = new Parameter(getter, setter, proto);
+        Parameter parameter = new Parameter(getter, setter, proto, parameterName);
         var protocolParameters = protocolToParameterToConfigure.get(proto.getProtoName());
         if (protocolParameters == null) {
             protocolParameters = new ConcurrentHashMap<>();
@@ -126,7 +125,7 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
 
     public void addProtocolParameterConfigured(String parameterName, Method setter, Method getter,
             SelfConfigurableProtocol proto) {
-        Parameter parameter = new Parameter(getter, setter, proto);
+        Parameter parameter = new Parameter(getter, setter, proto, parameterName);
         Map<String, Parameter> protocolParameter = protocolToParameterConfigured.get(proto.getProtoName());
         if (protocolParameter == null) {
             protocolParameter = new ConcurrentHashMap<>();
@@ -155,6 +154,9 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
                 }
             }
         }
+        if (!protocolToParameterToConfigure.isEmpty()) {
+            setupTimer(timer, SEARCH_COOLDOWN);
+        }
     }
 
     private void countdownParameter(SelfConfigurableProtocol proto,
@@ -175,8 +177,10 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
             paramToConfigure.getLeft().setter().invoke(proto, confirmedValue);
             synchronized (proto) {
                 if (proto.readyToStart()) {
-                    babel.setupSelfConfiguration(proto);
+                    babel.checkAndStartDcProto(proto);
                     protocolToParameterToConfigure.remove(proto.getProtoName());
+                    Parameter parameter = paramToConfigure.getLeft();
+                    addProtocolParameterConfigured(parameter.name(), parameter.setter(), parameter.getter(), proto);
                     if (protocolToParameterToConfigure.isEmpty()) {
                         babel.askRunningDiscovery(this, myself, false);
                     }

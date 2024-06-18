@@ -205,10 +205,6 @@ public class Babel {
 				}
 			}
 		}
-		if (scProto.readyToStart()) {
-			scProto.start();
-			scProto.startEventThread();
-		}
 	}
 
 	public void askRunningDiscovery(GenericProtocol proto, Host myself, boolean listen) {
@@ -298,13 +294,17 @@ public class Babel {
 			}
 
 			if (proto instanceof DiscoverableProtocol dcProto) {
-				if (dcProto.readyToStart()) {
-					dcProto.start();
-					dcProto.startEventThread();
-				}
+				checkAndStartDcProto(dcProto);
 			} else {
 				proto.startEventThread();
 			}
+		}
+	}
+
+	public void checkAndStartDcProto(DiscoverableProtocol dcProto) {
+		if (dcProto.readyToStart()) {
+			dcProto.start();
+			dcProto.startEventThread();
 		}
 	}
 

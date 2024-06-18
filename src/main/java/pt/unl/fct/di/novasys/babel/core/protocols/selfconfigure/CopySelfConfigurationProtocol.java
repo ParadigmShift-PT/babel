@@ -22,6 +22,7 @@ import org.apache.commons.lang3.tuple.Triple;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.babel.core.SelfConfigurableProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.requests.FoundServiceReply;
 import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.messages.ParameterMessage;
@@ -37,6 +38,10 @@ import pt.unl.fct.di.novasys.channel.tcp.events.OutConnectionFailed;
 import pt.unl.fct.di.novasys.channel.tcp.events.OutConnectionUp;
 import pt.unl.fct.di.novasys.network.data.Host;
 
+/**
+ * Protocol that copies, checks and sets the parameters of other protocols in
+ * the Babel stack.
+ */
 public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
     private static final Logger logger = LogManager.getLogger(CopySelfConfigurationProtocol.class);
 
@@ -45,6 +50,11 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
     public static final String PROTO_NAME = "BabelCopySelfConfiguration";
     public static final int SEARCH_COOLDOWN = 5000;
     public static final int CONFIRMATION_TIMEOUT = 30000;
+
+    public static final String PAR_SELF_CONFIGURE_CONFIRMATIONS = "babel.selfconfig.confirmations";
+    public static final String PAR_SELF_CONFIGURE_INTERFACE = "babel.selfconfig.interface";
+    public static final String PAR_SELF_CONFIGURE_ADDRESS = "babel.selfconfig.address";
+    public static final String PAR_SELF_CONFIGURE_PORT = "babel.selfconfig.port";
 
     protected final Map<String, Map<String, MutableTriple<Parameter, CountDownLatch, Pair<Map<String, Integer>, Set<Host>>>>> protocolToParameterToConfigure;
     protected final Map<String, Map<String, Parameter>> protocolToParameterConfigured;
@@ -69,21 +79,24 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
 
     @Override
     public void init(Properties props) throws HandlerRegistrationException, IOException {
-        String networkInterface = props.getProperty("BabelWhisperer.Unicast.Interface");
+        if (!props.containsKey(PAR_SELF_CONFIGURE_INTERFACE) && props.containsKey(Babel.PAR_DEFAULT_INTERFACE))
+            props.put(PAR_SELF_CONFIGURE_INTERFACE, props.get(Babel.PAR_DEFAULT_INTERFACE));
+        if (!props.containsKey(PAR_SELF_CONFIGURE_ADDRESS) && props.containsKey(Babel.PAR_DEFAULT_ADDRESS))
+            props.put(PAR_SELF_CONFIGURE_ADDRESS, props.get(Babel.PAR_DEFAULT_ADDRESS));
+        if (!props.containsKey(PAR_SELF_CONFIGURE_PORT))
+            props.put(PAR_SELF_CONFIGURE_PORT, DEFAULT_PORT);
+        if (props.contains(PAR_SELF_CONFIGURE_CONFIRMATIONS))
+            confirmationsNeeded = Integer.valueOf(props.getProperty(PAR_SELF_CONFIGURE_CONFIRMATIONS));
+
+        String networkInterface = props.getProperty(PAR_SELF_CONFIGURE_INTERFACE);
         String address = null;
         if (networkInterface == null) {
-            address = props.getProperty("BabelWhisperer.Unicast.Address");
-            if (address == null) {
-                address = NetworkingUtilities.getAddress("eth0");
-            }
+            address = props.getProperty(PAR_SELF_CONFIGURE_ADDRESS);
         } else {
             address = NetworkingUtilities.getAddress(networkInterface);
         }
-        String port = props.getProperty("BabelWhisperer.Unicast.Port", DEFAULT_PORT);
-        String confirmations = props.getProperty("BabelWhisperer.Confirmations");
-        if (confirmations != null) {
-            confirmationsNeeded = Integer.valueOf(confirmations);
-        }
+        String port = props.getProperty(PAR_SELF_CONFIGURE_PORT, DEFAULT_PORT);
+
         Properties channelProps = new Properties(2);
         channelProps.setProperty(TCPChannel.ADDRESS_KEY, address);
         channelProps.setProperty(TCPChannel.PORT_KEY, port);
@@ -159,6 +172,15 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
         }
     }
 
+    /**
+     * Waits for all the confirmations for a single parameter. Starts the protocol
+     * if everything is in place.
+     * 
+     * @param proto            the protocol
+     * @param paramToConfigure triple with the parameter register, a countdown
+     *                         latch, and a map with all the confirmations and where
+     *                         they came from
+     */
     private void countdownParameter(SelfConfigurableProtocol proto,
             Triple<Parameter, CountDownLatch, Pair<Map<String, Integer>, Set<Host>>> paramToConfigure) {
         try {
@@ -176,7 +198,7 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
                     }).get().getKey();
             paramToConfigure.getLeft().setter().invoke(proto, confirmedValue);
             synchronized (proto) {
-                if (proto.readyToStart()) {
+                if (proto.readyToStart() && !proto.hasProtocolThreadStarted()) {
                     babel.checkAndStartDcProto(proto);
                     protocolToParameterToConfigure.remove(proto.getProtoName());
                     Parameter parameter = paramToConfigure.getLeft();

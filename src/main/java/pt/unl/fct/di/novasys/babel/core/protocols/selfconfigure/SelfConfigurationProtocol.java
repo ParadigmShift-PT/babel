@@ -20,13 +20,35 @@ public abstract class SelfConfigurationProtocol extends GenericProtocol {
         super(name, id, policy);
     }
 
+    /**
+     * Adds a parameter to be configured for the proto
+     * 
+     * @param parameterName parameter's name
+     * @param setter        setter for the parameter
+     * @param getter        getter for the parameter
+     * @param proto         the protocol that has the parameter
+     */
     public abstract void addProtocolParameterToConfigure(String parameterName, Method setter, Method getter,
             SelfConfigurableProtocol proto);
 
+    /**
+     * Adds a parameter already configured in proto
+     * 
+     * @param parameterName parameter's name
+     * @param setter        setter for the parameter
+     * @param getter        getter for the parameter
+     * @param proto         the protocol that has the parameter
+     */
     public abstract void addProtocolParameterConfigured(String parameterName, Method setter, Method getter,
             SelfConfigurableProtocol proto);
 
-    public abstract void search(SearchTimer timer, long timerId) ;
+    /**
+     * Periodicaly activated. Looks for a suitable configuration in all known hosts
+     * 
+     * @param timer the timer
+     * @param timerId the timer id
+     */
+    public abstract void search(SearchTimer timer, long timerId);
 
     public abstract void uponParameterMessage(ParameterMessage msg, Host from, short sourceProto, int channelId);
 

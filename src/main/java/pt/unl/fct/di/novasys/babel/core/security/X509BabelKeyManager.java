@@ -6,7 +6,9 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.security.PrivateKey;
+import java.security.UnrecoverableEntryException;
 import java.security.UnrecoverableKeyException;
+import java.security.KeyStore.ProtectionParameter;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 
@@ -24,7 +26,9 @@ public class X509BabelKeyManager extends X509IKeyManager {
     private final IdAliasMapper idAliasMapper;
 
     private final KeyStore keyStore;
-    private final char[] pwd;
+    private final ProtectionParameter protParam;
+
+    // TODO arrange these messy constructors
 
     /**
      * Constructs a new X509BabelKeyManager with {@link PeerIdAliasMapper}.
@@ -32,34 +36,24 @@ public class X509BabelKeyManager extends X509IKeyManager {
      * @throws KeyStoreException if the keystore has not been initialized (loaded).
      */
     public X509BabelKeyManager(KeyStore keyStore, String pwd) throws KeyStoreException {
-        this(keyStore, pwd.toCharArray());
-    }
-
-    /**
-     * Constructs a new X509BabelKeyManager with {@link PeerIdAliasMapper}.
-     * 
-     * @throws KeyStoreException if the keystore has not been initialized (loaded).
-     */
-    public X509BabelKeyManager(KeyStore keyStore, char[] pwd) throws KeyStoreException {
         this(keyStore, pwd, new PeerIdAliasMapper());
-        // TODO choose a default alias instead of just passing an empty id alias mapper
     }
 
     /**
      * @throws KeyStoreException if the keystore has not been initialized (loaded).
      */
     public X509BabelKeyManager(KeyStore keyStore, String pwd, IdAliasMapper idAliasMapper) throws KeyStoreException {
-        this(keyStore, pwd.toCharArray(), idAliasMapper);
+        this(keyStore, new KeyStore.PasswordProtection(pwd.toCharArray()), idAliasMapper);
     }
 
     /**
      * @throws KeyStoreException if the keystore has not been initialized (loaded).
      */
-    public X509BabelKeyManager(KeyStore keyStore, char[] pwd, IdAliasMapper idAliasMapper) throws KeyStoreException {
-        keyStore.size(); // Trigger KeyStoreException
+    public X509BabelKeyManager(KeyStore keyStore, ProtectionParameter protParam, IdAliasMapper idAliasMapper) throws KeyStoreException {
+        keyStore.size(); // Trigger KeyStoreException if keyStore was not initialized.
 
         this.keyStore = keyStore;
-        this.pwd = pwd;
+        this.protParam = protParam;
         this.idAliasMapper = idAliasMapper;
     }
 
@@ -111,8 +105,8 @@ public class X509BabelKeyManager extends X509IKeyManager {
     @Override
     public PrivateKey getPrivateKey(String alias) {
         try {
-            return (PrivateKey) keyStore.getKey(alias, pwd);
-        } catch (ClassCastException | UnrecoverableKeyException | NoSuchAlgorithmException e) {
+            return (PrivateKey) keyStore.getEntry(alias, protParam);
+        } catch (ClassCastException | UnrecoverableEntryException | NoSuchAlgorithmException e) {
             logger.error("getPrivateKey(%s) failed with exception: %s", alias, e);
             return null;
         } catch (KeyStoreException e) {

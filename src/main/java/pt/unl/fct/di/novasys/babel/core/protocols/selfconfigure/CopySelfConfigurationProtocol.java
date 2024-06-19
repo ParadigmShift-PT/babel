@@ -85,7 +85,7 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
             props.put(PAR_SELF_CONFIGURE_ADDRESS, props.get(Babel.PAR_DEFAULT_ADDRESS));
         if (!props.containsKey(PAR_SELF_CONFIGURE_PORT))
             props.put(PAR_SELF_CONFIGURE_PORT, DEFAULT_PORT);
-        if (props.contains(PAR_SELF_CONFIGURE_CONFIRMATIONS))
+        if (props.containsKey(PAR_SELF_CONFIGURE_CONFIRMATIONS))
             confirmationsNeeded = Integer.valueOf(props.getProperty(PAR_SELF_CONFIGURE_CONFIRMATIONS));
 
         String networkInterface = props.getProperty(PAR_SELF_CONFIGURE_INTERFACE);
@@ -148,6 +148,12 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
         protocolMap.put(proto.getProtoName(), proto);
     }
 
+    /**
+     * Periodicaly activated. Looks for a suitable configuration in all known hosts
+     * 
+     * @param timer   the timer
+     * @param timerId the timer id
+     */
     public void search(SearchTimer timer, long timerId) {
         logger.info("Trying to search");
         for (var protoEntry : protocolToParameterToConfigure.entrySet()) {
@@ -209,7 +215,7 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
                 }
             }
         } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new RuntimeException("Protocol badly constructed");
+            throw new RuntimeException(e);
         } catch (InterruptedException e) {
             throw new RuntimeException(
                     "Interrupted while waiting for confirmation for " + paramToConfigure.getLeft().getter().getName());

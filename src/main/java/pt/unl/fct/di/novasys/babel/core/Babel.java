@@ -5,6 +5,7 @@ import pt.unl.fct.di.novasys.babel.internal.BabelMessage;
 import pt.unl.fct.di.novasys.babel.internal.IPCEvent;
 import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
 import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
+import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.DNSSelfConfigurationProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.SelfConfigurationProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.DiscoveryProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.requests.RequestDiscovery;
@@ -106,9 +107,11 @@ public class Babel {
 	public final static String PAR_DEFAULT_PORT = "babel.port";
 	public final static String PAR_DISCOVERY_PROTOCOL = "babel.discovery";
 	public final static String PAR_SELF_CONFIGURATION_PROTOCOL = "babel.selfconfiguration";
+	public final static String PAR_DNS_CONFIGURATION_PROTOCOL = "babel.dnsconfiguration";
 
 	private final List<DiscoveryProtocol> discoveries;
 	private SelfConfigurationProtocol selfConfiguration;
+	private DNSSelfConfigurationProtocol dnsSelfConfiguration;
 
 	// Timers
 	private final Map<Long, TimerEvent> allTimers;
@@ -182,7 +185,7 @@ public class Babel {
 		discoveries.forEach((discovery) -> discovery.registerProtocol(dcProto));
 	}
 
-	public void setupSelfConfiguration(SelfConfigurableProtocol scProto) {
+	public void setupSelfConfiguration(SelfConfigurableProtocol scProto, SelfConfigurationProtocol selfConfiguration) {
 		Class<? extends SelfConfigurableProtocol> scProtoClass = scProto.getClass();
 		Field[] fields = scProtoClass.getDeclaredFields();
 
@@ -195,10 +198,10 @@ public class Babel {
 					Method getter = scProtoClass.getMethod(getterName);
 					Method setter = scProtoClass.getMethod(setterName, String.class);
 					if (getter.invoke(scProto) == null) {
-						this.selfConfiguration.addProtocolParameterToConfigure(field.getName(), setter, getter,
+						selfConfiguration.addProtocolParameterToConfigure(field.getName(), setter, getter,
 								scProto);
 					} else {
-						this.selfConfiguration.addProtocolParameterConfigured(field.getName(), setter, getter, scProto);
+						selfConfiguration.addProtocolParameterConfigured(field.getName(), setter, getter, scProto);
 					}
 				} catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
 					throw new RuntimeException(e);
@@ -211,10 +214,11 @@ public class Babel {
 		for (var discovery : discoveries) {
 			if (discovery.hasProtocolThreadStarted())
 				proto.sendRequest(new RequestDiscovery(proto.getProtoName(), myself, proto.getProtoName(), listen),
-					discovery.getProtoId());
+						discovery.getProtoId());
 			else
-				discovery.uponRequestDiscovery(new RequestDiscovery(proto.getProtoName(), myself, proto.getProtoName(), listen),
-					proto.getProtoId());
+				discovery.uponRequestDiscovery(
+						new RequestDiscovery(proto.getProtoName(), myself, proto.getProtoName(), listen),
+						proto.getProtoId());
 		}
 	}
 
@@ -258,11 +262,31 @@ public class Babel {
 			this.selfConfiguration = null;
 		}
 
+		if (props.containsKey(PAR_DNS_CONFIGURATION_PROTOCOL)) {
+			try {
+				logger.debug("Attempting to load DNS Self Configuration Protocol: "
+						+ props.getProperty(PAR_DNS_CONFIGURATION_PROTOCOL));
+				@SuppressWarnings("unchecked")
+				Class<? extends DNSSelfConfigurationProtocol> dnsSelfConfigurationClass = (Class<? extends DNSSelfConfigurationProtocol>) Class
+						.forName(props.getProperty(PAR_DNS_CONFIGURATION_PROTOCOL));
+				this.dnsSelfConfiguration = dnsSelfConfigurationClass.getDeclaredConstructor().newInstance();
+			} catch (Exception e) {
+				e.printStackTrace();
+				logger.error("Unable to load DNSSelfConfigurationProtocol: '"
+						+ props.getProperty(PAR_DNS_CONFIGURATION_PROTOCOL) + "'");
+			}
+		} else {
+			logger.debug("No DNS Self Configuration Protocol was requested to be loaded");
+			this.dnsSelfConfiguration = null;
+		}
+
 		try {
 			for (var discovery : discoveries)
 				registerProtocol(discovery);
 			if (this.selfConfiguration != null)
 				registerProtocol(this.selfConfiguration);
+			if (this.dnsSelfConfiguration != null)
+				registerProtocol(this.dnsSelfConfiguration);
 		} catch (ProtocolAlreadyExistsException e) {
 			throw new RuntimeException(e);
 		}
@@ -274,6 +298,8 @@ public class Babel {
 				discovery.init(props);
 			if (this.selfConfiguration != null)
 				selfConfiguration.init(props);
+			if (this.dnsSelfConfiguration != null)
+				dnsSelfConfiguration.init(props);
 		} catch (HandlerRegistrationException | IOException e) {
 			throw new RuntimeException(e);
 		}
@@ -289,8 +315,10 @@ public class Babel {
 			if (discoveries.size() != 0 && proto instanceof DiscoverableProtocol dcProto) {
 				setupDiscoverable(dcProto);
 			}
-			if (selfConfiguration != null && proto instanceof SelfConfigurableProtocol scProto) {
-				setupSelfConfiguration(scProto);
+			if (dnsSelfConfiguration != null && proto instanceof SelfConfigurableProtocol scProto) {
+				setupSelfConfiguration(scProto, dnsSelfConfiguration);
+			} else if (selfConfiguration != null && proto instanceof SelfConfigurableProtocol scProto) {
+				setupSelfConfiguration(scProto, selfConfiguration);
 			}
 
 			if (proto instanceof DiscoverableProtocol dcProto) {
@@ -298,6 +326,10 @@ public class Babel {
 			} else {
 				proto.startEventThread();
 			}
+		}
+
+		if (dnsSelfConfiguration != null) {
+			dnsSelfConfiguration.search();
 		}
 	}
 

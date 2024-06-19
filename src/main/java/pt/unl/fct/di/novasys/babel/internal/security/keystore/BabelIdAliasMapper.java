@@ -2,23 +2,23 @@ package pt.unl.fct.di.novasys.babel.internal.security.keystore;
 
 import pt.unl.fct.di.novasys.babel.internal.PeerIdEncoder;
 
-public class PeerIdAliasMapper implements IdAliasMapper {
+public class BabelIdAliasMapper implements IdAliasMapper {
 
     private String defaultAlias;
     private byte[] defaultId;
 
-    public PeerIdAliasMapper() {
+    public BabelIdAliasMapper() {
     }
 
-    public PeerIdAliasMapper(String defaultAlias) {
+    public BabelIdAliasMapper(String defaultAlias) {
         setDefaultAlias(defaultAlias);
     }
 
-    public PeerIdAliasMapper(byte[] defaultId) {
+    public BabelIdAliasMapper(byte[] defaultId) {
         setDefaultId(defaultId);
     }
 
-    public PeerIdAliasMapper(String defaultAlias, byte[] defaultId) {
+    public BabelIdAliasMapper(String defaultAlias, byte[] defaultId) {
         setDefaultAliasAndId(defaultAlias, defaultId);
     }
 

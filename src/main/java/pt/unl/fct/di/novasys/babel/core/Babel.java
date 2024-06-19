@@ -9,7 +9,7 @@ import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
 import pt.unl.fct.di.novasys.babel.internal.security.CryptUtils;
 import pt.unl.fct.di.novasys.babel.internal.security.PrivateIdStore;
 import pt.unl.fct.di.novasys.babel.internal.security.PublicIdStore;
-import pt.unl.fct.di.novasys.babel.internal.security.keystore.PeerIdAliasMapper;
+import pt.unl.fct.di.novasys.babel.internal.security.keystore.BabelIdAliasMapper;
 import pt.unl.fct.di.novasys.babel.core.security.X509BabelKeyManager;
 import pt.unl.fct.di.novasys.babel.core.security.X509BabelTrustManager;
 import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
@@ -260,7 +260,7 @@ public class Babel {
         var cert = CryptUtils.getInstance().createSelfSignedX509Certificate(keyPair, idStr, 365);
         myIds.setCredential(idBytes, keyPair.getPrivate(), cert);
 
-        var idAliasMapper = new PeerIdAliasMapper(idStr, idBytes);
+        var idAliasMapper = new BabelIdAliasMapper(idStr, idBytes);
 
         //var trustStore = System.getProperty("javax.net.ssl.trustStore"); ?
         //var trustStorePassword = System.getProperty("javax.net.ssl.trustStorePassword"); ?

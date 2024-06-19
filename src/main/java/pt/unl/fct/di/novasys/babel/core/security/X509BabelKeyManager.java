@@ -7,7 +7,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.security.PrivateKey;
 import java.security.UnrecoverableEntryException;
-import java.security.UnrecoverableKeyException;
 import java.security.KeyStore.ProtectionParameter;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -16,7 +15,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import pt.unl.fct.di.novasys.babel.internal.security.keystore.IdAliasMapper;
-import pt.unl.fct.di.novasys.babel.internal.security.keystore.PeerIdAliasMapper;
+import pt.unl.fct.di.novasys.babel.internal.security.keystore.BabelIdAliasMapper;
 import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 
 // TODO make a Babel keystore generator program for BabelCommons?
@@ -31,12 +30,12 @@ public class X509BabelKeyManager extends X509IKeyManager {
     // TODO arrange these messy constructors
 
     /**
-     * Constructs a new X509BabelKeyManager with {@link PeerIdAliasMapper}.
+     * Constructs a new X509BabelKeyManager with {@link BabelIdAliasMapper}.
      * 
      * @throws KeyStoreException if the keystore has not been initialized (loaded).
      */
     public X509BabelKeyManager(KeyStore keyStore, String pwd) throws KeyStoreException {
-        this(keyStore, pwd, new PeerIdAliasMapper());
+        this(keyStore, pwd, new BabelIdAliasMapper());
     }
 
     /**

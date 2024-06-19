@@ -1,21 +1,21 @@
-package pt.unl.fct.di.novasys.babel.core.security;
+package pt.unl.fct.di.novasys.babel.internal.security;
 
 import java.net.Socket;
 import java.security.KeyStore;
+import java.security.KeyStore.ProtectionParameter;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.security.PrivateKey;
 import java.security.UnrecoverableEntryException;
-import java.security.KeyStore.ProtectionParameter;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import pt.unl.fct.di.novasys.babel.internal.security.keystore.IdAliasMapper;
 import pt.unl.fct.di.novasys.babel.internal.security.keystore.BabelIdAliasMapper;
+import pt.unl.fct.di.novasys.babel.internal.security.keystore.IdAliasMapper;
 import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 
 // TODO make a Babel keystore generator program for BabelCommons?

@@ -1,11 +1,11 @@
-package pt.unl.fct.di.novasys.babel.core.security;
+package pt.unl.fct.di.novasys.babel.internal.security;
 
 import java.security.KeyPair;
 import java.security.KeyStore.PrivateKeyEntry;
 import java.security.cert.Certificate;
 
+import pt.unl.fct.di.novasys.babel.core.security.SimpleCredentialGenerator;
 import pt.unl.fct.di.novasys.babel.internal.PeerIdEncoder;
-import pt.unl.fct.di.novasys.babel.internal.security.CryptUtils;
 
 public class BabelCredentialGenerator implements SimpleCredentialGenerator {
     private static final int DEFAULT_VALID_CERT_DAYS = 365;

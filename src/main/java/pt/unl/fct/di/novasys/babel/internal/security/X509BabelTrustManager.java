@@ -1,4 +1,4 @@
-package pt.unl.fct.di.novasys.babel.core.security;
+package pt.unl.fct.di.novasys.babel.internal.security;
 
 import java.security.KeyStore;
 import java.security.KeyStore.ProtectionParameter;
@@ -10,6 +10,7 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import pt.unl.fct.di.novasys.babel.core.security.IdFromCertExtractor;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
 // TODO change the name of this class to reflect that it accepts all ids, and isn't specific

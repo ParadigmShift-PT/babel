@@ -7,11 +7,9 @@ import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
 import pt.unl.fct.di.novasys.babel.internal.PeerIdEncoder;
 import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
 import pt.unl.fct.di.novasys.babel.internal.security.CryptUtils;
-import pt.unl.fct.di.novasys.babel.internal.security.PrivateIdStore;
-import pt.unl.fct.di.novasys.babel.internal.security.PublicIdStore;
+import pt.unl.fct.di.novasys.babel.internal.security.X509BabelKeyManager;
+import pt.unl.fct.di.novasys.babel.internal.security.X509BabelTrustManager;
 import pt.unl.fct.di.novasys.babel.internal.security.keystore.BabelIdAliasMapper;
-import pt.unl.fct.di.novasys.babel.core.security.X509BabelKeyManager;
-import pt.unl.fct.di.novasys.babel.core.security.X509BabelTrustManager;
 import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
@@ -123,19 +121,9 @@ public class Babel {
     private boolean secureProtocolExists = false;
 
     private final SecurityConfiguration securityConfig;
+    // TODO private SecurityCore security;
 
-    // TODO organize better
-    private PrivateIdStore myIds;
-    private PublicIdStore knownIds;
-
-    private String keyStorePath;
-    private String keyStorePassword;
-    private String trustStorePath;
-    private String trustStorePassword;
-
-    private final SecurityConfiguration securityInitializer;
-
-    // TODO interfaces to interact with these...
+    // TODO these are just placeholder for now. They'll be in SecurityCore later
     private X509IKeyManager defaultKeyManager;
     private X509ITrustManager defaultTrustManager;
 
@@ -240,13 +228,14 @@ public class Babel {
     /**
      * TODO document better <p>
      * If using security features, this method and changes to the returned object
-     * must be made before {@value Babel#start()} to ensure correct behaviour.
+     * must be made before {@link Babel#start()} to ensure correct behaviour.
      */
     public SecurityConfiguration securityConfiguration() {
         return securityConfig;
     }
 
     private void initSecurityFeatures() {
+        /*
         // TODO this is just a placeholder to allow for testing... Make the keystores be selected, read from props, or lazy loadaded (for ad-hoc ids)
         // This will all be replaced by SecurityConfiguration
         Security.addProvider(new BouncyCastleProvider());
@@ -271,6 +260,7 @@ public class Babel {
         } catch (KeyStoreException e) {
             throw new RuntimeException("Failed to load the given key store.");
         }
+        */
     }
 
     // ----------------------------- NETWORK

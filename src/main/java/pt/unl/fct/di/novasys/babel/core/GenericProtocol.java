@@ -397,7 +397,7 @@ public abstract class GenericProtocol {
                                                                          MessageSentHandler<V> sentHandler,
                                                                          MessageFailedHandler<V> failHandler)
             throws HandlerRegistrationException {
-        registerMessageHandler(cId, msgId, inHandler, sentHandler, failHandler);
+        registerMessageHandler(cId, msgId, (MessageInHandler<V>) inHandler, sentHandler, failHandler);
     }
 
     /**
@@ -419,7 +419,7 @@ public abstract class GenericProtocol {
                                                                          SecureMessageSentHandler<V> sentHandler,
                                                                          MessageFailedHandler<V> failHandler)
             throws HandlerRegistrationException {
-        registerMessageHandler(cId, msgId, inHandler, sentHandler, failHandler);
+        registerMessageHandler(cId, msgId, inHandler, (MessageSentHandler<V>) sentHandler, failHandler);
     }
 
     /**
@@ -441,7 +441,7 @@ public abstract class GenericProtocol {
                                                                          SecureMessageSentHandler<V> sentHandler,
                                                                          MessageFailedHandler<V> failHandler)
             throws HandlerRegistrationException {
-        registerMessageHandler(cId, msgId, inHandler, sentHandler, failHandler);
+        registerMessageHandler(cId, msgId, (MessageInHandler<V>) inHandler, (MessageSentHandler<V>) sentHandler, failHandler);
     }
 
     /**
@@ -463,7 +463,7 @@ public abstract class GenericProtocol {
                                                                          MessageSentHandler<V> sentHandler,
                                                                          SecureMessageFailedHandler<V> failHandler)
             throws HandlerRegistrationException {
-        registerMessageHandler(cId, msgId, inHandler, sentHandler, failHandler);
+        registerMessageHandler(cId, msgId, inHandler, sentHandler, (MessageFailedHandler<V>) failHandler);
     }
 
     /**
@@ -485,7 +485,7 @@ public abstract class GenericProtocol {
                                                                          MessageSentHandler<V> sentHandler,
                                                                          SecureMessageFailedHandler<V> failHandler)
             throws HandlerRegistrationException {
-        registerMessageHandler(cId, msgId, inHandler, sentHandler, failHandler);
+        registerMessageHandler(cId, msgId, (MessageInHandler<V>) inHandler, sentHandler, (MessageFailedHandler<V>) failHandler);
     }
 
     /**
@@ -507,7 +507,7 @@ public abstract class GenericProtocol {
                                                                          SecureMessageSentHandler<V> sentHandler,
                                                                          SecureMessageFailedHandler<V> failHandler)
             throws HandlerRegistrationException {
-        registerMessageHandler(cId, msgId, inHandler, sentHandler, failHandler);
+        registerMessageHandler(cId, msgId, inHandler, (MessageSentHandler<V>) sentHandler, (MessageFailedHandler<V>) failHandler);
     }
 
     /**
@@ -529,7 +529,7 @@ public abstract class GenericProtocol {
                                                                          SecureMessageSentHandler<V> sentHandler,
                                                                          SecureMessageFailedHandler<V> failHandler)
             throws HandlerRegistrationException {
-        registerMessageHandler(cId, msgId, inHandler, sentHandler, failHandler);
+        registerMessageHandler(cId, msgId, (MessageInHandler<V>) inHandler, (MessageSentHandler<V>) sentHandler, (MessageFailedHandler<V>) failHandler);
     }
 
     /**

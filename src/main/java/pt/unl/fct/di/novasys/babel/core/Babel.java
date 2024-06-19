@@ -37,6 +37,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.security.KeyStoreException;
+import java.security.Security;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
@@ -119,9 +120,20 @@ public class Babel {
     private boolean started = false;
 
     // Security
+    private boolean secureProtocolExists = false;
+
+    private final SecurityConfiguration securityConfig;
+
     // TODO organize better
-    private final PrivateIdStore myIds;
-    private final PublicIdStore knownIds;
+    private PrivateIdStore myIds;
+    private PublicIdStore knownIds;
+
+    private String keyStorePath;
+    private String keyStorePassword;
+    private String trustStorePath;
+    private String trustStorePassword;
+
+    private final SecurityConfiguration securityInitializer;
 
     // TODO interfaces to interact with these...
     private X509IKeyManager defaultKeyManager;
@@ -155,31 +167,10 @@ public class Babel {
         //registerChannelInitializer("Ackos", new AckosChannelInitializer());
         //registerChannelInitializer(MultithreadedTCPChannel.NAME, new MultithreadedTCPChannelInitializer());
 
-        // Initialize security features
         registerChannelInitializer(AuthChannel.NAME, new AuthChannelInitializer());
 
-        // TODO this is just a placeholder to allow for testing... Make the keystores be selected, read from props, or lazy loadaded (for ad-hoc ids)
-        java.security.Security.addProvider(new BouncyCastleProvider());
-        myIds = new PrivateIdStore();
-        knownIds = new PublicIdStore();
-
-        var keyPair = CryptUtils.getInstance().createRandomKeyPair();
-        var idBytes = PeerIdEncoder.fromPublicKey(keyPair.getPublic());
-        var idStr = PeerIdEncoder.encodeToString(idBytes);
-        var cert = CryptUtils.getInstance().createSelfSignedX509Certificate(keyPair, idStr, 365);
-        myIds.setCredential(idBytes, keyPair.getPrivate(), cert);
-
-        var idAliasMapper = new PeerIdAliasMapper(idStr, idBytes);
-
-        //var trustStore = System.getProperty("javax.net.ssl.trustStore"); ?
-        //var trustStorePassword = System.getProperty("javax.net.ssl.trustStorePassword"); ?
-
-        try {
-            defaultKeyManager = new X509BabelKeyManager(myIds.getKeyStore(), "", idAliasMapper);
-            defaultTrustManager = new X509BabelTrustManager();
-        } catch (KeyStoreException e) {
-            throw new RuntimeException(e);
-        }
+        //Security
+        securityConfig = new SecurityConfiguration();
     }
 
     private void timerLoop() {
@@ -215,6 +206,9 @@ public class Babel {
         MetricsManager.getInstance().start();
         timersThread.start();
         protocolMap.values().forEach(GenericProtocol::start);
+
+        if (secureProtocolExists && !securityConfig.isInitialized())
+            initSecurityFeatures();
     }
 
     /**
@@ -236,7 +230,47 @@ public class Babel {
                             p.getProtoName()).getProtoId() + ")");
         }
 
-        //TODO if (p.isSecureProtocol()) activate security features ?
+        if (p.isSecureProtocol()) {
+            secureProtocolExists = true;
+            if (started && !securityConfig.isInitialized())
+                initSecurityFeatures();
+        }
+    }
+
+    /**
+     * TODO document better <p>
+     * If using security features, this method and changes to the returned object
+     * must be made before {@value Babel#start()} to ensure correct behaviour.
+     */
+    public SecurityConfiguration securityConfiguration() {
+        return securityConfig;
+    }
+
+    private void initSecurityFeatures() {
+        // TODO this is just a placeholder to allow for testing... Make the keystores be selected, read from props, or lazy loadaded (for ad-hoc ids)
+        // This will all be replaced by SecurityConfiguration
+        Security.addProvider(new BouncyCastleProvider());
+
+        myIds = new PrivateIdStore();
+        knownIds = new PublicIdStore();
+
+        var keyPair = CryptUtils.getInstance().createRandomKeyPair();
+        var idBytes = PeerIdEncoder.fromPublicKey(keyPair.getPublic());
+        var idStr = PeerIdEncoder.encodeToString(idBytes);
+        var cert = CryptUtils.getInstance().createSelfSignedX509Certificate(keyPair, idStr, 365);
+        myIds.setCredential(idBytes, keyPair.getPrivate(), cert);
+
+        var idAliasMapper = new PeerIdAliasMapper(idStr, idBytes);
+
+        //var trustStore = System.getProperty("javax.net.ssl.trustStore"); ?
+        //var trustStorePassword = System.getProperty("javax.net.ssl.trustStorePassword"); ?
+
+        try {
+            defaultKeyManager = new X509BabelKeyManager(myIds.getKeyStore(), "", idAliasMapper);
+            defaultTrustManager = new X509BabelTrustManager();
+        } catch (KeyStoreException e) {
+            throw new RuntimeException("Failed to load the given key store.");
+        }
     }
 
     // ----------------------------- NETWORK

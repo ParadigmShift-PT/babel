@@ -9,6 +9,7 @@ import pt.unl.fct.di.novasys.babel.internal.PeerIdEncoder;
 // This is separate from PrivateIdStore because its contents change frequently,
 // and would probably be stored in different files, if at all.
 // TODO should there also be one like for symmetric keys?
+// TODO remove this
 public class PublicIdStore extends IdStore {
     public PublicIdStore() {
         super(new KeyStore.PasswordProtection(new char[0]));

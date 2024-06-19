@@ -10,6 +10,7 @@ import java.security.UnrecoverableEntryException;
 
 import pt.unl.fct.di.novasys.babel.internal.PeerIdEncoder;
 
+// TODO remove
 public class PrivateIdStore extends IdStore {
     public static final String DEFAULT_ALIAS = "default";
 

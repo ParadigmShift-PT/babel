@@ -4,12 +4,22 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.security.KeyStore;
+import java.security.Provider;
 import java.security.KeyStore.ProtectionParameter;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.util.function.Supplier;
+
+import javax.security.auth.callback.Callback;
+import javax.security.auth.callback.PasswordCallback;
+import javax.security.auth.callback.UnsupportedCallbackException;
+
 import java.security.Security;
+import java.security.cert.CertificateException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,6 +29,8 @@ import pt.unl.fct.di.novasys.babel.internal.security.keystore.IdAliasMapper;
 import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
+import java.security.KeyStore.CallbackHandlerProtection;
+import java.security.KeyStore.LoadStoreParameter;
 import java.security.KeyStore.PasswordProtection;
 import java.security.KeyStore.PrivateKeyEntry;
 
@@ -27,16 +39,22 @@ public class SecurityConfiguration {
 
     private static final Logger logger = LogManager.getLogger(SecurityConfiguration.class);
 
+    private static final String DEFAULT_KEY_STORE_TYPE = "PKCS12";
+
+    private Provider provider;
+
     private boolean initialized = false;
 
     private String keyStorePath;
     private KeyStore keyStore;
+    private LoadStoreParameter keyStoreLoadParameter;
     private ProtectionParameter keyStoreProtection;
     private String writableKeyStorePath;
     private boolean writableKeyStore;
 
     private String trustStorePath;
     private KeyStore trustStore;
+    private LoadStoreParameter trustStoreLoadParameter;
     private ProtectionParameter trustStoreProtection;
     private String writableTrustStorePath;
     private boolean writableTrustStore;
@@ -92,6 +110,11 @@ public class SecurityConfiguration {
         return this;
     }
 
+    public SecurityConfiguration keyStore(LoadStoreParameter keyStoreLoadParameter) {
+        this.keyStoreLoadParameter = keyStoreLoadParameter;
+        return this;
+    }
+
     /**
      * Allow Babel to write changes to the key store file given through
      * {@value SecurityConfiguration#keyStore(String)}. <b>This may overwrite any
@@ -133,6 +156,11 @@ public class SecurityConfiguration {
 
     public SecurityConfiguration trustStore(KeyStore trustStore) {
         this.trustStore = trustStore;
+        return this;
+    }
+
+    public SecurityConfiguration trustStore(LoadStoreParameter trustStoreLoadParameter) {
+        this.trustStoreLoadParameter = trustStoreLoadParameter;
         return this;
     }
 
@@ -201,48 +229,91 @@ public class SecurityConfiguration {
 
     // Internal methods
 
+    private char[] getPassword(ProtectionParameter protParam, String storeName)
+            throws IOException, UnsupportedCallbackException {
+        if (protParam instanceof PasswordProtection pwdProt) {
+            return pwdProt.getPassword();
+        } else if (protParam instanceof CallbackHandlerProtection callbackProt) {
+            var callback = new PasswordCallback("Password for " + storeName, false);
+            callbackProt.getCallbackHandler().handle(new Callback[] { callback });
+            return callback.getPassword();
+        } else {
+            return null;
+        }
+    }
+
     private void throwNull(String variable) throws IllegalStateException {
         throw new IllegalStateException(
                 "Tried initializing the security config but required " + variable + " was never set.");
     }
 
     private KeyStore newKeyStore() {
-        return null; //TODO
+        return null; // TODO
     }
 
-    private KeyStore keyStoreFromFile(String path) throws IOException {
-        var file = new File(path);
-        try (var inStream = new FileInputStream(file)) {
-            keyStore = KeyStore.getInstance(...)
-        } catch (FileNotFoundException e) {
+    private KeyStore keyStoreFromFile(String path, ProtectionParameter protParam) throws IOException, KeyStoreException,
+            NoSuchAlgorithmException, CertificateException, UnsupportedCallbackException {
+        KeyStore store;
+        File file = new File(path);
+        if (file.exists()) {
+            store = KeyStore.Builder.newInstance(file, protParam).getKeyStore();
+        } else {
             file.createNewFile();
-            // TODO then what?
+            store = newKeyStore();
+            store.store(new FileOutputStream(file), getPassword(protParam, path));
         }
+        return store;
     }
 
-    void initialize() throws IllegalStateException, IOException {
-        Security.addProvider(new BouncyCastleProvider());
-
-        if (keyStore == null) {
-            if (keyStorePath == null)
-                keyStorePath = System.getProperty("javax.net.ssl.keyStore");
-            if (keyStorePath == null)
-                keyStore = new KeyStore();
-            else
-                keyStore = keyStoreFromFile(keyStorePath);
+    private KeyStore keyStoreFromFile(String path, LoadStoreParameter loadParam)
+            throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException {
+        KeyStore store;
+        File file = new File(path);
+        if (file.exists()) {
+            store = KeyStore.getInstance(file, loadParam);
+        } else {
+            file.createNewFile();
+            store = newKeyStore();
+            store.store(loadParam);
         }
+        return store;
+    }
 
+    void initialize() throws IllegalStateException, IOException, KeyStoreException, NoSuchAlgorithmException,
+            CertificateException, UnsupportedCallbackException {
+        provider = new BouncyCastleProvider();
+        Security.addProvider(provider);
+
+        // Init key store
         if (keyStoreProtection == null) {
             String password = System.getProperty("javax.net.ssl.keyStorePassword");
             keyStoreProtection = new PasswordProtection(password != null ? password.toCharArray() : null);
         }
 
-        if (trustStorePath == null)
-            trustStorePath = System.getProperty("javax.net.ssl.trustStore");
+        if (keyStore == null) {
+            if (keyStorePath == null)
+                keyStorePath = System.getProperty("javax.net.ssl.keyStore");
 
+            if (keyStorePath != null)
+                if (keyStoreLoadParameter != null)
+                    keyStore = keyStoreFromFile(keyStorePath, keyStoreLoadParameter);
+                else
+                    keyStore = keyStoreFromFile(keyStorePath, keyStoreProtection);
+            else
+                keyStore = newKeyStore();
+        }
+        // TODO something when writableKeyStore
+
+        // Init trust store
         if (trustStoreProtection == null) {
             String password = System.getProperty("javax.net.ssl.trustStorePassword");
             trustStoreProtection = new PasswordProtection(password != null ? password.toCharArray() : null);
+        }
+
+        if (trustStore == null) {
+            if (trustStorePath == null)
+                trustStorePath = System.getProperty("javax.net.ssl.trustStore");
+            // ...
         }
 
         // TODO

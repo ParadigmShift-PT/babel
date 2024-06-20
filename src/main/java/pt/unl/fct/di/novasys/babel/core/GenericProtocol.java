@@ -27,6 +27,39 @@ import java.util.concurrent.LinkedBlockingQueue;
 
 import javax.net.ssl.KeyManager;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
+import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
+import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
+import pt.unl.fct.di.novasys.babel.generic.ProtoNotification;
+import pt.unl.fct.di.novasys.babel.generic.ProtoReply;
+import pt.unl.fct.di.novasys.babel.generic.ProtoRequest;
+import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
+import pt.unl.fct.di.novasys.babel.handlers.ChannelEventHandler;
+import pt.unl.fct.di.novasys.babel.handlers.MessageFailedHandler;
+import pt.unl.fct.di.novasys.babel.handlers.MessageInHandler;
+import pt.unl.fct.di.novasys.babel.handlers.MessageSentHandler;
+import pt.unl.fct.di.novasys.babel.handlers.NotificationHandler;
+import pt.unl.fct.di.novasys.babel.handlers.ReplyHandler;
+import pt.unl.fct.di.novasys.babel.handlers.RequestHandler;
+import pt.unl.fct.di.novasys.babel.handlers.TimerHandler;
+import pt.unl.fct.di.novasys.babel.internal.BabelMessage;
+import pt.unl.fct.di.novasys.babel.internal.CustomChannelEvent;
+import pt.unl.fct.di.novasys.babel.internal.IPCEvent;
+import pt.unl.fct.di.novasys.babel.internal.InternalEvent;
+import pt.unl.fct.di.novasys.babel.internal.MessageFailedEvent;
+import pt.unl.fct.di.novasys.babel.internal.MessageInEvent;
+import pt.unl.fct.di.novasys.babel.internal.MessageSentEvent;
+import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
+import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
+import pt.unl.fct.di.novasys.babel.metrics.Metric;
+import pt.unl.fct.di.novasys.babel.metrics.MetricsManager;
+import pt.unl.fct.di.novasys.channel.ChannelEvent;
+import pt.unl.fct.di.novasys.network.ISerializer;
+import pt.unl.fct.di.novasys.network.data.Host;
+
 /**
  * An abstract class that represent a generic protocol
  * <p>
@@ -34,7 +67,7 @@ import javax.net.ssl.KeyManager;
  * <p>
  * Users should extend this class to implement their protocols
  */
-@SuppressWarnings({"unused", "SameParameterValue"})
+@SuppressWarnings({"unused"})
 public abstract class GenericProtocol {
 
     private static final Logger logger = LogManager.getLogger(GenericProtocol.class);
@@ -45,9 +78,10 @@ public abstract class GenericProtocol {
     private final Thread executionThread;
     private final String protoName;
     private final short protoId;
-
     private final boolean isSecureProtocol;
 
+    private boolean protocolThreadedStarted;
+    
     private int defaultChannel;
 
     private final Map<Integer, ChannelHandlers> channels;
@@ -56,7 +90,7 @@ public abstract class GenericProtocol {
     private final Map<Short, ReplyHandler<? extends ProtoReply>> replyHandlers;
     private final Map<Short, NotificationHandler<? extends ProtoNotification>> notificationHandlers;
 
-    private static final Babel babel = Babel.getInstance();
+    public static final Babel babel = Babel.getInstance();
 
     //Debug
     ProtocolMetrics metrics = new ProtocolMetrics();
@@ -78,6 +112,8 @@ public abstract class GenericProtocol {
         this.queue = policy;
         this.protoId = protoId;
         this.protoName = protoName;
+        
+        this.protocolThreadedStarted = false;
 
         //TODO change to event loop (simplifies the deliver->poll->handle process)
         //TODO only change if performance better
@@ -103,6 +139,14 @@ public abstract class GenericProtocol {
         return this.isSecureProtocol;
     }
 
+    /**
+     * Provides information if the protocol thread of this protocol was already stated in the past.
+     * @return true if the protocol thread was started in the past
+     */
+    public final boolean hasProtocolThreadStarted() {
+    	return this.protocolThreadedStarted;
+    }
+    
     /**
      * Create a generic protocol with the provided name and numeric identifier
      * and network service
@@ -135,18 +179,23 @@ public abstract class GenericProtocol {
     }
 
     /**
+     * Start the event thread of the protocol
+     */
+    public final void startEventThread() {
+        try {
+            this.executionThread.start();
+            this.protocolThreadedStarted = true;
+        } catch (IllegalThreadStateException e) {
+
+        }
+    }
+
+    /**
      * Initializes the protocol with the given properties
-     *
+     * 
      * @param props properties
      */
     public abstract void init(Properties props) throws HandlerRegistrationException, IOException;
-
-    /**
-     * Start the execution thread of the protocol
-     */
-    public final void start() {
-        this.executionThread.start();
-    }
 
     public ProtocolMetrics getMetrics() {
         return metrics;
@@ -587,7 +636,7 @@ public abstract class GenericProtocol {
 
     /* ------------------------- NETWORK/CHANNELS ---------------------- */
 
-    private ChannelHandlers getChannelOrThrow(int channelId) {
+    protected final ChannelHandlers getChannelOrThrow(int channelId) {
         ChannelHandlers handlers = channels.get(channelId);
         if (handlers == null)
             throw new AssertionError("Channel does not exist: " + channelId);
@@ -704,6 +753,16 @@ public abstract class GenericProtocol {
     }
 
     // TODO setDefaultSecureChannel?
+
+    /**
+     * Returns the default channel for the {@link #sendMessage(ProtoMessage, Host)}, {@link #openConnection(Host)}
+     * and {@link #closeConnection(Host)} methods.
+     * 
+     * @return channel id
+     */
+    protected final int getDefaultChannel() {
+        return defaultChannel;
+    }
 
     /**
      * Sends a message to a specified destination, using the default channel.
@@ -1112,50 +1171,8 @@ public abstract class GenericProtocol {
     /**
      * Used by babel to deliver channel events to protocols. Do not evoke directly.
      */
-    final void deliverChannelEvent(CustomChannelEvent event) {
+    void deliverInternalEvent(InternalEvent event) {
         queue.add(event);
-    }
-
-    /**
-     * Used by babel to deliver channel messages to protocols.
-     */
-    final protected void deliverMessageIn(MessageInEvent msgIn) {
-        queue.add(msgIn);
-    }
-
-    /**
-     * Used by babel to deliver channel message sent events to protocols. Do not evoke directly.
-     */
-    final void deliverMessageSent(MessageSentEvent event) {
-        queue.add(event);
-    }
-
-    /**
-     * Used by babel to deliver channel message failed events to protocols. Do not evoke directly.
-     */
-    final void deliverMessageFailed(MessageFailedEvent event) {
-        queue.add(event);
-    }
-
-    /**
-     * Used by babel to deliver timer events to protocols. Do not evoke directly.
-     */
-    final void deliverTimer(TimerEvent timer) {
-        queue.add(timer);
-    }
-
-    /**
-     * Used by babel to deliver notifications to protocols. Do not evoke directly.
-     */
-    final void deliverNotification(NotificationEvent notification) {
-        queue.add(notification);
-    }
-
-    /**
-     * Used by babel to deliver requests/replies to protocols. Do not evoke directly.
-     */
-    final void deliverIPC(IPCEvent ipc) {
-        queue.add(ipc);
     }
 
     /* ------------------ MAIN LOOP -------------------------------------------------*/
@@ -1165,51 +1182,50 @@ public abstract class GenericProtocol {
             try {
                 InternalEvent pe = this.queue.take();
                 metrics.totalEventsCount++;
-                if (logger.isDebugEnabled())
+                if (logger.isDebugEnabled()) {
                     logger.debug("Handling event: " + pe);
-                switch (pe.getType()) {
-                    case MESSAGE_IN_EVENT:
+                }
+                switch (pe) {
+                    case MessageInEvent castPe -> {
                         metrics.messagesInCount++;
-                        this.handleMessageIn((MessageInEvent) pe);
-                        break;
-                    case MESSAGE_FAILED_EVENT:
+                        this.handleMessageIn(castPe);
+                    }
+                    case MessageFailedEvent castPe -> {
                         metrics.messagesFailedCount++;
-                        this.handleMessageFailed((MessageFailedEvent) pe);
-                        break;
-                    case MESSAGE_SENT_EVENT:
+                        this.handleMessageFailed(castPe);
+                    }
+                    case MessageSentEvent castPe -> {
                         metrics.messagesSentCount++;
-                        this.handleMessageSent((MessageSentEvent) pe);
-                        break;
-                    case TIMER_EVENT:
+                        this.handleMessageSent(castPe);
+                    }
+                    case TimerEvent castPe -> {
                         metrics.timersCount++;
-                        this.handleTimer((TimerEvent) pe);
-                        break;
-                    case NOTIFICATION_EVENT:
+                        this.handleTimer(castPe);
+                    }
+                    case NotificationEvent castPe -> {
                         metrics.notificationsCount++;
-                        this.handleNotification((NotificationEvent) pe);
-                        break;
-                    case IPC_EVENT:
-                        IPCEvent i = (IPCEvent) pe;
+                        this.handleNotification(castPe);
+                    }
+                    case IPCEvent castPe -> {
+                        IPCEvent i = castPe;
                         switch (i.getIpc().getType()) {
-                            case REPLY:
+                            case REPLY -> {
                                 metrics.repliesCount++;
                                 handleReply((ProtoReply) i.getIpc(), i.getSenderID());
-                                break;
-                            case REQUEST:
+                            }
+                            case REQUEST -> {
                                 metrics.requestsCount++;
                                 handleRequest((ProtoRequest) i.getIpc(), i.getSenderID());
-                                break;
-                            default:
-                                throw new AssertionError("Ups");
+                            }
+                            default -> throw new AssertionError("Ups");
                         }
-                        break;
-                    case CUSTOM_CHANNEL_EVENT:
+                    }
+                    case CustomChannelEvent castPe -> {
                         metrics.customChannelEventsCount++;
-                        this.handleChannelEvent((CustomChannelEvent) pe);
-                        break;
-                    default:
-                        throw new AssertionError("Unexpected event received by babel. protocol "
-                                + protoId + " (" + protoName + ")");
+                        this.handleChannelEvent(castPe);
+                    }
+                    default -> throw new AssertionError("Unexpected event received by babel. protocol "
+                            + protoId + " (" + protoName + ")");
                 }
             } catch (Exception e) {
                 logger.error("Unhandled exception in protocol " + getProtoName() +" ("+ getProtoId() +") " + e, e);

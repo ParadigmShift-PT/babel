@@ -189,7 +189,11 @@ buildNumber.properties
 .mvn/timing.properties
 .mvn/wrapper/maven-wrapper.jar
 
+META-INF
+
 ### IML ###
 *.iml
+
+.vscode
 
 # End of https://www.gitignore.io/api/java,maven,eclipse,intellij

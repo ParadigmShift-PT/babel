@@ -41,22 +41,22 @@ public class ChannelToProtoForwarder implements ChannelListener<BabelMessage> {
             throw new AssertionError("Channel " + channelId + " received message to protoId " +
                     message.getDestProto() + " which is not registered in channel");
         }
-        channelConsumer.deliverMessageIn(new MessageInEvent(message, host, channelId));
+        channelConsumer.deliverInternalEvent(new MessageInEvent(message, host, channelId));
     }
 
     @Override
     public void messageSent(BabelMessage addressedMessage, Host host) {
-        consumers.values().forEach(c -> c.deliverMessageSent(new MessageSentEvent(addressedMessage, host, channelId)));
+        consumers.values().forEach(c -> c.deliverInternalEvent(new MessageSentEvent(addressedMessage, host, channelId)));
     }
 
     @Override
     public void messageFailed(BabelMessage addressedMessage, Host host, Throwable throwable) {
         consumers.values().forEach(c ->
-                c.deliverMessageFailed(new MessageFailedEvent(addressedMessage, host, throwable, channelId)));
+                c.deliverInternalEvent(new MessageFailedEvent(addressedMessage, host, throwable, channelId)));
     }
 
     @Override
     public void deliverEvent(ChannelEvent channelEvent) {
-        consumers.values().forEach(v -> v.deliverChannelEvent(new CustomChannelEvent(channelEvent, channelId)));
+        consumers.values().forEach(v -> v.deliverInternalEvent(new CustomChannelEvent(channelEvent, channelId)));
     }
 }

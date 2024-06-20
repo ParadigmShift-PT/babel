@@ -48,18 +48,18 @@ public class SecureChannelToProtoForwarder extends ChannelToProtoForwarder
             throw new AssertionError("Channel " + channelId + " received message to protoId " +
                     message.getDestProto() + " which is not registered in channel");
         }
-        channelConsumer.deliverMessageIn(new MessageInEvent(message, host, peerId, channelId));
+        channelConsumer.deliverInternalEvent(new MessageInEvent(message, host, peerId, channelId));
     }
 
     @Override
     public void messageSent(BabelMessage addressedMessage, Host host, byte[] peerId) {
         consumers.values()
-                .forEach(c -> c.deliverMessageSent(new MessageSentEvent(addressedMessage, host, peerId, channelId)));
+                .forEach(c -> c.deliverInternalEvent(new MessageSentEvent(addressedMessage, host, peerId, channelId)));
     }
 
     @Override
     public void messageFailed(BabelMessage addressedMessage, Optional<Host> hostOpt, byte[] peerId, Throwable cause) {
-        consumers.values().forEach(c -> c.deliverMessageFailed(
+        consumers.values().forEach(c -> c.deliverInternalEvent(
                 new MessageFailedEvent(addressedMessage, hostOpt.orElse(null), peerId, cause, channelId)));
     }
 

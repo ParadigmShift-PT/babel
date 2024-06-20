@@ -1,0 +1,362 @@
+package pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure;
+
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.net.InetAddress;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.apache.commons.lang3.tuple.MutableTriple;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.commons.lang3.tuple.Triple;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import pt.unl.fct.di.novasys.babel.core.Babel;
+import pt.unl.fct.di.novasys.babel.core.SelfConfigurableProtocol;
+import pt.unl.fct.di.novasys.babel.core.protocols.discovery.requests.FoundServiceReply;
+import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.messages.ParameterMessage;
+import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.timers.SearchTimer;
+import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
+import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
+import pt.unl.fct.di.novasys.babel.utils.NetworkingUtilities;
+import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
+import pt.unl.fct.di.novasys.channel.tcp.events.InConnectionDown;
+import pt.unl.fct.di.novasys.channel.tcp.events.InConnectionUp;
+import pt.unl.fct.di.novasys.channel.tcp.events.OutConnectionDown;
+import pt.unl.fct.di.novasys.channel.tcp.events.OutConnectionFailed;
+import pt.unl.fct.di.novasys.channel.tcp.events.OutConnectionUp;
+import pt.unl.fct.di.novasys.network.data.Host;
+
+/**
+ * Protocol that copies, checks and sets the parameters of other protocols in
+ * the Babel stack.
+ */
+public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
+    private static final Logger logger = LogManager.getLogger(CopySelfConfigurationProtocol.class);
+
+    public static final String DEFAULT_PORT = "19349";
+    public static final short PROTO_ID = 32000;
+    public static final String PROTO_NAME = "BabelCopySelfConfiguration";
+    public static final int SEARCH_COOLDOWN = 5000;
+    public static final int CONFIRMATION_TIMEOUT = 30000;
+
+    public static final String PAR_SELF_CONFIGURE_CONFIRMATIONS = "babel.selfconfig.confirmations";
+    public static final String PAR_SELF_CONFIGURE_INTERFACE = "babel.selfconfig.interface";
+    public static final String PAR_SELF_CONFIGURE_ADDRESS = "babel.selfconfig.address";
+    public static final String PAR_SELF_CONFIGURE_PORT = "babel.selfconfig.port";
+
+    protected final Map<String, Map<String, MutableTriple<Parameter, CountDownLatch, Pair<Map<String, Integer>, Set<Host>>>>> protocolToParameterToConfigure;
+    protected final Map<String, Map<String, Parameter>> protocolToParameterConfigured;
+    protected final Map<String, SelfConfigurableProtocol> protocolMap;
+    protected final Map<Host, ParameterMessage> msgToSend;
+    protected final Map<String, Set<Host>> whisperers;
+
+    private Host myself;
+
+    private int defaultChannelID;
+    private int confirmationsNeeded = 1;
+
+    public CopySelfConfigurationProtocol() {
+        super(PROTO_NAME, PROTO_ID);
+
+        protocolToParameterToConfigure = new ConcurrentHashMap<>();
+        protocolToParameterConfigured = new ConcurrentHashMap<>();
+        protocolMap = new ConcurrentHashMap<>();
+        msgToSend = new HashMap<>();
+        whisperers = new ConcurrentHashMap<>();
+    }
+
+    @Override
+    public void init(Properties props) throws HandlerRegistrationException, IOException {
+        if (!props.containsKey(PAR_SELF_CONFIGURE_INTERFACE) && props.containsKey(Babel.PAR_DEFAULT_INTERFACE))
+            props.put(PAR_SELF_CONFIGURE_INTERFACE, props.get(Babel.PAR_DEFAULT_INTERFACE));
+        if (!props.containsKey(PAR_SELF_CONFIGURE_ADDRESS) && props.containsKey(Babel.PAR_DEFAULT_ADDRESS))
+            props.put(PAR_SELF_CONFIGURE_ADDRESS, props.get(Babel.PAR_DEFAULT_ADDRESS));
+        if (!props.containsKey(PAR_SELF_CONFIGURE_PORT))
+            props.put(PAR_SELF_CONFIGURE_PORT, DEFAULT_PORT);
+        if (props.contains(PAR_SELF_CONFIGURE_CONFIRMATIONS))
+            confirmationsNeeded = Integer.valueOf(props.getProperty(PAR_SELF_CONFIGURE_CONFIRMATIONS));
+
+        String networkInterface = props.getProperty(PAR_SELF_CONFIGURE_INTERFACE);
+        String address = null;
+        if (networkInterface == null) {
+            address = props.getProperty(PAR_SELF_CONFIGURE_ADDRESS);
+        } else {
+            address = NetworkingUtilities.getAddress(networkInterface);
+        }
+        String port = props.getProperty(PAR_SELF_CONFIGURE_PORT, DEFAULT_PORT);
+
+        Properties channelProps = new Properties(2);
+        channelProps.setProperty(TCPChannel.ADDRESS_KEY, address);
+        channelProps.setProperty(TCPChannel.PORT_KEY, port);
+        defaultChannelID = createChannel(TCPChannel.NAME, channelProps);
+        myself = new Host(InetAddress.getByName(address), Integer.valueOf(port));
+
+        registerChannelEventHandler(defaultChannelID, InConnectionDown.EVENT_ID, this::uponInConnectionDown);
+        registerChannelEventHandler(defaultChannelID, InConnectionUp.EVENT_ID, this::uponInConnectionUp);
+        registerChannelEventHandler(defaultChannelID, OutConnectionDown.EVENT_ID, this::uponOutConnectionDown);
+        registerChannelEventHandler(defaultChannelID, OutConnectionUp.EVENT_ID, this::uponOutConnectionUp);
+        registerChannelEventHandler(defaultChannelID, OutConnectionFailed.EVENT_ID, this::uponOutConnectionFailed);
+
+        registerMessageSerializer(defaultChannelID, ParameterMessage.MSG_ID, ParameterMessage.serializer);
+
+        registerMessageHandler(defaultChannelID, ParameterMessage.MSG_ID, this::uponParameterMessage,
+                this::uponMessageFailed);
+
+        registerTimerHandler(SearchTimer.TIMER_ID, this::search);
+
+        registerReplyHandler(FoundServiceReply.REPLY_ID, this::uponFoundServiceReply);
+    }
+
+    public void addProtocolParameterToConfigure(String parameterName, Method setter, Method getter,
+            SelfConfigurableProtocol proto) {
+        if (protocolToParameterToConfigure.isEmpty()) {
+            babel.askRunningDiscovery(this, myself, true);
+            setupTimer(new SearchTimer(), SEARCH_COOLDOWN);
+        }
+        Parameter parameter = new Parameter(getter, setter, proto, parameterName);
+        var protocolParameters = protocolToParameterToConfigure.get(proto.getProtoName());
+        if (protocolParameters == null) {
+            protocolParameters = new ConcurrentHashMap<>();
+            protocolToParameterToConfigure.put(proto.getProtoName(), protocolParameters);
+        }
+        protocolParameters.put(parameterName,
+                new MutableTriple<>(parameter, null, new ImmutablePair<>(new HashMap<>(), new HashSet<>())));
+        protocolMap.put(proto.getProtoName(), proto);
+    }
+
+    public void addProtocolParameterConfigured(String parameterName, Method setter, Method getter,
+            SelfConfigurableProtocol proto) {
+        Parameter parameter = new Parameter(getter, setter, proto, parameterName);
+        Map<String, Parameter> protocolParameter = protocolToParameterConfigured.get(proto.getProtoName());
+        if (protocolParameter == null) {
+            protocolParameter = new ConcurrentHashMap<>();
+            protocolToParameterConfigured.put(proto.getProtoName(), protocolParameter);
+        }
+        protocolParameter.put(parameterName, parameter);
+        protocolMap.put(proto.getProtoName(), proto);
+    }
+
+    public void search(SearchTimer timer, long timerId) {
+        logger.info("Trying to search");
+        for (var protoEntry : protocolToParameterToConfigure.entrySet()) {
+            Set<Host> protoHost = whisperers.get("*");
+            synchronized (msgToSend) {
+                for (var host : protoHost) {
+                    ParameterMessage msg = msgToSend.get(host);
+                    if (msg == null) {
+                        msg = new ParameterMessage();
+                        msgToSend.put(host, msg);
+                        logger.info("Opening connection to " + protoHost);
+                        openConnection(host, defaultChannelID);
+                    }
+                    for (var paramEntry : protoEntry.getValue().entrySet()) {
+                        msg.addAskingParameter(protoEntry.getKey(), paramEntry.getKey());
+                    }
+                }
+            }
+        }
+        if (!protocolToParameterToConfigure.isEmpty()) {
+            setupTimer(timer, SEARCH_COOLDOWN);
+        }
+    }
+
+    /**
+     * Waits for all the confirmations for a single parameter. Starts the protocol
+     * if everything is in place.
+     * 
+     * @param proto            the protocol
+     * @param paramToConfigure triple with the parameter register, a countdown
+     *                         latch, and a map with all the confirmations and where
+     *                         they came from
+     */
+    private void countdownParameter(SelfConfigurableProtocol proto,
+            Triple<Parameter, CountDownLatch, Pair<Map<String, Integer>, Set<Host>>> paramToConfigure) {
+        try {
+            paramToConfigure.getMiddle().await(CONFIRMATION_TIMEOUT, TimeUnit.MILLISECONDS);
+            String confirmedValue = paramToConfigure.getRight().getLeft().entrySet().stream()
+                    .max(new Comparator<Entry<String, Integer>>() {
+                        @Override
+                        public int compare(Entry<String, Integer> o1, Entry<String, Integer> o2) {
+                            int compare = o1.getValue().compareTo(o2.getValue());
+                            if (compare == 0) {
+                                return o1.getKey().compareTo(o2.getKey());
+                            }
+                            return compare;
+                        }
+                    }).get().getKey();
+            paramToConfigure.getLeft().setter().invoke(proto, confirmedValue);
+            synchronized (proto) {
+                if (proto.readyToStart() && !proto.hasProtocolThreadStarted()) {
+                    babel.checkAndStartDcProto(proto);
+                    protocolToParameterToConfigure.remove(proto.getProtoName());
+                    Parameter parameter = paramToConfigure.getLeft();
+                    addProtocolParameterConfigured(parameter.name(), parameter.setter(), parameter.getter(), proto);
+                    if (protocolToParameterToConfigure.isEmpty()) {
+                        babel.askRunningDiscovery(this, myself, false);
+                    }
+                }
+            }
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new RuntimeException("Protocol badly constructed");
+        } catch (InterruptedException e) {
+            throw new RuntimeException(
+                    "Interrupted while waiting for confirmation for " + paramToConfigure.getLeft().getter().getName());
+        }
+    }
+
+    private void addFoundConfiguration(String config,
+            Triple<Parameter, CountDownLatch, Pair<Map<String, Integer>, Set<Host>>> paramToConfigure, Host from) {
+        if (paramToConfigure.getRight().getRight().add(from)) {
+            var possibilities = paramToConfigure.getRight().getLeft();
+            Integer confirmations = possibilities.get(config);
+            possibilities.put(config, confirmations == null ? 1 : confirmations.intValue() + 1);
+            paramToConfigure.getMiddle().countDown();
+        }
+    }
+
+    public void uponParameterMessage(ParameterMessage msg, Host from, short sourceProto, int channelId) {
+        logger.info("Got parameter message from " + from);
+        var receivedParams = msg.getAllProtocolParams();
+        ParameterMessage replyMsg = new ParameterMessage();
+        for (var protoEntry : receivedParams.entrySet()) {
+            SelfConfigurableProtocol proto = protocolMap.get(protoEntry.getKey());
+            var thisProtocolToConfigure = protocolToParameterToConfigure.get(protoEntry.getKey());
+            var thisProtocolConfigured = protocolToParameterConfigured.get(protoEntry.getKey());
+            for (var paramEntry : protoEntry.getValue().entrySet()) {
+                var paramToConfigure = thisProtocolToConfigure != null
+                        ? thisProtocolToConfigure.get(paramEntry.getKey())
+                        : null;
+                var paramConfigured = thisProtocolConfigured != null
+                        ? thisProtocolConfigured.get(paramEntry.getKey())
+                        : null;
+                if (paramEntry.getValue() != null && paramToConfigure != null) {
+                    if (paramToConfigure.getMiddle() == null) {
+                        paramToConfigure.setMiddle(new CountDownLatch(confirmationsNeeded));
+                        new Thread(() -> countdownParameter(proto, paramToConfigure)).start();
+                    }
+                    addFoundConfiguration(paramEntry.getValue(), paramToConfigure, from);
+                } else if (paramEntry.getValue() == null && paramConfigured != null) {
+                    try {
+                        String value = (String) paramConfigured.getter().invoke(proto);
+                        replyMsg.addParameter(protoEntry.getKey(), paramEntry.getKey(), value);
+                    } catch (IllegalAccessException | InvocationTargetException e) {
+                        throw new RuntimeException("Protocol badly constructed");
+                    }
+                }
+            }
+        }
+        synchronized (msgToSend) {
+            ParameterMessage oldMsg = msgToSend.get(from);
+            if (oldMsg != null) {
+                oldMsg.join(replyMsg);
+            } else {
+                msgToSend.put(from, replyMsg);
+            }
+            if (oldMsg != null && oldMsg.getAllProtocolParams().size() > 0
+                    || replyMsg.getAllProtocolParams().size() > 0) {
+                openConnection(from);
+            }
+        }
+    }
+
+    /**
+     * Handle the case when a message fails to be (confirmed to be) delivered to the
+     * destination
+     * Print the error
+     * 
+     * @param msg       the message that failed delivery
+     * @param host      the destination host
+     * @param destProto the destination protocol ID
+     * @param error     the error that caused the failure
+     * @param channelId the channel ID (from which channel was the message was sent)
+     */
+    private void uponMessageFailed(ProtoMessage msg, Host host, short destProto, Throwable error, int channelId) {
+        logger.warn("Failed message: {} to host: {} with error: {}", msg, host, error.getMessage());
+    }
+
+    /**
+     * Handle the case when someone opened a connection to this node
+     * Print the event
+     * 
+     * @param event   the event containing the connection information
+     * @param channel the channel ID (from which channel the event was received)
+     */
+    private void uponInConnectionUp(InConnectionUp event, int channel) {
+        logger.debug(event);
+    }
+
+    /**
+     * Handle the case when someone closed a connection to this node
+     * Print the event
+     * 
+     * @param event   the event containing the connection information
+     * @param channel the channel ID (from which channel the event was received)
+     */
+    private void uponInConnectionDown(InConnectionDown event, int channel) {
+        logger.info(event);
+    }
+
+    /**
+     * Handle the case when a connection to a remote node went down or was closed
+     * Print the event
+     * 
+     * @param event   the event containing the connection information
+     * @param channel the channel ID (from which channel the event was received)
+     */
+    private void uponOutConnectionDown(OutConnectionDown event, int channel) {
+        logger.warn(event);
+    }
+
+    /**
+     * Handle when an open connection operation succeeded
+     * Start the periodic timer to send Ping pingpong.messages
+     * 
+     * @param event   OutConnectionUp event
+     * @param channel Channel ID
+     */
+    private void uponOutConnectionUp(OutConnectionUp event, int channel) {
+        logger.info("Connection to {} is now up", event.getNode());
+
+        synchronized (msgToSend) {
+            sendMessage(msgToSend.remove(event.getNode()), event.getNode());
+            closeConnection(event.getNode(), defaultChannelID);
+        }
+    }
+
+    /**
+     * Handle when an open connection operation has failed
+     * Print error message and exit
+     * 
+     * @param event   OutConnectionFailed event
+     * @param channel Channel ID
+     */
+    private void uponOutConnectionFailed(OutConnectionFailed<ProtoMessage> event, int channel) {
+        logger.debug(event);
+    }
+
+    private void uponFoundServiceReply(FoundServiceReply reply, short sourceProto) {
+        // TODO CREATE A MESSAGE TO ASK WHAT CONFIGS THE NEW GUY HAS
+        var serviceWhisperers = whisperers.get("*");
+        if (serviceWhisperers == null) {
+            serviceWhisperers = ConcurrentHashMap.newKeySet();
+            whisperers.put("*", serviceWhisperers);
+        }
+        serviceWhisperers.add(reply.getServiceHost());
+    }
+
+    public Host getMyself() {
+        return myself;
+    }
+}

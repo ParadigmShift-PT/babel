@@ -1,36 +1,16 @@
-# Babel Cryptography Support (Core)
+# Babel Self-Discovery and Self-Configuration Core
 
-Support for cryptographic material and abstractions in Babel. Support will be
-added in both [Babel-Core](https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-core)
-and [network-layer](https://codelab.fct.unl.pt/di/computer-systems/networklayer),
-as well as being available in separate, optional modules.
+A variant of the Java framework for developing distributed protocols. Uses [network-layer](https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-networklayer) for network communication.
 
-This repository contains the changes added to Babel-Core. The goal is for the
-Core to support, in a very general level:
-- [ ] Key management
-- [ ] Identity management
-- [ ] Secure channels (to also be implemented in network-layer)
+This variant was developed in the context of the TaRDIS European project to support the development of distributed protocols to support swarm systems with self-discovery and self-configuration features.
 
+The current core (version 0.1.0) supports Configurable discovery mechanisms for protocols that extend the DiscoverableProtocol class (instead of the GenericProtocol).
 
----
+Currently Multicast and Broadcast discovery is supported. Broadcast is still under testing.
 
-# Babel-Core
+## Authors
 
-A Java framework for developing distributed protocols. Uses [network-layer](https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-networklayer) for network communications.
-
-More details about this project can be found in the [SRDS'22 paper](https://ieeexplore.ieee.org/abstract/document/9996836).
-
-Examples of usage can be found [here](https://github.com/pedroAkos/EdgeOverlayNetworks), [here](https://github.com/pfouto/chain) and [here](https://github.com/pedroAkos/babel-case-studies).
-
-A guided tutorial on how you can use Babel to build distributed protocols can be found [here](https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-examples).
-
-The installation steps for this version can be found in [here](https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-core/-/packages/9)
-
-##Authors
-
-- Pedro Fouto (p.fouto@campus.fct.unl.pt)
-- Pedro Ákos Costa (pah.costa@campus.fct.unl.pt)
-- Nuno Preguiça (nuno.preguica@fct.unl.pt)
+- Rafael Matos (rd.matos@campus.fct.unl.pt)
 - João Leitão (jc.leitao@fct.unl.pt)
 
 # Installation
@@ -42,8 +22,8 @@ Copy and paste the following block inside your ```pom.xml dependencies``` block.
 ```
 <dependency>
 	<groupId>pt.unl.fct.di.novasys.babel</groupId>
-	<artifactId>babel-core</artifactId>
-	<version>[1.0.0,)</version>
+	<artifactId>babel-sc-core</artifactId>
+	<version>[0.1.0,)</version>
 </dependency>
 ```
 

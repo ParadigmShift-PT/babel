@@ -16,8 +16,8 @@ import java.util.Properties;
 public class PhiTest {
 
     public static void main(String[] args) throws InvalidParameterException, IOException, ProtocolAlreadyExistsException, HandlerRegistrationException {
-        Properties configProps = Babel.loadConfig(Arrays.copyOfRange(args, 0, args.length), null);
-        Babel babel = Babel.getInstance();
+    	Babel babel = Babel.getInstance();
+    	Properties configProps = babel.loadConfig(Arrays.copyOfRange(args, 0, args.length), null);
         PhiProto phiProto = new PhiProto(configProps);
         babel.registerProtocol(phiProto);
         phiProto.init(configProps);

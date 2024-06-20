@@ -329,15 +329,22 @@ public class Babel {
 		}
 
 		if (dnsSelfConfiguration != null) {
-			dnsSelfConfiguration.search();
+			var protosToSetup = dnsSelfConfiguration.search();
+			if (selfConfiguration != null) {
+				for (var proto : protosToSetup) {
+					setupSelfConfiguration(proto, selfConfiguration);
+				}
+			}
 		}
 	}
 
-	public void checkAndStartDcProto(DiscoverableProtocol dcProto) {
-		if (dcProto.readyToStart()) {
+	public boolean checkAndStartDcProto(DiscoverableProtocol dcProto) {
+		if (dcProto.readyToStart() && !dcProto.hasProtocolThreadStarted()) {
 			dcProto.start();
 			dcProto.startEventThread();
+			return true;
 		}
+		return dcProto.hasProtocolThreadStarted();
 	}
 
 	/**

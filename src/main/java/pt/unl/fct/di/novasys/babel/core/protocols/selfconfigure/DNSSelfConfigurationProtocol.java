@@ -3,29 +3,28 @@ package pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import io.netty.channel.AddressedEnvelope;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioDatagramChannel;
 import io.netty.handler.codec.dns.DefaultDnsQuestion;
 import io.netty.handler.codec.dns.DefaultDnsRawRecord;
 import io.netty.handler.codec.dns.DefaultDnsRecordDecoder;
-import io.netty.handler.codec.dns.DnsQuestion;
 import io.netty.handler.codec.dns.DnsRecordType;
 import io.netty.handler.codec.dns.DnsResponse;
 import io.netty.handler.codec.dns.DnsSection;
 import io.netty.resolver.dns.DnsNameResolver;
 import io.netty.resolver.dns.DnsNameResolverBuilder;
-import io.netty.util.concurrent.Future;
 import pt.unl.fct.di.novasys.babel.core.SelfConfigurableProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.network.data.Host;
@@ -40,7 +39,7 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
     public static final String PAR_DNS_LOOKUP_HOSTNAME = "dns.lookup.hostname";
 
     protected final Map<String, Map<String, Parameter>> protocolToParameterToConfigure;
-    protected final Map<String, SelfConfigurableProtocol> protocolMap;
+    protected final List<SelfConfigurableProtocol> protocolList;
     protected DnsNameResolver resolver;
     private String nameserver;
 
@@ -49,21 +48,23 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
     public DNSSelfConfigurationProtocol() {
         super(PROTO_NAME, PROTO_ID);
 
-        protocolToParameterToConfigure = new ConcurrentHashMap<>();
-        protocolMap = new ConcurrentHashMap<>();
+        protocolToParameterToConfigure = new HashMap<>();
+        protocolList = new ArrayList<>();
     }
 
     @Override
     public void addProtocolParameterToConfigure(String parameterName, Method setter, Method getter,
             SelfConfigurableProtocol proto) {
         Parameter parameter = new Parameter(getter, setter, proto, parameterName);
-        var protocolParameters = protocolToParameterToConfigure.get(proto.getProtoName());
+        var protoName = StringUtils.lowerCase(proto.getProtoName());
+        var lowerParameterName = StringUtils.lowerCase(parameterName);
+        var protocolParameters = protocolToParameterToConfigure.get(protoName);
         if (protocolParameters == null) {
-            protocolParameters = new ConcurrentHashMap<>();
-            protocolToParameterToConfigure.put(proto.getProtoName(), protocolParameters);
+            protocolParameters = new HashMap<>();
+            protocolToParameterToConfigure.put(protoName, protocolParameters);
         }
-        protocolParameters.put(parameterName, parameter);
-        protocolMap.put(proto.getProtoName(), proto);
+        protocolParameters.put(lowerParameterName, parameter);
+        protocolList.add(proto);
     }
 
     @Override
@@ -72,37 +73,49 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
 
     }
 
-    public void search() {
-        Map<String, Map<String, Future<AddressedEnvelope<DnsResponse, InetSocketAddress>>>> results = new HashMap<>();
-        for (var protoParam : protocolToParameterToConfigure.entrySet()) {
-            Map<String, Future<AddressedEnvelope<DnsResponse, InetSocketAddress>>> protoResults = new HashMap<>();
-            results.put(protoParam.getKey(), protoResults);
-            for (var param : protoParam.getValue().values()) {
-                DnsQuestion question = new DefaultDnsQuestion(
-                        protoParam.getKey() + "." + param.name() + "." + nameserver,
-                        DnsRecordType.TXT);
-                protoResults.put(param.name(), resolver.query(question));
-            }
-        }
+    /**
+     * Tries to search in the provided host for TXT records in babel.host
+     * The TXT records should come in the format
+     * name_of_the_protocol.parameter_name_in_code=value
+     * For example, if your protocol has the name PingPong and a parameter with the
+     * AutoConfigure anotation named nMessages, the txt record should be in host
+     * babel with the value pingpong.nmessages=5.
+     * 
+     * @return a list of all the protocols that attempted to find a suitable configuration
+     */
+    public List<SelfConfigurableProtocol> search() {
+        try {
+            DnsResponse results = resolver.query(new DefaultDnsQuestion(
+                    "babel." + nameserver, DnsRecordType.TXT)).get().content();
+            int answerCount = results.count(DnsSection.ANSWER);
 
-        for (var protoResults : results.entrySet()) {
-            var protoParams = protocolToParameterToConfigure.get(protoResults.getKey());
-            for (var paramResults : protoResults.getValue().entrySet()) {
-                try {
-                    var result = DefaultDnsRecordDecoder.decodeName(((DefaultDnsRawRecord)paramResults.getValue().get().content().recordAt(DnsSection.ANSWER)).content()).split("\\.")[0];
-                    var paramToConfigure = protoParams.get(paramResults.getKey());
-                    paramToConfigure.setter().invoke(paramToConfigure.proto(), result.toString());
-                } catch (InterruptedException | ExecutionException e) {
-                    logger.error(
-                            "Couldn't retrieve DNS record for " + protoResults.getKey() + "." + paramResults.getKey());
-                    e.printStackTrace();
-                } catch (IllegalAccessException | InvocationTargetException e) {
-                    throw new RuntimeException(e);
+            for (int i = 0; i < answerCount; i++) {
+                if (results.recordAt(DnsSection.ANSWER, i) instanceof DefaultDnsRawRecord record) {
+                    var foundConfig = DefaultDnsRecordDecoder.decodeName(record.content()).split("=");
+                    var protoNameAndParamName = foundConfig[0].split("\\.");
+                    var protoName = protoNameAndParamName[0];
+                    var paramName = protoNameAndParamName[1];
+                    var valueFound = foundConfig[1].split("\\.")[0];
+                    var protoParam = protocolToParameterToConfigure.get(protoName);
+                    var paramToConfigure = protoParam.remove(paramName);
+                    paramToConfigure.setter().invoke(paramToConfigure.proto(), valueFound);
                 }
             }
-            var proto = protocolMap.get(protoResults.getKey());
-            babel.checkAndStartDcProto(proto);
+
+            for (var proto : protocolList) {
+                if (babel.checkAndStartDcProto(proto)) {
+                    protocolToParameterToConfigure.remove(StringUtils.lowerCase(proto.getProtoName()));
+                }
+            }
+
+        } catch (InterruptedException | ExecutionException e) {
+            logger.error(
+                    "Couldn't retrieve DNS record from babel." + nameserver);
+            e.printStackTrace();
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new RuntimeException(e);
         }
+        return Collections.unmodifiableList(protocolList);
     }
 
     @Override

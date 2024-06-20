@@ -47,7 +47,7 @@ public class X509BabelTrustManager extends X509ITrustManager {
         byte[] id = extractIdFromCertificate(cert);
         if (!Arrays.equals(id, expectedId))
             throw new CertificateException("Expected id: %s Got: %s"
-                    .formatted(idExtractor.idToString(expectedId), idExtractor.idToString(id)));
+                    .formatted(PeerIdEncoder.encodeToString(expectedId), PeerIdEncoder.encodeToString(id)));
     }
 
     private void checkTrusted(X509Certificate cert) throws CertificateException {

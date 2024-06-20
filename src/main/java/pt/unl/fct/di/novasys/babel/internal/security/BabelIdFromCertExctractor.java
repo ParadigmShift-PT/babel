@@ -11,7 +11,6 @@ import java.security.cert.X509Certificate;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import pt.unl.fct.di.novasys.babel.core.security.IdFromCertExtractor;
-import pt.unl.fct.di.novasys.babel.internal.PeerIdEncoder;
 
 public class BabelIdFromCertExctractor implements IdFromCertExtractor {
 

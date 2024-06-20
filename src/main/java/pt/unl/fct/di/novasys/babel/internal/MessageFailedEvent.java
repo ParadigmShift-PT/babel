@@ -3,6 +3,7 @@ package pt.unl.fct.di.novasys.babel.internal;
 import java.util.Optional;
 
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
+import pt.unl.fct.di.novasys.babel.internal.security.PeerIdEncoder;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 /**

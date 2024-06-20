@@ -4,12 +4,7 @@ import pt.unl.fct.di.novasys.babel.initializers.*;
 import pt.unl.fct.di.novasys.babel.internal.BabelMessage;
 import pt.unl.fct.di.novasys.babel.internal.IPCEvent;
 import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
-import pt.unl.fct.di.novasys.babel.internal.PeerIdEncoder;
 import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
-import pt.unl.fct.di.novasys.babel.internal.security.CryptUtils;
-import pt.unl.fct.di.novasys.babel.internal.security.X509BabelKeyManager;
-import pt.unl.fct.di.novasys.babel.internal.security.X509BabelTrustManager;
-import pt.unl.fct.di.novasys.babel.internal.security.keystore.BabelIdAliasMapper;
 import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
@@ -30,12 +25,9 @@ import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
 import org.apache.commons.lang3.tuple.Triple;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.security.KeyStoreException;
-import java.security.Security;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;

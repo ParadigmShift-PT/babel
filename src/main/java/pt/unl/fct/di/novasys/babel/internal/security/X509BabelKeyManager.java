@@ -14,8 +14,7 @@ import java.util.ArrayList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import pt.unl.fct.di.novasys.babel.internal.security.keystore.BabelIdAliasMapper;
-import pt.unl.fct.di.novasys.babel.internal.security.keystore.IdAliasMapper;
+import pt.unl.fct.di.novasys.babel.core.security.IdFromCertExtractor;
 import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 
 // TODO make a Babel keystore generator program for BabelCommons?
@@ -27,22 +26,14 @@ public class X509BabelKeyManager extends X509IKeyManager {
     private final KeyStore keyStore;
     private final ProtectionParameter protParam;
 
-    // TODO arrange these messy constructors
-
-    /**
-     * Constructs a new X509BabelKeyManager with {@link BabelIdAliasMapper}.
-     * 
-     * @throws KeyStoreException if the keystore has not been initialized (loaded).
-     */
-    public X509BabelKeyManager(KeyStore keyStore, String pwd) throws KeyStoreException {
-        this(keyStore, pwd, new BabelIdAliasMapper());
-    }
-
     /**
      * @throws KeyStoreException if the keystore has not been initialized (loaded).
      */
-    public X509BabelKeyManager(KeyStore keyStore, String pwd, IdAliasMapper idAliasMapper) throws KeyStoreException {
-        this(keyStore, new KeyStore.PasswordProtection(pwd.toCharArray()), idAliasMapper);
+    public X509BabelKeyManager(KeyStore keyStore, ProtectionParameter protParam, IdFromCertExtractor idExtractor) throws KeyStoreException {
+        this.keyStore = keyStore;
+        this.protParam = protParam;
+        this.idAliasMapper = new IdAliasMapper();
+        idAliasMapper.populateFromPrivateKeyStore(keyStore, protParam, idExtractor);
     }
 
     /**

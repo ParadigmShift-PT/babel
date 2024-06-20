@@ -1,11 +1,9 @@
-package pt.unl.fct.di.novasys.babel.internal;
+package pt.unl.fct.di.novasys.babel.internal.security;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.util.Base64;
-
-import pt.unl.fct.di.novasys.babel.internal.security.CryptUtils;
 
 public class PeerIdEncoder {
     private static final Base64.Encoder encoder = Base64.getEncoder();

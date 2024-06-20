@@ -28,10 +28,10 @@ import pt.unl.fct.di.novasys.babel.core.security.IdFromCertExtractor;
 import pt.unl.fct.di.novasys.babel.core.security.SimpleCredentialGenerator;
 import pt.unl.fct.di.novasys.babel.internal.security.BabelCredentialGenerator;
 import pt.unl.fct.di.novasys.babel.internal.security.BabelIdFromCertExctractor;
+import pt.unl.fct.di.novasys.babel.internal.security.IdAliasMapper;
+import pt.unl.fct.di.novasys.babel.internal.security.PeerIdEncoder;
 import pt.unl.fct.di.novasys.babel.internal.security.X509BabelKeyManager;
 import pt.unl.fct.di.novasys.babel.internal.security.X509BabelTrustManager;
-import pt.unl.fct.di.novasys.babel.internal.security.keystore.BabelIdAliasMapper;
-import pt.unl.fct.di.novasys.babel.internal.security.keystore.IdAliasMapper;
 import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
@@ -41,8 +41,6 @@ public class SecurityConfiguration {
     private static final Logger logger = LogManager.getLogger(SecurityConfiguration.class);
 
     private static final String DEFAULT_KEY_STORE_TYPE = "PKCS12";
-
-    private Provider provider;
 
     private boolean initialized = false;
 
@@ -62,7 +60,12 @@ public class SecurityConfiguration {
     private String writableTrustStorePath;
     private boolean writableTrustStore;
 
-    // TODO KeyStore secretStore for secret keys?
+    private String secretStorePath;
+    private KeyStore secretStore;
+    private LoadStoreParameter secretStoreLoadParameter;
+    private ProtectionParameter secretStoreProtection;
+    private String writableSecretStorePath;
+    private boolean writableSecretStore;
 
     private X509IKeyManager keyManager;
     private X509ITrustManager trustManager;
@@ -70,10 +73,11 @@ public class SecurityConfiguration {
     private String defaultAlias;
     private byte[] defaultId;
 
-    private IdAliasMapper idAliasMapper;
     private IdFromCertExtractor idFromCertExtractor;
-
     private CredentialGenerator credentialGenerator;
+
+    private IdAliasMapper _idAliasMapper;
+    private Provider _provider;
 
     SecurityConfiguration() {
     }
@@ -133,7 +137,7 @@ public class SecurityConfiguration {
      */
     public SecurityConfiguration writableKeyStore() {
         writableKeyStore = true;
-        // Set writableKeyStorePath this to keyStorePath later
+        // Set writableKeyStorePath to keyStorePath during init()
         return this;
     }
 
@@ -182,7 +186,7 @@ public class SecurityConfiguration {
      */
     public SecurityConfiguration writableTrustStore() {
         writableTrustStore = true;
-        // Set writableTrustStorePath this to trustStorePath later
+        // Set writableTrustStorePath to trustStorePath during init()
         return this;
     }
 
@@ -206,6 +210,52 @@ public class SecurityConfiguration {
         return this;
     }
 
+    public SecurityConfiguration secretStore(String filePath) {
+        secretStorePath = filePath;
+        return this;
+    }
+
+    public SecurityConfiguration secretStore(KeyStore secretStore) {
+        this.secretStore = secretStore;
+        return this;
+    }
+
+    public SecurityConfiguration secretStore(LoadStoreParameter secretStoreLoadParameter) {
+        this.secretStoreLoadParameter = secretStoreLoadParameter;
+        return this;
+    }
+
+    /**
+     * Allow Babel to write changes to the key store file given through
+     * {@link SecurityConfiguration#secretStore(String)}. <b>This may overwrite any
+     * changes that might be made concurrently.</b>
+     */
+    public SecurityConfiguration writablesecretStore() {
+        writableSecretStore = true;
+        // Set writableSecretStorePath to secretStorePath during init()
+        return this;
+    }
+
+    /**
+     * Allow Babel to write to the given secret store file. <b>This will overwrite
+     * any
+     * content on the given file if it already exists.</b>
+     */
+    public SecurityConfiguration writableSecretStore(String filePath) {
+        writableSecretStore = true;
+        writableSecretStorePath = filePath;
+        return this;
+    }
+
+    public SecurityConfiguration secretStorePassword(String password) {
+        return secretStoreProtection(new PasswordProtection(password.toCharArray()));
+    }
+
+    public SecurityConfiguration secretStoreProtection(ProtectionParameter protection) {
+        secretStoreProtection = protection;
+        return this;
+    }
+
     public SecurityConfiguration keyManager(X509IKeyManager keyManager) {
         this.keyManager = keyManager;
         return this;
@@ -225,11 +275,6 @@ public class SecurityConfiguration {
 
     public SecurityConfiguration defaultId(byte[] id) {
         defaultId = id;
-        return this;
-    }
-
-    public SecurityConfiguration idAliasMapper(IdAliasMapper idAliasMapper) {
-        this.idAliasMapper = idAliasMapper;
         return this;
     }
 
@@ -263,13 +308,8 @@ public class SecurityConfiguration {
         }
     }
 
-    private void throwNull(String variable) throws IllegalStateException {
-        throw new IllegalStateException(
-                "Tried initializing the security config but required " + variable + " was never set.");
-    }
-
     private KeyStore newKeyStoreWithGeneratedId() throws CertificateException, KeyStoreException {
-        var store = KeyStore.getInstance(DEFAULT_KEY_STORE_TYPE, provider);
+        var store = KeyStore.getInstance(DEFAULT_KEY_STORE_TYPE, _provider);
         putGeneratedId(store, new PasswordProtection(null));
         return store;
     }
@@ -278,19 +318,15 @@ public class SecurityConfiguration {
             throws CertificateException, KeyStoreException {
         PrivateKeyEntry entry = credentialGenerator.generateRandomCredentials();
         byte[] id = idFromCertExtractor.extractId(entry.getCertificate());
-        String alias = idAliasMapper.getAlias(id);
-
-        if (idAliasMapper.getDefaultAlias() == null)
-            idAliasMapper.setDefaultAliasAndId(alias, id);
+        String alias = PeerIdEncoder.encodeToString(id);
 
         store.setEntry(alias, entry, protParam);
     }
 
     private KeyStore keyStoreFromFile(String path, ProtectionParameter protParam, boolean generateFirstId,
-            boolean writeIfPresent, LoadStoreParameter loadParam)
+            String writePath, LoadStoreParameter loadParam)
             throws IOException, KeyStoreException, NoSuchAlgorithmException,
             CertificateException, UnsupportedCallbackException {
-        boolean write = writeIfPresent;
         File file = new File(path);
 
         KeyStore store;
@@ -300,26 +336,27 @@ public class SecurityConfiguration {
                     : KeyStore.Builder.newInstance(file, protParam).getKeyStore();
         } else {
             file.createNewFile();
-            store = KeyStore.getInstance(generatedKeyStoreType, provider);
-            write = true;
+            store = KeyStore.getInstance(generatedKeyStoreType, _provider);
+            if (writePath == null)
+                writePath = path;
         }
 
         if (generateFirstId && store.size() == 0)
             putGeneratedId(store, protParam);
 
-        if (write)
+        if (writePath != null)
             if (loadParam != null)
                 store.store(loadParam);
             else
-                store.store(new FileOutputStream(file), getPassword(protParam, path));
+                store.store(new FileOutputStream(writePath), getPassword(protParam, path));
 
         return store;
     }
 
-    void initialize() throws IllegalStateException, IOException, KeyStoreException, NoSuchAlgorithmException,
+    SecurityCore initialize() throws IllegalStateException, IOException, KeyStoreException, NoSuchAlgorithmException,
             CertificateException, UnsupportedCallbackException {
-        provider = new BouncyCastleProvider();
-        Security.addProvider(provider);
+        _provider = new BouncyCastleProvider();
+        Security.addProvider(_provider);
 
         // Init key store
         if (credentialGenerator == null)
@@ -333,17 +370,19 @@ public class SecurityConfiguration {
         if (generatedKeyStoreType == null)
             generatedKeyStoreType = DEFAULT_KEY_STORE_TYPE;
 
-        if (keyStore == null) {
-            if (keyStorePath == null)
-                keyStorePath = System.getProperty("javax.net.ssl.keyStore");
+        if (keyStorePath == null)
+            keyStorePath = System.getProperty("javax.net.ssl.keyStore");
 
+        if (writableKeyStore && writableKeyStorePath == null)
+            writableKeyStorePath = keyStorePath;
+
+        if (keyStore == null) {
             if (keyStorePath != null)
-                keyStore = keyStoreFromFile(keyStorePath, keyStoreProtection, true, writableKeyStore,
-                        keyStoreLoadParameter);
+                keyStore = keyStoreFromFile(keyStorePath, keyStoreProtection,
+                        true, writableKeyStorePath, keyStoreLoadParameter);
             else
                 keyStore = newKeyStoreWithGeneratedId();
         }
-        // TODO something when writableKeyStore
 
         // Init trust store
         if (trustStoreProtection == null) {
@@ -351,32 +390,39 @@ public class SecurityConfiguration {
             trustStoreProtection = new PasswordProtection(password != null ? password.toCharArray() : null);
         }
 
-        if (trustStore == null) {
-            if (trustStorePath == null)
-                trustStorePath = System.getProperty("javax.net.ssl.trustStore");
+        if (trustStorePath == null)
+            trustStorePath = System.getProperty("javax.net.ssl.trustStore");
 
-            if (trustStorePath != null)
-                trustStore = keyStoreFromFile(trustStorePath, trustStoreProtection, false, writableTrustStore,
-                        trustStoreLoadParameter);
-            else
-                trustStore = null;
+        if (writableTrustStore && writableTrustStorePath == null)
+            writableTrustStorePath = trustStorePath;
+
+        if (trustStore == null && trustStorePath != null) {
+            trustStore = keyStoreFromFile(trustStorePath, trustStoreProtection,
+                    false, writableTrustStorePath, trustStoreLoadParameter);
         }
-        // TODO something when writableKeyStore
+
+        // Init secret store
+        if (secretStoreProtection == null)
+            secretStoreProtection = new PasswordProtection(null);
+
+        if (writableSecretStore && writableSecretStorePath == null)
+            writableSecretStorePath = secretStorePath;
+
+        if (secretStore == null && secretStorePath != null) {
+            secretStore = keyStoreFromFile(secretStorePath, secretStoreProtection,
+                    false, writableSecretStorePath, secretStoreLoadParameter);
+        }
 
         // Init key manager
-        if (idAliasMapper == null)
-            idAliasMapper = new BabelIdAliasMapper();
-
+        _idAliasMapper = new IdAliasMapper().populateFromPrivateKeyStore(keyStore, keyStoreProtection,
+                idFromCertExtractor);
         if (defaultAlias != null)
-            if (defaultId != null)
-                idAliasMapper.setDefaultAliasAndId(defaultAlias, defaultId);
-            else
-                idAliasMapper.setDefaultAlias(defaultAlias);
+            _idAliasMapper.setDefaultAlias(defaultAlias);
         else if (defaultId != null)
-            idAliasMapper.setDefaultId(defaultId);
+            _idAliasMapper.putDefaultId(defaultId);
 
         if (keyManager == null)
-            keyManager = new X509BabelKeyManager(keyStore, keyStoreProtection, idAliasMapper);
+            keyManager = new X509BabelKeyManager(keyStore, keyStoreProtection, _idAliasMapper);
 
         // Init trust manager
         if (idFromCertExtractor == null)
@@ -389,7 +435,8 @@ public class SecurityConfiguration {
 
         initialized = true;
 
-        // TODO build the cryptography core
+        return new SecurityCore(keyStore, writableKeyStorePath, secretStore, writableSecretStorePath, trustStore,
+                writableTrustStorePath, keyManager, trustManager, _idAliasMapper);
     }
 
     boolean isInitialized() {

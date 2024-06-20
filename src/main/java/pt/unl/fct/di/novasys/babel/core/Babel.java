@@ -361,15 +361,6 @@ public class Babel {
         }
     }
 
-    /**
-     * TODO document better <p>
-     * If using security features, this method and changes to the returned object
-     * must be made before {@link Babel#start()} to ensure correct behaviour.
-     */
-    public SecurityConfiguration securityConfiguration() {
-        return securityConfig;
-    }
-
     private void initSecurityFeatures() {
         /*
         // TODO this is just a placeholder to allow for testing... Make the keystores be selected, read from props, or lazy loadaded (for ad-hoc ids)
@@ -776,6 +767,15 @@ public class Babel {
 		}
 		return config;
 	}
+
+    /**
+     * TODO document better <p>
+     * If using security features, this method and changes to the returned object
+     * must be made before {@link Babel#start()} to ensure correct behaviour.
+     */
+    public SecurityConfiguration securityConfiguration() {
+        return securityConfig;
+    }
 
 	public long getMillisSinceStart() {
 		return started ? System.currentTimeMillis() - startTime : 0;

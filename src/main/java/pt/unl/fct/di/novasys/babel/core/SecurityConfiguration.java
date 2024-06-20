@@ -84,7 +84,7 @@ public class SecurityConfiguration {
 
     // Builder methods
 
-    // TODO properties(Properties properties) ?
+    // TODO make read and interpret babel config file
 
     public SecurityConfiguration generatedKeyStoreType(String type) {
         generatedKeyStoreType = type;
@@ -419,7 +419,7 @@ public class SecurityConfiguration {
         if (defaultAlias != null)
             _idAliasMapper.setDefaultAlias(defaultAlias);
         else if (defaultId != null)
-            _idAliasMapper.putDefaultId(defaultId);
+            _idAliasMapper.setDefaultId(defaultId);
 
         if (keyManager == null)
             keyManager = new X509BabelKeyManager(keyStore, keyStoreProtection, _idAliasMapper);
@@ -435,8 +435,9 @@ public class SecurityConfiguration {
 
         initialized = true;
 
-        return new SecurityCore(keyStore, writableKeyStorePath, secretStore, writableSecretStorePath, trustStore,
-                writableTrustStorePath, keyManager, trustManager, _idAliasMapper);
+        return new SecurityCore(keyStore, keyStoreProtection, writableKeyStorePath, secretStore, secretStoreProtection,
+                writableSecretStorePath, trustStore, trustStoreProtection, writableTrustStorePath, keyManager,
+                trustManager, _idAliasMapper, credentialGenerator, idFromCertExtractor);
     }
 
     boolean isInitialized() {

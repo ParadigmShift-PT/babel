@@ -33,8 +33,8 @@ public class IdAliasMapper {
     }
 
     public IdAliasMapper(String defaultAlias, byte[] defaultId) {
-        this(defaultAlias);
-        putDefaultId(defaultId);
+        this();
+        putDefault(defaultAlias, defaultId);
     }
 
     public IdAliasMapper populateFromPrivateKeyStore(KeyStore keyStore, ProtectionParameter protParam,
@@ -76,19 +76,24 @@ public class IdAliasMapper {
 
     public Entry<String, byte[]> getDefaultEntry() {
         return new Entry<String, byte[]>() {
+            String alias = defaultAlias;
+            byte[] id = getId(alias);
+
             @Override
             public String getKey() {
-                return defaultAlias;
+                return alias;
             }
 
             @Override
             public byte[] getValue() {
-                return getId(defaultAlias);
+                return id;
             }
 
             @Override
             public byte[] setValue(byte[] value) {
-                return putDefaultId(value);
+                var old = id;
+                id = value;
+                return old;
             }
         };
     }
@@ -102,11 +107,11 @@ public class IdAliasMapper {
     public synchronized void putDefault(String alias, byte[] id) {
         defaultAlias = alias;
         idToAlias.put(Bytes.of(id), alias);
+        aliasToId.put(alias, id);
     }
 
-    public synchronized byte[] putDefaultId(byte[] id) {
-        idToAlias.put(Bytes.of(id), defaultAlias);
-        return aliasToId.put(defaultAlias, id);
+    public synchronized void setDefaultId(byte[] id) {
+        defaultAlias = getAlias(id);
     }
 
     public synchronized void put(String alias, byte[] id) {

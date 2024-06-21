@@ -13,7 +13,7 @@ import java.util.Properties;
 public interface SecureChannelInitializer<T extends SecureIChannel<BabelMessage>> {
 
     T initialize(ISerializer<BabelMessage> serializer, SecureChannelListener<BabelMessage> listener,
-            X509ITrustManager trustManager, X509IKeyManager keyManager,
+            X509IKeyManager keyManager, X509ITrustManager trustManager,
             Properties properties, short protoId)
             throws IOException;
 }

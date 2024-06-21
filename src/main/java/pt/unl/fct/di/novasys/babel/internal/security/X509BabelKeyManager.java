@@ -2,6 +2,7 @@ package pt.unl.fct.di.novasys.babel.internal.security;
 
 import java.net.Socket;
 import java.security.KeyStore;
+import java.security.KeyStore.PrivateKeyEntry;
 import java.security.KeyStore.ProtectionParameter;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -95,12 +96,15 @@ public class X509BabelKeyManager extends X509IKeyManager {
     @Override
     public PrivateKey getPrivateKey(String alias) {
         try {
-            return (PrivateKey) keyStore.getEntry(alias, protParam);
-        } catch (ClassCastException | UnrecoverableEntryException | NoSuchAlgorithmException e) {
-            logger.error("getPrivateKey(%s) failed with exception: %s", alias, e);
+            return ((PrivateKeyEntry) keyStore.getEntry(alias, protParam)).getPrivateKey();
+        } catch (ClassCastException e) {
+            logger.error("getPrivateKey({}) failed because the alias didn't refer to a private key entry", alias);
             return null;
-        } catch (KeyStoreException e) {
-            throw new RuntimeException(e); // Won't happen
+        } catch (UnrecoverableEntryException | NoSuchAlgorithmException e) {
+            logger.error("getPrivateKey({}) failed with exception: {}", alias, e);
+            return null;
+        } catch (KeyStoreException never) {
+            throw new AssertionError(never); // Won't happen
         }
     }
 

@@ -42,6 +42,8 @@ public class SecurityConfiguration {
 
     private static final String DEFAULT_KEY_STORE_TYPE = "PKCS12";
 
+    private SecurityCore securityCore;
+
     private boolean initialized = false;
 
     private String generatedKeyStoreType;
@@ -310,7 +312,12 @@ public class SecurityConfiguration {
 
     private KeyStore newKeyStoreWithGeneratedId() throws CertificateException, KeyStoreException {
         var store = KeyStore.getInstance(DEFAULT_KEY_STORE_TYPE, _provider);
-        putGeneratedId(store, new PasswordProtection(null));
+        try {
+            store.load(null, null);
+        } catch (NoSuchAlgorithmException | CertificateException | IOException never) {
+            throw new AssertionError(never);
+        }
+        putGeneratedId(store, new PasswordProtection("".toCharArray()));
         return store;
     }
 
@@ -320,6 +327,8 @@ public class SecurityConfiguration {
         byte[] id = idFromCertExtractor.extractId(entry.getCertificate());
         String alias = PeerIdEncoder.encodeToString(id);
 
+        logger.debug("Generated id " + alias);
+
         store.setEntry(alias, entry, protParam);
     }
 
@@ -328,6 +337,7 @@ public class SecurityConfiguration {
             throws IOException, KeyStoreException, NoSuchAlgorithmException,
             CertificateException, UnsupportedCallbackException {
         File file = new File(path);
+        char[] password = getPassword(protParam, path);
 
         KeyStore store;
         if (file.exists()) {
@@ -335,14 +345,23 @@ public class SecurityConfiguration {
                     ? KeyStore.getInstance(file, loadParam)
                     : KeyStore.Builder.newInstance(file, protParam).getKeyStore();
         } else {
+            logger.debug("No KeyStore {} found. Creating a new one...", path);
             file.createNewFile();
             store = KeyStore.getInstance(generatedKeyStoreType, _provider);
+
+            if (loadParam != null)
+                store.load(loadParam);
+            else
+                store.load(null, password);
+
             if (writePath == null)
                 writePath = path;
         }
 
-        if (generateFirstId && store.size() == 0)
+        if (generateFirstId && store.size() == 0) {
+            logger.debug("KeyStore empty. Generating an id...");
             putGeneratedId(store, protParam);
+        }
 
         if (writePath != null)
             if (loadParam != null)
@@ -353,18 +372,25 @@ public class SecurityConfiguration {
         return store;
     }
 
-    SecurityCore initialize() throws IllegalStateException, IOException, KeyStoreException, NoSuchAlgorithmException,
+    void initialize() throws IllegalStateException, IOException, KeyStoreException, NoSuchAlgorithmException,
             CertificateException, UnsupportedCallbackException {
+        if (initialized) {
+            throw new IllegalStateException("Tried initializing security core twice.");
+        }
+
         _provider = new BouncyCastleProvider();
         Security.addProvider(_provider);
 
         // Init key store
+        if (idFromCertExtractor == null)
+            idFromCertExtractor = new BabelIdFromCertExctractor();
+
         if (credentialGenerator == null)
             credentialGenerator = new BabelCredentialGenerator();
 
         if (keyStoreProtection == null) {
             String password = System.getProperty("javax.net.ssl.keyStorePassword");
-            keyStoreProtection = new PasswordProtection(password != null ? password.toCharArray() : null);
+            keyStoreProtection = new PasswordProtection(password != null ? password.toCharArray() : "".toCharArray());
         }
 
         if (generatedKeyStoreType == null)
@@ -377,11 +403,13 @@ public class SecurityConfiguration {
             writableKeyStorePath = keyStorePath;
 
         if (keyStore == null) {
-            if (keyStorePath != null)
+            if (keyStorePath != null) {
                 keyStore = keyStoreFromFile(keyStorePath, keyStoreProtection,
                         true, writableKeyStorePath, keyStoreLoadParameter);
-            else
+            } else {
+                logger.debug("Generating ephemeral keystore with single identity...");
                 keyStore = newKeyStoreWithGeneratedId();
+            }
         }
 
         // Init trust store
@@ -425,9 +453,6 @@ public class SecurityConfiguration {
             keyManager = new X509BabelKeyManager(keyStore, keyStoreProtection, _idAliasMapper);
 
         // Init trust manager
-        if (idFromCertExtractor == null)
-            idFromCertExtractor = new BabelIdFromCertExctractor();
-
         if (trustManager == null)
             trustManager = new X509BabelTrustManager(trustStore, trustStoreProtection, idFromCertExtractor);
 
@@ -435,12 +460,24 @@ public class SecurityConfiguration {
 
         initialized = true;
 
-        return new SecurityCore(keyStore, keyStoreProtection, writableKeyStorePath, secretStore, secretStoreProtection,
-                writableSecretStorePath, trustStore, trustStoreProtection, writableTrustStorePath, keyManager,
-                trustManager, _idAliasMapper, credentialGenerator, idFromCertExtractor);
+        securityCore = new SecurityCore(keyStore, keyStoreProtection, writableKeyStorePath, secretStore,
+                secretStoreProtection, writableSecretStorePath, trustStore, trustStoreProtection,
+                writableTrustStorePath, keyManager, trustManager, _idAliasMapper, credentialGenerator,
+                idFromCertExtractor);
     }
 
     boolean isInitialized() {
         return initialized;
     }
+
+    SecurityCore core() {
+        if (initialized) {
+            return securityCore;
+        } else {
+            logger.error(
+                    "Tried accessing SecurityCore before it was initialized. Have you marked your protocols with @SecureProtocol?");
+            throw new IllegalStateException("Tried accessing SecurityCore before it was initialized.");
+        }
+    }
+
 }

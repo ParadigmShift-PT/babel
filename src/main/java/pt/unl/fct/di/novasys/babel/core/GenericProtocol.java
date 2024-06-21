@@ -1,5 +1,6 @@
 package pt.unl.fct.di.novasys.babel.core;
 
+import pt.unl.fct.di.novasys.babel.core.security.SecureProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.handlers.*;

@@ -23,10 +23,14 @@ public class PeerIdEncoder {
         return peerId.replaceAll("\\\\(\\\\)?", "$1");
     }
 
-    public static byte[] fromPublicKey(PublicKey publicKey, String hashAlgorithm) throws NoSuchAlgorithmException {
+    public static byte[] fromEncodedPublicKey(byte[] publicKey, String hashAlgorithm) throws NoSuchAlgorithmException {
         MessageDigest digest = MessageDigest.getInstance(hashAlgorithm, CryptUtils.PROVIDER);
-        digest.update(publicKey.getEncoded());
+        digest.update(publicKey);
         return digest.digest();
+    }
+
+    public static byte[] fromPublicKey(PublicKey publicKey, String hashAlgorithm) throws NoSuchAlgorithmException {
+        return fromEncodedPublicKey(publicKey.getEncoded(), hashAlgorithm);
     }
 
     public static byte[] fromPublicKey(PublicKey publicKey) {
@@ -39,11 +43,11 @@ public class PeerIdEncoder {
 
     public static String stringFromPublicKey(PublicKey publicKey, String hashAlgorithm)
             throws NoSuchAlgorithmException {
-        return encodeToString(fromPublicKey(publicKey, hashAlgorithm));
+        return encoder.encodeToString(fromPublicKey(publicKey, hashAlgorithm));
     }
 
     public static String stringFromPublicKey(PublicKey publicKey) {
-        return encodeToString(fromPublicKey(publicKey));
+        return encoder.encodeToString(fromPublicKey(publicKey));
     }
 
 }

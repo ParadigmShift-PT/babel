@@ -1,4 +1,4 @@
-package pt.unl.fct.di.novasys.babel.core;
+package pt.unl.fct.di.novasys.babel.core.security;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

@@ -40,11 +40,16 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+
+import javax.security.auth.callback.UnsupportedCallbackException;
 
 /**
  * The Babel class provides applications with a Runtime that supports the
@@ -137,7 +142,6 @@ public class Babel {
     private boolean secureProtocolExists = false;
 
     private final SecurityConfiguration securityConfig;
-    // TODO private SecurityCore security;
 
     // TODO these are just placeholder for now. They'll be in SecurityCore later
     private X509IKeyManager defaultKeyManager;
@@ -246,6 +250,9 @@ public class Babel {
 	 * Begins the execution of all protocols registered in Babel
 	 */
 	public void start() {
+        if (secureProtocolExists && !securityConfig.isInitialized())
+            initSecurityFeatures();
+
 		if (props.containsKey(PAR_DISCOVERY_PROTOCOL)) {
 			try {
 				logger.debug("Attempting to load Discovery Protocol: " + props.getProperty(PAR_DISCOVERY_PROTOCOL));
@@ -306,9 +313,6 @@ public class Babel {
 			askRunningDiscovery(selfConfiguration, selfConfiguration.getMyself(), false);
 		}
 
-        if (secureProtocolExists && !securityConfig.isInitialized())
-            initSecurityFeatures();
-
 		MetricsManager.getInstance().start();
 		timersThread.start();
 		for (GenericProtocol proto : protocolMap.values()) {
@@ -356,38 +360,21 @@ public class Babel {
 
         if (p.isSecureProtocol()) {
             secureProtocolExists = true;
-            if (started && !securityConfig.isInitialized())
+            // TODO make this be initialized before protocols are constructed
+            if (/*started &&*/ !securityConfig.isInitialized())
                 initSecurityFeatures();
         }
     }
 
-    private void initSecurityFeatures() {
-        /*
-        // TODO this is just a placeholder to allow for testing... Make the keystores be selected, read from props, or lazy loadaded (for ad-hoc ids)
-        // This will all be replaced by SecurityConfiguration
-        Security.addProvider(new BouncyCastleProvider());
-
-        myIds = new PrivateIdStore();
-        knownIds = new PublicIdStore();
-
-        var keyPair = CryptUtils.getInstance().createRandomKeyPair();
-        var idBytes = PeerIdEncoder.fromPublicKey(keyPair.getPublic());
-        var idStr = PeerIdEncoder.encodeToString(idBytes);
-        var cert = CryptUtils.getInstance().createSelfSignedX509Certificate(keyPair, idStr, 365);
-        myIds.setCredential(idBytes, keyPair.getPrivate(), cert);
-
-        var idAliasMapper = new BabelIdAliasMapper(idStr, idBytes);
-
-        //var trustStore = System.getProperty("javax.net.ssl.trustStore"); ?
-        //var trustStorePassword = System.getProperty("javax.net.ssl.trustStorePassword"); ?
-
+    // TODO somehow make this be called b
+    private synchronized void initSecurityFeatures() {
         try {
-            defaultKeyManager = new X509BabelKeyManager(myIds.getKeyStore(), "", idAliasMapper);
-            defaultTrustManager = new X509BabelTrustManager();
-        } catch (KeyStoreException e) {
-            throw new RuntimeException("Failed to load the given key store.");
+            securityConfig.initialize();
+        } catch (IllegalStateException | KeyStoreException | NoSuchAlgorithmException | CertificateException
+                | IOException | UnsupportedCallbackException e) {
+            logger.error("Initialization of security features failed with exception: " + e);
+            throw new RuntimeException(e);
         }
-        */
 	}
 
 	// ----------------------------- NETWORK
@@ -474,8 +461,11 @@ public class Babel {
         int channelId = channelIdGenerator.incrementAndGet();
         BabelMessageSerializer serializer = new BabelMessageSerializer(new ConcurrentHashMap<>());
         SecureChannelToProtoForwarder forwarder = new SecureChannelToProtoForwarder(channelId);
+
+        var sec = securityConfig.core();
         SecureIChannel<BabelMessage> newChannel = initializer.initialize(serializer, forwarder,
-                trustManager.orElse(defaultTrustManager), keyManager.orElse(defaultKeyManager), props, protoId);
+                keyManager.orElse(sec.getKeyManager()), trustManager.orElse(sec.getTrustManager()), props, protoId);
+
         secureChannelMap.put(channelId, Triple.of(newChannel, forwarder, serializer));
         return channelId;
     }

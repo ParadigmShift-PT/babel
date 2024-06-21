@@ -14,7 +14,7 @@ public class AuthChannelInitializer implements SecureChannelInitializer<AuthChan
 
     @Override
     public AuthChannel<BabelMessage> initialize(ISerializer<BabelMessage> serializer,
-            SecureChannelListener<BabelMessage> listener, X509ITrustManager trustManager, X509IKeyManager keyManager,
+            SecureChannelListener<BabelMessage> listener, X509IKeyManager keyManager, X509ITrustManager trustManager,
             Properties properties, short protoId) throws IOException {
         return new AuthChannel<>(serializer, listener, properties, keyManager, trustManager);
     }

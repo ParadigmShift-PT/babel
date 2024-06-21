@@ -1,32 +1,93 @@
 package pt.unl.fct.di.novasys.babel.metrics;
 
-import java.util.concurrent.atomic.AtomicLong;
 
-public class Counter extends Metric {
+import pt.unl.fct.di.novasys.babel.metrics.exceptions.LabeledMetricException;
+import pt.unl.fct.di.novasys.babel.metrics.exporters.CollectOptions;
+import pt.unl.fct.di.novasys.babel.metrics.simplemetrics.SimpleCounter;
 
-    private AtomicLong value;
+import java.util.Arrays;
+import java.util.Map;
 
-    public Counter(String name, boolean logPeriodically, long period, boolean logOnChange, boolean resetOnLog) {
-        super(name, logPeriodically, period, logOnChange, resetOnLog);
-        value = new AtomicLong();
+public class Counter extends LabeledMetric<SimpleCounter> {
+
+    private SimpleCounter unlabeledCounter;
+
+//    private Object collectLock = new Object();
+
+
+    public Counter(String name, String unit, String... labelNames) {
+        super(name, unit, MetricType.COUNTER, labelNames);
+        if(isUnlabeledMetric())
+            this.unlabeledCounter = new SimpleCounter();
     }
 
-    public synchronized void inc() {
-        value.incrementAndGet();
-        onChange();
+
+    public void inc() {
+        if(isUnlabeledMetric())
+            this.unlabeledCounter.inc();
+        else
+            throw new LabeledMetricException();
     }
 
-    public long getValue() {
-        return value.get();
+
+    public void inc(long n) {
+       if(isUnlabeledMetric())
+            this.unlabeledCounter.inc();
+       else
+            throw new LabeledMetricException();
     }
+
+
+    public SimpleCounter labelValues(String... labelValues) {
+        if (labelValues.length != getNumLabels())
+            throw new IllegalArgumentException("Invalid number of labels");
+
+        LabelValues lv = new LabelValues(labelValues);
+        if (!this.labelValues.containsKey(lv)) {
+            SimpleCounter lc = new SimpleCounter();
+            this.labelValues.put(lv, lc);
+            return lc;
+        }
+
+        return this.labelValues.get(lv);
+    }
+
 
     @Override
-    protected synchronized void reset() {
-        value.set(0);
+    public synchronized void reset() {
+        if(isUnlabeledMetric())
+            this.unlabeledCounter.reset();
+        else {
+            for (SimpleCounter counter : labelValues.values())
+                counter.reset();
+        }
     }
 
+
     @Override
-    protected synchronized String computeValue() {
-        return String.valueOf(getValue());
+    protected MetricSample collect(CollectOptions collectOptions) {
+
+        if(isUnlabeledMetric())
+            return MetricSample.builder(getUnit(), getName(), getType()).build(new Sample(this.unlabeledCounter.getValue()));
+
+        Sample[] samples = new Sample[labelValues.size()];
+        int index = 0;
+
+        for (Map.Entry<LabelValues, SimpleCounter> entry : labelValues.entrySet()) {
+            LabelValues sampleLabelValues = entry.getKey();
+            SimpleCounter sampleSimpleCounter = entry.getValue();
+
+            String[] labelValuesSample = Arrays.copyOf(sampleLabelValues.getLabelValues(), getNumLabels());
+
+            double valueSample = sampleSimpleCounter.getValue();
+
+            samples[index++] = new Sample(valueSample, labelValuesSample);
+        }
+
+        if (collectOptions.getResetOnCollect()){
+            reset();
+        }
+
+        return MetricSample.builder(getUnit(), getName(), getType()).labelNames(getLabelNames()).build(samples);    
     }
 }

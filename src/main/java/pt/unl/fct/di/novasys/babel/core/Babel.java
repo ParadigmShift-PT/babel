@@ -15,6 +15,8 @@ import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
 import pt.unl.fct.di.novasys.babel.metrics.MetricsManager;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
+import pt.unl.fct.di.novasys.babel.metrics.exporters.Exporter;
+import pt.unl.fct.di.novasys.babel.metrics.generic.os.OSMetrics;
 import pt.unl.fct.di.novasys.channel.IChannel;
 import pt.unl.fct.di.novasys.channel.accrual.AccrualChannel;
 import pt.unl.fct.di.novasys.channel.simpleclientserver.SimpleClientChannel;
@@ -604,4 +606,42 @@ public class Babel {
 	public long getMillisSinceStart() {
 		return started ? System.currentTimeMillis() - startTime : 0;
 	}
+
+	// ---------------------------- METRICS -----------------------------------------------------------
+
+	/**
+	 * Registers a new exporter in the metrics manager<br>
+	 * If no exporters are registered, the manager will attempt to load them from a configuration file
+	 * @param exporters the exporters to register
+	 */
+	public void registerExporters(Exporter... exporters) {
+		MetricsManager.getInstance().registerExporters(exporters);
+	}
+
+	/**
+	 * Registers the OS Metric(s) specified<br>
+	 * The list can be seen in {@link OSMetrics.MetricType}
+	 * @param metricTypes the metrics to register
+	 */
+	public void registerOSMetrics(OSMetrics.MetricType... metricTypes) {
+		MetricsManager.getInstance().registerOSMetrics(metricTypes);
+	}
+
+	/**
+	 * Registers all the OS Metrics present in the specified Category(ies)<br>
+	 * The list can be seen in {@link OSMetrics.MetricCategory}
+	 * @param metricCategories the categories to register
+	 */
+	public void registerOSMetricCategory(OSMetrics.MetricCategory... metricCategories) {
+		MetricsManager.getInstance().registerOSMetricCategory(metricCategories);
+	}
+
+	/**
+	 * Starts the metrics manager
+	 * This will start all registered exporters
+	 */
+	public void startMetrics() {
+		MetricsManager.getInstance().start();
+	}
+
 }

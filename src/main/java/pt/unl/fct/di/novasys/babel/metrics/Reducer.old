@@ -11,7 +11,7 @@ public class Reducer extends Metric {
     private final Operation op;
 
     public Reducer(String name, boolean logPeriodically, long period, boolean resetOnLog, Operation op) {
-        super(name, logPeriodically, period, false, resetOnLog);
+        super(name, "", logPeriodically, period, false, resetOnLog);
         this.op = op;
         collection = new ConcurrentLinkedQueue<>();
     }
@@ -46,5 +46,10 @@ public class Reducer extends Metric {
                 throw new IllegalStateException("Unexpected value: " + op);
         }
         return res + " " + nEntries;
+    }
+
+    @Override
+    protected MetricSample collect() {
+        return null;
     }
 }

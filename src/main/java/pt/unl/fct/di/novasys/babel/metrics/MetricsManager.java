@@ -2,13 +2,7 @@ package pt.unl.fct.di.novasys.babel.metrics;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
-import pt.unl.fct.di.novasys.babel.metrics.exceptions.DuplicatedProtocolMetric;
-import pt.unl.fct.di.novasys.babel.metrics.exceptions.NoProcfsException;
-import pt.unl.fct.di.novasys.babel.metrics.exceptions.NoSuchProtocolRegistry;
-import pt.unl.fct.di.novasys.babel.metrics.exceptions.OSMetricsConfigException;
+import pt.unl.fct.di.novasys.babel.metrics.exceptions.*;
 import pt.unl.fct.di.novasys.babel.metrics.exporters.Exporter;
 import pt.unl.fct.di.novasys.babel.metrics.exporters.ExporterCollectOptions;
 import pt.unl.fct.di.novasys.babel.metrics.exporters.RegistryCollectOptions;
@@ -78,25 +72,25 @@ public class MetricsManager {
         }
 
 
-       if (this.exporters == null) {
-           this.exporters = new ArrayList<>(exporters.length);
-       }
+        if (this.exporters == null) {
+            this.exporters = new ArrayList<>(exporters.length);
+        }
 
-       this.exporters.addAll(Arrays.asList(exporters));
+        this.exporters.addAll(Arrays.asList(exporters));
 
     }
 
 
 
-    //TODO: Register exporters using config instead of method calls
+    //TODO: Register exporters using config instead of method calls; Remove JSon dependency
     private void registerExportersUsingConfig(){
-        JSONParser parser = new JSONParser();
-        try {
-            Reader reader = new FileReader(CURRENT_WORKING_DIR + "collectOptionsExporter_example.json");
-            JSONObject jsonObject = (JSONObject) parser.parse(reader);
-        } catch (IOException | ParseException e) {
-            throw new RuntimeException(e);
-        }
+//        JSONParser parser = new JSONParser();
+//        try {
+//            Reader reader = new FileReader(CURRENT_WORKING_DIR + "collectOptionsExporter_example.json");
+//            JSONObject jsonObject = (JSONObject) parser.parse(reader);
+//        } catch (IOException | ParseException e) {
+//            throw new RuntimeException(e);
+//        }
     }
 
 
@@ -127,7 +121,7 @@ public class MetricsManager {
             for(short protoId : ex.getExporterCollectOptions().getProtocolsToCollect()){
                 this.protocolExporters.put(protoId, ex);
             }
-            
+
             new Thread(ex, ex.getExporterName()).start();
         }
 

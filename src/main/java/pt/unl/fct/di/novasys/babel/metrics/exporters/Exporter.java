@@ -1,15 +1,14 @@
 package pt.unl.fct.di.novasys.babel.metrics.exporters;
 
-import org.json.simple.*;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
-import pt.unl.fct.di.novasys.babel.metrics.MetricsManager;
-import pt.unl.fct.di.novasys.babel.metrics.MultiRegistryEpochSample;
-import pt.unl.fct.di.novasys.babel.metrics.exceptions.NoSuchProtocolRegistry;
-
 import java.io.*;
 import java.nio.file.Files;
 import java.util.Properties;
+//import org.json.simple.*;
+//import org.json.simple.parser.JSONParser;
+//import org.json.simple.parser.ParseException;
+import pt.unl.fct.di.novasys.babel.metrics.MetricsManager;
+import pt.unl.fct.di.novasys.babel.metrics.MultiRegistryEpochSample;
+import pt.unl.fct.di.novasys.babel.metrics.exceptions.NoSuchProtocolRegistry;
 
 public abstract class Exporter implements Runnable {
 
@@ -114,7 +113,7 @@ public abstract class Exporter implements Runnable {
      * To be implemented by each exporter
      * @return Properties object containing all default values
      */
-     public abstract Properties loadDefaults();
+    public abstract Properties loadDefaults();
 
 
     /**
@@ -123,30 +122,31 @@ public abstract class Exporter implements Runnable {
      * @return ExporterCollectOptions object containing all collect options
      */
     public ExporterCollectOptions propertiesLoadCollectOptions(){
-         ExporterCollectOptions exporterCollectOptions1 = new ExporterCollectOptions();
-         //TODO: verify if regex correctly matches all files
-         FilenameFilter filenameFilter = (dir,name) -> name.matches("[0-9]+\\." + exporterName + CONFIG_FILE_FORMAT);
-         File[] configFiles = new File(configPath).listFiles(filenameFilter);
-         if (configFiles != null) {
-             for (File file : configFiles) {
-                 if(file.isFile()) {
-                     short protocolId = Short.parseShort(file.getName().split("\\.")[0]);
-                     Properties properties = new Properties();
-                     try {
-                         properties.load(Files.newInputStream(file.toPath()));
-                         RegistryCollectOptions registryCollectOptions = new RegistryCollectOptions();
-                         exporterCollectOptions1.addRegistryCollectOptions(protocolId, registryCollectOptions);
-                     } catch (Exception e) {
-                         System.out.println("Error loading collect options config file:" + file.getAbsolutePath());
-                     }
-                 }
-             }
-         }
-         return exporterCollectOptions1;
+        ExporterCollectOptions exporterCollectOptions1 = new ExporterCollectOptions();
+        //TODO: verify if regex correctly matches all files
+        FilenameFilter filenameFilter = (dir,name) -> name.matches("[0-9]+\\." + exporterName + CONFIG_FILE_FORMAT);
+        File[] configFiles = new File(configPath).listFiles(filenameFilter);
+        if (configFiles != null) {
+            for (File file : configFiles) {
+                if(file.isFile()) {
+                    short protocolId = Short.parseShort(file.getName().split("\\.")[0]);
+                    Properties properties = new Properties();
+                    try {
+                        properties.load(Files.newInputStream(file.toPath()));
+                        RegistryCollectOptions registryCollectOptions = new RegistryCollectOptions();
+                        exporterCollectOptions1.addRegistryCollectOptions(protocolId, registryCollectOptions);
+                    } catch (Exception e) {
+                        System.out.println("Error loading collect options config file:" + file.getAbsolutePath());
+                    }
+                }
+            }
+        }
+        return exporterCollectOptions1;
     }
 
     /**
      * TODO: clear this mess
+     * TODO: remove JSON parser dependency
      * Loads all collect options related to this exporter from a json file
      * @return ExporterCollectOptions object containing all collect options
      */
@@ -159,35 +159,35 @@ public abstract class Exporter implements Runnable {
             return new ExporterCollectOptions();
         }
 
-        JSONParser parser = new JSONParser();
-        try {
-            Reader reader = new FileReader(configPath + "collectOptionsExporter_example.json");
-            JSONObject jsonObject = (JSONObject) parser.parse(reader);
-            String configType = (String) jsonObject.get("configType");
-            if(configType.equals("perProtocolCollectOptions")){
-                JSONArray perProtocolCollectOptions = (JSONArray) jsonObject.get("configs");
-                for (Object o : perProtocolCollectOptions) {
-                    JSONObject protocolCollectOptions = (JSONObject) o;
-                    short protocolId = ((Long) protocolCollectOptions.get("protocolId")).shortValue();
-                    RegistryCollectOptions registryCollectOptions = new RegistryCollectOptions();
-                    JSONArray perMetricCollectOptions = (JSONArray) protocolCollectOptions.get("metrics");
-                    for (Object o1 : perMetricCollectOptions) {
-                        JSONObject metricCollectOptions = (JSONObject) o1;
-                        String metricName = (String) metricCollectOptions.get("name");
-                        JSONObject options = (JSONObject) metricCollectOptions.get("option");
-                        boolean resetOnCollect = (boolean) options.get("resetOnCollect");
-                        CollectOptions.ReduceType reduceType = CollectOptions.ReduceType.valueOf((String) options.get("reduceType"));
-                        CollectOptions collectOptions = new CollectOptions(resetOnCollect, reduceType);
-                        registryCollectOptions.addCollectOptions(metricName, collectOptions);
-                    }
-                    exporterCollectOptions.addRegistryCollectOptions(protocolId, registryCollectOptions);
-                }
-            }
-
-
-        } catch (IOException | ParseException e) {
-            throw new RuntimeException(e);
-        }
+//        JSONParser parser = new JSONParser();
+//        try {
+//            Reader reader = new FileReader(configPath + "collectOptionsExporter_example.json");
+//            JSONObject jsonObject = (JSONObject) parser.parse(reader);
+//            String configType = (String) jsonObject.get("configType");
+//            if(configType.equals("perProtocolCollectOptions")){
+//                JSONArray perProtocolCollectOptions = (JSONArray) jsonObject.get("configs");
+//                for (Object o : perProtocolCollectOptions) {
+//                    JSONObject protocolCollectOptions = (JSONObject) o;
+//                    short protocolId = ((Long) protocolCollectOptions.get("protocolId")).shortValue();
+//                    RegistryCollectOptions registryCollectOptions = new RegistryCollectOptions();
+//                    JSONArray perMetricCollectOptions = (JSONArray) protocolCollectOptions.get("metrics");
+//                    for (Object o1 : perMetricCollectOptions) {
+//                        JSONObject metricCollectOptions = (JSONObject) o1;
+//                        String metricName = (String) metricCollectOptions.get("name");
+//                        JSONObject options = (JSONObject) metricCollectOptions.get("option");
+//                        boolean resetOnCollect = (boolean) options.get("resetOnCollect");
+//                        CollectOptions.ReduceType reduceType = CollectOptions.ReduceType.valueOf((String) options.get("reduceType"));
+//                        CollectOptions collectOptions = new CollectOptions(resetOnCollect, reduceType);
+//                        registryCollectOptions.addCollectOptions(metricName, collectOptions);
+//                    }
+//                    exporterCollectOptions.addRegistryCollectOptions(protocolId, registryCollectOptions);
+//                }
+//            }
+//
+//
+//        } catch (IOException | ParseException e) {
+//            throw new RuntimeException(e);
+//        }
 
         return exporterCollectOptions;
     }
@@ -210,7 +210,7 @@ public abstract class Exporter implements Runnable {
     }
 
     public MultiRegistryEpochSample collectMetrics() throws NoSuchProtocolRegistry {
-            return collectMetrics(exporterCollectOptions.isCollectOSMetrics(), exporterCollectOptions.getProtocolsToCollect());
+        return collectMetrics(exporterCollectOptions.isCollectOSMetrics(), exporterCollectOptions.getProtocolsToCollect());
     }
 
 }

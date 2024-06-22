@@ -1,3 +1,11 @@
+# Babel Security Core
+
+Fork of [Babel Self-Discovery and Self-Configuration Core](https://codelab.fct.unl.pt/di/research/tardis/wp6/babel-swarm/babel-self-configuration)
+to add support to security features, backed by [a fork of Network Layer](https://codelab.fct.unl.pt/di/research/tardis/wp6/network-layer-cryptography-support)
+to also support secure channels.
+
+---
+
 # Babel Self-Discovery and Self-Configuration Core
 
 A variant of the Java framework for developing distributed protocols. Uses [network-layer](https://codelab.fct.unl.pt/di/research/tardis/wp6/babel/babel-networklayer) for network communication.

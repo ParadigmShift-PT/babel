@@ -1,5 +1,8 @@
 package pt.unl.fct.di.novasys.babel.core;
 
+import pt.unl.fct.di.novasys.babel.core.security.IdCrypt;
+import pt.unl.fct.di.novasys.babel.core.security.IdPair;
+import pt.unl.fct.di.novasys.babel.core.security.SecretCrypt;
 import pt.unl.fct.di.novasys.babel.core.security.SecureProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
@@ -15,17 +18,27 @@ import pt.unl.fct.di.novasys.network.data.Host;
 import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.commons.lang3.tuple.Triple;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.security.InvalidKeyException;
+import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
+import java.security.Signature;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import javax.crypto.Mac;
+import javax.crypto.SecretKey;
 import javax.net.ssl.KeyManager;
 
 import org.apache.logging.log4j.LogManager;
@@ -38,14 +51,6 @@ import pt.unl.fct.di.novasys.babel.generic.ProtoNotification;
 import pt.unl.fct.di.novasys.babel.generic.ProtoReply;
 import pt.unl.fct.di.novasys.babel.generic.ProtoRequest;
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
-import pt.unl.fct.di.novasys.babel.handlers.ChannelEventHandler;
-import pt.unl.fct.di.novasys.babel.handlers.MessageFailedHandler;
-import pt.unl.fct.di.novasys.babel.handlers.MessageInHandler;
-import pt.unl.fct.di.novasys.babel.handlers.MessageSentHandler;
-import pt.unl.fct.di.novasys.babel.handlers.NotificationHandler;
-import pt.unl.fct.di.novasys.babel.handlers.ReplyHandler;
-import pt.unl.fct.di.novasys.babel.handlers.RequestHandler;
-import pt.unl.fct.di.novasys.babel.handlers.TimerHandler;
 import pt.unl.fct.di.novasys.babel.internal.BabelMessage;
 import pt.unl.fct.di.novasys.babel.internal.CustomChannelEvent;
 import pt.unl.fct.di.novasys.babel.internal.IPCEvent;
@@ -1165,6 +1170,165 @@ public abstract class GenericProtocol {
      */
     protected ProtoTimer cancelTimer(long timerID) {
         return babel.cancelTimer(timerID);
+    }
+
+    /* -------------------------- IDENTITY MANAGEMENT ----------------------- */
+
+    // TODO maybe make these be accecible through a final protected field that is an internal class (just for the namespace)
+
+    // TODO make persistOnDisk be ommitable (in which case, the default from properties should be used)
+
+    // TODO make security properties per protocol
+
+    // TODO some of these operations should also be available through an external
+    // api for non Protocol (e.g. application) classes. The reason these are here
+    // is that a protocol might want to use its default identity or one that is
+    // only available to it.
+
+    protected final IdCrypt generateId(boolean persistOnDisk) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final IdCrypt generateId(boolean persistOnDisk, String alias) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final IdCrypt generateId(boolean persistOnDisk, KeyPair keyPair) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final IdCrypt generateId(boolean persistOnDisk, String alias, KeyPair keyPair) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    // TODO make Properties option to load a specific keystore for a specific protocol
+    // Generates an id that can only be used by this protocol
+    protected final IdCrypt generateProtocolId(boolean persistOnDisk) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    // Generates an id that can only be used by this protocol
+    protected final IdCrypt generateProtocolId(boolean persistOnDisk, String alias) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    // Generates an id that can only be used by this protocol
+    protected final IdCrypt generateProtocolId(boolean persistOnDisk, KeyPair keyPair) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    // Generates an id that can only be used by this protocol
+    protected final IdCrypt generateProtocolId(boolean persistOnDisk, String alias, KeyPair keyPair) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final Pair<byte[], KeyPair> removeId(boolean persistOnDisk, String alias) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final Pair<String, KeyPair> removeId(boolean persistOnDisk, byte[] id) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final String getIdAlias(byte[] id) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final byte[] getAliasId(String alias) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final IdCrypt getDefaultIdCrypt() {
+        // Get default Babel Id if protocol doesn't have one specifically
+        // Always check if id still exists
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final void setDefaultId(String alias) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final void setDefaultId(byte[] id) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    // Gets all Babel + this Protocol ids
+    protected final Set<IdPair> getAllIds() {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final Set<IdPair> getAllProtocolIds() {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final IdCrypt getIdCrypt(String alias) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final IdCrypt getIdCrypt(byte[] id) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    /* -------------------------- SECRET MANAGEMENT ----------------------- */
+
+    protected final SecretCrypt generateSecret(boolean persistOnDisk) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final SecretCrypt generateSecret(boolean persistOnDisk, String alias) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final SecretCrypt addSecret(boolean persistOnDisk, SecretKey secret) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final SecretCrypt addSecret(boolean persistOnDisk, String alias, SecretKey secret) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final SecretKey removeSecret(boolean persistOnDisk, String alias) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final SecretCrypt generateProtocolSecret(boolean persistOnDisk) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final SecretCrypt generateProtocolSecret(boolean persistOnDisk, String alias) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final SecretCrypt addProtocolSecret(boolean persistOnDisk, SecretKey secret) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final SecretCrypt addProtocolSecret(boolean persistOnDisk, String alias, SecretKey secret) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final SecretCrypt getSecret(String alias) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final SecretCrypt getDefaultSecret() {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final String getDefaultSecretAlias() {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final void setDefaultSecret(String alias) {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final Set<String> getAllSecretAliases() {
+        throw new UnsupportedOperationException("TODO");
+    }
+
+    protected final Set<String> getAllProtocolSecretAliases() {
+        throw new UnsupportedOperationException("TODO");
     }
 
     // --------------------------------- DELIVERERS FROM BABEL ------------------------------------

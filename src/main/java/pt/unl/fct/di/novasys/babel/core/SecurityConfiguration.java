@@ -36,6 +36,7 @@ import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
 // TODO documentation
+// TODO MAKE THIS BE BASED ON PROPS, AND NOT AS A BUILDER FOR THE USER. ALL CONFIGURATION MUST BE KNOWN AT THE FIRST BABEL.GETINSTANCE
 public class SecurityConfiguration {
 
     private static final Logger logger = LogManager.getLogger(SecurityConfiguration.class);

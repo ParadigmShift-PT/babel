@@ -167,6 +167,7 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
             for (byte[] m : announces) {
                 for (var socketAddress : socketAddresses) {
                     logger.debug("Going to send an announce with " + m.length + " bytes to " + socketAddress);
+                    logger.trace("Sending from socket bounded  (" + socket.isBound() + ") to: " + socket.getLocalAddress() + ":" + socket.getLocalPort());  
                 	socket.send(new DatagramPacket(m, m.length, socketAddress));
                     logger.debug("Sent one message to " + socketAddress.getAddress() + ":"
                             + socketAddress.getPort() + " from " + socket.getLocalAddress() + ":"

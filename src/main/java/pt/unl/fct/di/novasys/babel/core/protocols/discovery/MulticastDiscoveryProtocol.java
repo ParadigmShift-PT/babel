@@ -8,6 +8,7 @@ import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.net.StandardSocketOptions;
 import java.util.Enumeration;
 import java.util.Properties;
 
@@ -91,6 +92,7 @@ public class MulticastDiscoveryProtocol extends LocalDiscoveryProtocol {
 
 		multicastSocket = new MulticastSocket(targetPort);
 		logger.debug("Multicast is going to use interface: " + networkInterface.getDisplayName());
+		logger.debug("Selected interface supports multicast: " + networkInterface.supportsMulticast());
 		multicastSocket.joinGroup(multicastSocketAddress, networkInterface);
 
 		logger.info("DiscoveryProtocol set up");
@@ -102,7 +104,8 @@ public class MulticastDiscoveryProtocol extends LocalDiscoveryProtocol {
 			unicastPort = Integer.parseInt(props.getProperty(PAR_DISCOVERY_UNICAST_PORT));
 
 		DatagramSocket unicastSocket = setSocket(address, unicastPort, false);
-
+		unicastSocket.setOption(StandardSocketOptions.IP_MULTICAST_IF, networkInterface);
+		
 		listeningMulticastThread = new Thread(() -> listen(multicastSocket));
 		listeningUnicastThread = new Thread(() -> listen(unicastSocket));
 		listeningMulticastThread.start();

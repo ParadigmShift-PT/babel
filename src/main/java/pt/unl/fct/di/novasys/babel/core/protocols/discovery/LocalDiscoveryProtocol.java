@@ -166,7 +166,8 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
             List<byte[]> announces = ServiceMessage.convertToMessage(pendingServices, true);
             for (byte[] m : announces) {
                 for (var socketAddress : socketAddresses) {
-                    socket.send(new DatagramPacket(m, m.length, socketAddress));
+                    logger.debug("Going to send an announce with " + m.length + " bytes to " + socketAddress);
+                	socket.send(new DatagramPacket(m, m.length, socketAddress));
                     logger.debug("Sent one message to " + socketAddress.getAddress() + ":"
                             + socketAddress.getPort() + " from " + socket.getLocalAddress() + ":"
                             + socket.getLocalPort());

@@ -62,6 +62,12 @@ public class MulticastDiscoveryProtocol extends LocalDiscoveryProtocol {
 
 		NetworkInterface networkInterface;
 		if (!props.containsKey(PAR_DISCOVERY_MULTICAST_INTERFACE)) {
+			if(props.containsKey(PAR_DISCOVERY_UNICAST_INTERFACE)) {
+				networkInterface = NetworkInterface.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_INTERFACE));
+			} else if(props.containsKey(PAR_DISCOVERY_UNICAST_ADDRESS)) {
+				networkInterface = NetworkInterface.getByInetAddress(InetAddress.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_ADDRESS)));
+			} else {
+			// LAST RESORT :)
 			// Bind to all?? interface that supports multicast
 			networkInterface = NetworkInterface.networkInterfaces().filter(i -> {
 				try {
@@ -78,6 +84,7 @@ public class MulticastDiscoveryProtocol extends LocalDiscoveryProtocol {
 					return false;
 				}
 			}).findAny().orElseThrow(() -> new RuntimeException("No network interface supports multicast"));
+			}
 		} else {
 			networkInterface = NetworkInterface.getByName(props.getProperty(PAR_DISCOVERY_MULTICAST_INTERFACE));
 		}

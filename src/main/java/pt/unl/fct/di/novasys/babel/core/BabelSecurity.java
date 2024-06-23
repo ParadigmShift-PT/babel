@@ -1,38 +1,36 @@
 package pt.unl.fct.di.novasys.babel.core;
 
+import java.security.AlgorithmParameters;
 import java.security.InvalidKeyException;
 import java.security.KeyStore;
 import java.security.KeyStore.PrivateKeyEntry;
 import java.security.KeyStore.ProtectionParameter;
+import java.security.KeyStore.SecretKeyEntry;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
 import java.security.Provider;
-import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.cert.CertificateException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Properties;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
-import javax.swing.RowFilter.Entry;
 
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.cms.PasswordRecipient.PRF;
+import org.bouncycastle.internal.asn1.cms.GCMParameters;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import pt.unl.fct.di.novasys.babel.core.security.CredentialGenerator;
 import pt.unl.fct.di.novasys.babel.core.security.IdentityCrypt;
+import pt.unl.fct.di.novasys.babel.core.security.SecretCrypt;
 import pt.unl.fct.di.novasys.babel.core.security.IdFromCertExtractor;
 import pt.unl.fct.di.novasys.babel.internal.security.IdAliasMapper;
 import pt.unl.fct.di.novasys.babel.internal.security.PeerIdEncoder;
-import pt.unl.fct.di.novasys.babel.internal.security.SecurityConfiguration;
 import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
@@ -57,6 +55,8 @@ public class BabelSecurity {
     public static final String PAR_HASH_ALG = PREFIX+"hash_algorithm";
     private String hashAlgorithm = "SHA256";
 
+    public static final String PAR_MAC_ALG = PREFIX+"mac_algorithm";
+    private String macAlgorithm = null;
     // The defaults loosely follow TLS 1.3 as described in https://www.rfc-editor.org/rfc/rfc5288
     public static final String PAR_CIPHER_ALG = PREFIX+"cipher.algorithm";
     private String cipherAlgorithm = null;
@@ -64,11 +64,12 @@ public class BabelSecurity {
     private String cipherMode = "GCM";
     public static final String PAR_CIPHER_PADDING = PREFIX+"cipher.padding";
     private String cipherPadding = "NoPadding";
-    // If using CTR (or similar) the IV size to be used is the "nonce" size
-    public static final String PAR_CIPHER_IV_SIZE = PREFIX+"cipher.iv_size"; // bytes
-    private int cipherIvSize = 12;
-    public static final String PAR_CIPHER_GCM_TAG_LEN = PREFIX+"cipher.gcm_tag_length"; // bits
-    private int cipherGcmTagLength = 128;
+    public static final String PAR_CIPHER_PARAM_GEN = PREFIX+"cipher.parameter_supplier";
+    private Supplier<AlgorithmParameterSpec> cipherParameterSupplier = () -> new GCMParameterSpec(128, generateIv(12));
+    //public static final String PAR_CIPHER_IV_SIZE = PREFIX+"cipher.iv_size"; // bytes
+    //private int cipherIvSize = 12;
+    //public static final String PAR_CIPHER_GCM_TAG_LEN = PREFIX+"cipher.gcm_tag_length"; // bits
+    //private int cipherGcmTagLength = 128;
     //public static final String PAR_CIPHER_KEYWRAP = "kwyrap_cipher";
     /*
     public static final String PAR_ = PREFIX +
@@ -175,6 +176,10 @@ public class BabelSecurity {
         return keyRng;
     }
 
+    /* ---------- Identities ---------- */
+
+    // ------ Public methods
+
     public void storeCredential(boolean peristToDisk, String alias, byte[] id, PrivateKeyEntry entry) {
         KeyStore keyStore;
         ProtectionParameter protection;
@@ -193,31 +198,6 @@ public class BabelSecurity {
         }
     }
 
-    /* ---------- Identities ---------- */
-
-    // ----- Utilities
-
-    private IdentityCrypt getIdCrypt(String alias, byte[] id, PrivateKeyEntry entry) {
-        try {
-            String alg = hashAlgorithm;
-            if (entry.getPrivateKey().getAlgorithm().equals("EdDSA"))
-                alg = "EdDSA";
-            return getIdCrypt(alias, id, entry, alg);
-        } catch (InvalidKeyException | NoSuchAlgorithmException e) {
-            throw new AssertionError(e); // Shouldn't happen
-        }
-    }
-
-    private IdentityCrypt getIdCrypt(String alias, byte[] id, PrivateKeyEntry entry, String sigHashOrAlg)
-            throws InvalidKeyException, NoSuchAlgorithmException {
-        var privKey = entry.getPrivateKey();
-        var pubKey = entry.getCertificate().getPublicKey();
-        var certChain = entry.getCertificateChain();
-        return new IdentityCrypt(alias, id, privKey, pubKey, certChain, sigHashOrAlg);
-    }
-
-    // ------ Public methods
-
     public IdentityCrypt generateId(boolean peristToDisk) {
         return generateId(peristToDisk, null);
     }
@@ -232,9 +212,51 @@ public class BabelSecurity {
         }
         alias = alias == null ? PeerIdEncoder.encodeToString(id) : alias;
         storeCredential(peristToDisk, alias, id, keyEntry);
-        return getIdCrypt(alias, id, keyEntry);
+        try {
+            return getIdCrypt(alias, id, keyEntry);
+        } catch (NoSuchAlgorithmException e) {
+            logger.error("Coludn't create IdentityCrypt from newly generated id: " + e);
+            return null;
+        }
     }
 
     // TODO more...
+
+    // ----- Auxiliary methods
+
+    private IdentityCrypt getIdCrypt(String alias, byte[] id, PrivateKeyEntry entry) throws NoSuchAlgorithmException {
+        String sigAlg = hashAlgorithm;
+        if (entry.getPrivateKey().getAlgorithm().equals("EdDSA"))
+            sigAlg = "EdDSA";
+        return getIdCrypt(alias, id, entry, sigAlg);
+    }
+
+    private IdentityCrypt getIdCrypt(String alias, byte[] id, PrivateKeyEntry entry, String sigHashOrAlg)
+            throws NoSuchAlgorithmException {
+        var privKey = entry.getPrivateKey();
+        var pubKey = entry.getCertificate().getPublicKey();
+        var certChain = entry.getCertificateChain();
+        return new IdentityCrypt(alias, id, privKey, pubKey, certChain, sigHashOrAlg);
+    }
+
+    /* ---------- Secrets ---------- */
+
+    // ------ Public methods
+    // TODO...
+
+    // ----- Auxiliary methods
+
+    private SecretCrypt getSecretCrypt(String alias, SecretKey key) throws NoSuchAlgorithmException {
+        var macAlgorithm = this.macAlgorithm == null ? "Hmac" + this.hashAlgorithm : this.macAlgorithm;
+        return cipherAlgorithm == null
+                ? new SecretCrypt(alias, key, macAlgorithm, cipherMode, cipherPadding, cipherParameterSupplier)
+                : new SecretCrypt(alias, key, macAlgorithm, cipherAlgorithm, cipherParameterSupplier);
+    }
+
+    private SecretCrypt getSecretCrypt(String alias, SecretKey key, String hashAlg, String cipherTransformation,
+            Supplier<AlgorithmParameterSpec> cipherParameterSupplier)
+            throws InvalidKeyException, NoSuchAlgorithmException {
+        return new SecretCrypt(alias, key, hashAlg, cipherTransformation, cipherParameterSupplier);
+    }
 
 }

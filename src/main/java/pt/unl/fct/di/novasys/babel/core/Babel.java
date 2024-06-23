@@ -25,8 +25,6 @@ import pt.unl.fct.di.novasys.channel.tcp.SharedTCPChannel;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
 import pt.unl.fct.di.novasys.network.ISerializer;
 import pt.unl.fct.di.novasys.network.data.Host;
-import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
-import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Triple;
@@ -40,16 +38,11 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.CertificateException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-
-import javax.security.auth.callback.UnsupportedCallbackException;
 
 /**
  * The Babel class provides applications with a Runtime that supports the

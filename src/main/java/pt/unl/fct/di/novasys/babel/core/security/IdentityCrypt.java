@@ -7,7 +7,10 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Security;
 import java.security.Signature;
+import java.security.SignatureException;
 import java.security.cert.Certificate;
+
+import pt.unl.fct.di.novasys.babel.core.BabelSecurity;
 
 /**
  * Class to do cryptographic operations over a specific id and its asymmetric
@@ -21,6 +24,8 @@ public class IdentityCrypt {
     private final PublicKey pubKey;
     private final Certificate[] certChain;
     private final String signatureAlgorithm;
+
+    private static final BabelSecurity babelSecurity = BabelSecurity.getInstance();
 
     /**
      * @throws NoSuchAlgorithmException 
@@ -88,52 +93,51 @@ public class IdentityCrypt {
 
     /* ------------------------ SIGNING --------------------- */
 
-    public byte[] sign(byte[] data) {
-        throw new UnsupportedOperationException("TODO");
+    public byte[] sign(byte[] data) throws InvalidKeyException, SignatureException {
+        var sig = initSignature();
+        sig.update(data);
+        return sig.sign();
     }
 
-    public byte[] sign(ByteBuffer data) {
-        throw new UnsupportedOperationException("TODO");
+    public byte[] sign(ByteBuffer data) throws InvalidKeyException, SignatureException {
+        var sig = initSignature();
+        sig.update(data);
+        return sig.sign();
     }
 
-    public byte[] sign(byte[] data, String algorithm) throws InvalidKeyException, NoSuchAlgorithmException {
-        throw new UnsupportedOperationException("TODO");
+    public byte[] sign(byte[] data, String algorithm) throws InvalidKeyException, NoSuchAlgorithmException, SignatureException {
+        var sig = initSignature(algorithm);
+        sig.update(data);
+        return sig.sign();
     }
 
-    public byte[] sign(ByteBuffer data, String algorithm) throws InvalidKeyException, NoSuchAlgorithmException {
-        throw new UnsupportedOperationException("TODO");
+    public byte[] sign(ByteBuffer data, String algorithm) throws InvalidKeyException, NoSuchAlgorithmException, SignatureException {
+        var sig = initSignature(algorithm);
+        sig.update(data);
+        return sig.sign();
     }
 
-    /**
-     * @param algorithm An uninitialized {@link Signature} implementation gotten
-     *                  from {@link Signature#getInstance}.
-     */
-    public byte[] sign(byte[] data, Signature algorithm) throws InvalidKeyException {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    public byte[] sign(ByteBuffer data, Signature algorithm) throws InvalidKeyException {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    public Signature getSignature() throws InvalidKeyException {
+    public Signature initSignature() throws InvalidKeyException {
         try {
-            var sig = Signature.getInstance(signatureAlgorithm);
-            sig.initSign(privKey);
-            return sig;
+            return initSignature(signatureAlgorithm);
         } catch (NoSuchAlgorithmException e) {
             throw new AssertionError(e); // Shouldn't happen
         }
     }
 
-    public Signature getSignature(String algorithm) throws InvalidKeyException, NoSuchAlgorithmException {
-        var sig = Signature.getInstance(algorithm);
+    public Signature initSignature(String algorithm) throws InvalidKeyException, NoSuchAlgorithmException {
+        Signature sig;
+        try {
+            sig = Signature.getInstance(algorithm, babelSecurity.PROVIDER);
+        } catch (NoSuchAlgorithmException e) {
+            sig = Signature.getInstance(algorithm);
+        }
         sig.initSign(privKey);
         return sig;
     }
 
     /* ------------------------ DECRYPTING --------------------- */
-    /* TODO All of this is (mostly) wrong. you can't just use CBC or CTR modes etc. with asym keys.
+    /* TODO All of this is (mostly) wrong. you shouldn't really use CBC or CTR modes etc. with asym keys (bc of speed).
      * See https://www.cs.cornell.edu/courses/cs5430/2017sp/l/07-asymm-enc/notes.html
      * TODO Make a default message type that includes a secret ephemeral key wrapped with RSA/NONE/OEAP as well as the encrypted data, which is generated automatically by this class
      * See Java Cryptography Tools and Techniques Chapter 7: Key Transport

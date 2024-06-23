@@ -1,6 +1,6 @@
 package pt.unl.fct.di.novasys.babel.core;
 
-import pt.unl.fct.di.novasys.babel.core.security.IdCrypt;
+import pt.unl.fct.di.novasys.babel.core.security.IdentityCrypt;
 import pt.unl.fct.di.novasys.babel.core.security.IdPair;
 import pt.unl.fct.di.novasys.babel.core.security.SecretCrypt;
 import pt.unl.fct.di.novasys.babel.core.security.SecureProtocol;
@@ -98,6 +98,11 @@ public abstract class GenericProtocol {
 
     public static final Babel babel = Babel.getInstance();
 
+    private IdPair defaultId;
+    private String defaultSecretKeyAlias;
+
+    public static final BabelSecurity babelSecurity = BabelSecurity.getInstance();
+
     //Debug
     ProtocolMetrics metrics = new ProtocolMetrics();
     //protected ThreadMXBean tmx = ManagementFactory.getThreadMXBean();
@@ -141,7 +146,7 @@ public abstract class GenericProtocol {
     /**
      * @return whether this protocol has the {@link SecureProtocol} annotation.
      */
-    boolean isSecureProtocol() { //TODO should this be protected?
+    public boolean isSecureProtocol() {
         return this.isSecureProtocol;
     }
 
@@ -675,7 +680,7 @@ public abstract class GenericProtocol {
     }
 
     /**
-     * Creates a new secure channel with the default key and trust managers.
+     * Creates a new secure channel that uses all available identities.
      *
      * @param channelName  the name of the channel
      * @param props        channel-specific properties. See the documentation for each channel.
@@ -685,57 +690,37 @@ public abstract class GenericProtocol {
      * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
      */
     protected final int createSecureChannel(String channelName, Properties props) throws IOException {
-        return createSecureChannel(channelName, props, null, null);
+        return createSecureChannel(channelName, props, (String) null);
     }
 
     /**
-     * Creates a new secure channel with the default trust manager.
+     * Creates a new secure channel that will only use the identity specified by the given alias.
      *
      * @param channelName  the name of the channel
      * @param props        channel-specific properties. See the documentation for each channel.
-     * @param keyManager   the key manager to be used by the channel.
+     * @param id           the single identity to be used during communication.
      *
      * @return the id of the newly created channel
      * @throws UnsupportedOperationException if this protocol doesn't have the {@link SecureProtocol} annotation.
      * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
      */
-    protected final int createSecureChannel(String channelName, Properties props,
-            X509IKeyManager keyManager) throws IOException {
-        return createSecureChannel(channelName, props, keyManager, null);
+    protected final int createSecureChannel(String channelName, Properties props, byte[] id) throws IOException {
+        return createSecureChannel(channelName, props, getIdAlias(id));
     }
 
     /**
-     * Creates a new secure channel with the default key manager.
+     * Creates a new secure channel that will only use the identity specified by the given alias.
      *
      * @param channelName  the name of the channel
      * @param props        channel-specific properties. See the documentation for each channel.
-     * @param trustManager the trust manager to be used by the channel.
+     * @param idAlias      the alias of the single identity to be used during communication.
      *
      * @return the id of the newly created channel
      * @throws UnsupportedOperationException if this protocol doesn't have the {@link SecureProtocol} annotation.
      * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
      */
-    protected final int createSecureChannel(String channelName, Properties props,
-            X509ITrustManager trustManager) throws IOException {
-        return createSecureChannel(channelName, props, null, trustManager);
-    }
-
-    /**
-     * Creates a new secure channel.
-     *
-     * @param channelName  the name of the channel
-     * @param props        channel-specific properties. See the documentation for each channel.
-     * @param keyManager   the key manager to be used by the channel.
-     * @param trustManager the trust manager to be used by the channel.
-     *
-     * @return the id of the newly created channel
-     * @throws UnsupportedOperationException if this protocol doesn't have the {@link SecureProtocol} annotation.
-     * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
-     */
-    protected final int createSecureChannel(String channelName, Properties props,
-            X509IKeyManager keyManager, X509ITrustManager trustManager) throws IOException {
-        int channelId = babel.createSecureChannel(channelName, this.protoId, props,
-                Optional.ofNullable(keyManager), Optional.ofNullable(trustManager));
+    protected final int createSecureChannel(String channelName, Properties props, String idAlias) throws IOException {
+        int channelId = babel.createSecureChannel(channelName, this.protoId, props, idAlias);
         registerSharedChannel(channelId);
         return channelId;
     }
@@ -757,8 +742,6 @@ public abstract class GenericProtocol {
         getChannelOrThrow(channelId);
         defaultChannel = channelId;
     }
-
-    // TODO setDefaultSecureChannel?
 
     /**
      * Returns the default channel for the {@link #sendMessage(ProtoMessage, Host)}, {@link #openConnection(Host)}
@@ -865,7 +848,7 @@ public abstract class GenericProtocol {
     }
 
     /**
-     * Sends a message to the peer id, using the default secure channel. //TODO make the default secure channel different from the default channel??
+     * Sends a message to the peer id, using the default secure channel.
      * May require the use of {@link #openConnection(Host, byte[])} beforehand.
      *
      * @param msg           the message to send
@@ -1185,23 +1168,24 @@ public abstract class GenericProtocol {
     // is that a protocol might want to use its default identity or one that is
     // only available to it.
 
-    protected final IdCrypt generateId(boolean persistOnDisk) {
+    protected final IdentityCrypt generateIdentity(boolean persistToDisk) {
         throw new UnsupportedOperationException("TODO");
     }
 
-    protected final IdCrypt generateId(boolean persistOnDisk, String alias) {
+    protected final IdentityCrypt generateIdentity(boolean persistToDisk, String alias) {
         throw new UnsupportedOperationException("TODO");
     }
 
-    protected final IdCrypt generateId(boolean persistOnDisk, KeyPair keyPair) {
+    protected final IdentityCrypt generateIdentity(boolean persistToDisk, KeyPair keyPair) {
         throw new UnsupportedOperationException("TODO");
     }
 
-    protected final IdCrypt generateId(boolean persistOnDisk, String alias, KeyPair keyPair) {
+    protected final IdentityCrypt generateIdentity(boolean persistToDisk, String alias, KeyPair keyPair) {
         throw new UnsupportedOperationException("TODO");
     }
 
-    // TODO make Properties option to load a specific keystore for a specific protocol
+    /* TODO should these methods be a thing?
+    // TODO make Properties option to load a specific keystore for a specific protocol?
     // Generates an id that can only be used by this protocol
     protected final IdCrypt generateProtocolId(boolean persistOnDisk) {
         throw new UnsupportedOperationException("TODO");
@@ -1221,6 +1205,7 @@ public abstract class GenericProtocol {
     protected final IdCrypt generateProtocolId(boolean persistOnDisk, String alias, KeyPair keyPair) {
         throw new UnsupportedOperationException("TODO");
     }
+    */
 
     protected final Pair<byte[], KeyPair> removeId(boolean persistOnDisk, String alias) {
         throw new UnsupportedOperationException("TODO");
@@ -1238,7 +1223,7 @@ public abstract class GenericProtocol {
         throw new UnsupportedOperationException("TODO");
     }
 
-    protected final IdCrypt getDefaultIdCrypt() {
+    protected final IdentityCrypt getDefaultIdCrypt() {
         // Get default Babel Id if protocol doesn't have one specifically
         // Always check if id still exists
         throw new UnsupportedOperationException("TODO");
@@ -1261,11 +1246,11 @@ public abstract class GenericProtocol {
         throw new UnsupportedOperationException("TODO");
     }
 
-    protected final IdCrypt getIdCrypt(String alias) {
+    protected final IdentityCrypt getIdCrypt(String alias) {
         throw new UnsupportedOperationException("TODO");
     }
 
-    protected final IdCrypt getIdCrypt(byte[] id) {
+    protected final IdentityCrypt getIdCrypt(byte[] id) {
         throw new UnsupportedOperationException("TODO");
     }
 

@@ -34,7 +34,7 @@ public class X509BabelTrustManager extends X509ITrustManager {
     }
 
     public X509BabelTrustManager(KeyStore trustStore, ProtectionParameter protParam) {
-        this(trustStore, protParam, new BabelIdFromCertExctractor());
+        this(trustStore, protParam, new BabelCredentialHandler());
     }
 
     public X509BabelTrustManager(KeyStore trustStore, ProtectionParameter protParam, IdFromCertExtractor idExtractor) {

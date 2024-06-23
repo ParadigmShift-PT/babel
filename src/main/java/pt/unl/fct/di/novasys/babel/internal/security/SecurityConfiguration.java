@@ -1,4 +1,4 @@
-package pt.unl.fct.di.novasys.babel.core;
+package pt.unl.fct.di.novasys.babel.internal.security;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -26,12 +26,6 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import pt.unl.fct.di.novasys.babel.core.security.CredentialGenerator;
 import pt.unl.fct.di.novasys.babel.core.security.IdFromCertExtractor;
 import pt.unl.fct.di.novasys.babel.core.security.SimpleCredentialGenerator;
-import pt.unl.fct.di.novasys.babel.internal.security.BabelCredentialGenerator;
-import pt.unl.fct.di.novasys.babel.internal.security.BabelIdFromCertExctractor;
-import pt.unl.fct.di.novasys.babel.internal.security.IdAliasMapper;
-import pt.unl.fct.di.novasys.babel.internal.security.PeerIdEncoder;
-import pt.unl.fct.di.novasys.babel.internal.security.X509BabelKeyManager;
-import pt.unl.fct.di.novasys.babel.internal.security.X509BabelTrustManager;
 import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
@@ -42,8 +36,6 @@ public class SecurityConfiguration {
     private static final Logger logger = LogManager.getLogger(SecurityConfiguration.class);
 
     private static final String DEFAULT_KEY_STORE_TYPE = "PKCS12";
-
-    private SecurityCore securityCore;
 
     private boolean initialized = false;
 
@@ -82,7 +74,7 @@ public class SecurityConfiguration {
     private IdAliasMapper _idAliasMapper;
     private Provider _provider;
 
-    SecurityConfiguration() {
+    public SecurityConfiguration() {
     }
 
     // Builder methods
@@ -383,11 +375,15 @@ public class SecurityConfiguration {
         Security.addProvider(_provider);
 
         // Init key store
-        if (idFromCertExtractor == null)
-            idFromCertExtractor = new BabelIdFromCertExctractor();
+        if (idFromCertExtractor == null) {
+            var handler = new BabelCredentialHandler();
+            idFromCertExtractor = handler;
+            if (credentialGenerator == null)
+                credentialGenerator = handler;
+        }
 
         if (credentialGenerator == null)
-            credentialGenerator = new BabelCredentialGenerator();
+            credentialGenerator = new BabelCredentialHandler();
 
         if (keyStoreProtection == null) {
             String password = System.getProperty("javax.net.ssl.keyStorePassword");
@@ -461,16 +457,17 @@ public class SecurityConfiguration {
 
         initialized = true;
 
-        securityCore = new SecurityCore(keyStore, keyStoreProtection, writableKeyStorePath, secretStore,
-                secretStoreProtection, writableSecretStorePath, trustStore, trustStoreProtection,
-                writableTrustStorePath, keyManager, trustManager, _idAliasMapper, credentialGenerator,
-                idFromCertExtractor);
+        //securityCore = new SecurityCore(keyStore, keyStoreProtection, writableKeyStorePath, secretStore,
+                //secretStoreProtection, writableSecretStorePath, trustStore, trustStoreProtection,
+                //writableTrustStorePath, keyManager, trustManager, _idAliasMapper, credentialGenerator,
+                //idFromCertExtractor);
     }
 
     boolean isInitialized() {
         return initialized;
     }
 
+    /*
     SecurityCore core() {
         if (initialized) {
             return securityCore;
@@ -479,6 +476,19 @@ public class SecurityConfiguration {
                     "Tried accessing SecurityCore before it was initialized. Have you marked your protocols with @SecureProtocol?");
             throw new IllegalStateException("Tried accessing SecurityCore before it was initialized.");
         }
+    }
+    */
+
+    public CredentialGenerator getCredentialGenerator() {
+        return credentialGenerator;
+    }
+
+    public IdFromCertExtractor getIdFromCertExtractor() {
+        return idFromCertExtractor;
+    }
+
+    public KeyStore getKeyStore() {
+        return keyStore;
     }
 
 }

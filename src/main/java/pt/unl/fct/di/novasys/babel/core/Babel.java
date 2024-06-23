@@ -92,6 +92,7 @@ public class Babel {
 	private static final Logger logger = LogManager.getLogger(Babel.class);
 
 	private static Babel system;
+	private static BabelSecurity security;
 	private static Properties props;
 
 	/**
@@ -141,12 +142,6 @@ public class Babel {
     // Security
     private boolean secureProtocolExists = false;
 
-    private final SecurityConfiguration securityConfig;
-
-    // TODO these are just placeholder for now. They'll be in SecurityCore later
-    private X509IKeyManager defaultKeyManager;
-    private X509ITrustManager defaultTrustManager;
-
 	private Babel() {
 		// Protocols
 		this.protocolMap = new ConcurrentHashMap<>();
@@ -177,9 +172,6 @@ public class Babel {
         //registerChannelInitializer(MultithreadedTCPChannel.NAME, new MultithreadedTCPChannelInitializer());
 
         registerChannelInitializer(AuthChannel.NAME, new AuthChannelInitializer());
-
-        //Security
-        securityConfig = new SecurityConfiguration();
     }
 
 	private void timerLoop() {
@@ -250,9 +242,6 @@ public class Babel {
 	 * Begins the execution of all protocols registered in Babel
 	 */
 	public void start() {
-        if (secureProtocolExists && !securityConfig.isInitialized())
-            initSecurityFeatures();
-
 		if (props.containsKey(PAR_DISCOVERY_PROTOCOL)) {
 			try {
 				logger.debug("Attempting to load Discovery Protocol: " + props.getProperty(PAR_DISCOVERY_PROTOCOL));
@@ -357,25 +346,7 @@ public class Babel {
 			throw new ProtocolAlreadyExistsException("Protocol conflicts on name: " + p.getProtoName() + " (id: "
 					+ this.protocolByNameMap.get(p.getProtoName()).getProtoId() + ")");
 		}
-
-        if (p.isSecureProtocol()) {
-            secureProtocolExists = true;
-            // TODO make this be initialized before protocols are constructed
-            if (/*started &&*/ !securityConfig.isInitialized())
-                initSecurityFeatures();
-        }
     }
-
-    // TODO somehow make this be called b
-    private synchronized void initSecurityFeatures() {
-        try {
-            securityConfig.initialize();
-        } catch (IllegalStateException | KeyStoreException | NoSuchAlgorithmException | CertificateException
-                | IOException | UnsupportedCallbackException e) {
-            logger.error("Initialization of security features failed with exception: " + e);
-            throw new RuntimeException(e);
-        }
-	}
 
 	// ----------------------------- NETWORK
 
@@ -443,13 +414,12 @@ public class Babel {
      * @param channelName  the name of the channel to create
      * @param protoId      the protocol numeric identifier
      * @param props        the properties required by the channel
-     * @param keyManager   the key manager to be used by the channel. If empty, the default is used.
-     * @param trustManager the trust manager to be used by the channel. If empty, the default is used.
+     * @param idAlias      the alias of the identity to be used during communication.
+     *                     If {@code null}, any available identity can be used.
      * @return the channel Id
      * @throws IOException if channel creation fails
      */
-    int createSecureChannel(String channelName, short protoId, Properties props,
-            Optional<X509IKeyManager> keyManager, Optional<X509ITrustManager> trustManager)
+    int createSecureChannel(String channelName, short protoId, Properties props, String idAlias)
             throws IOException {
         SecureChannelInitializer<?> initializer = secureChannelInitializers.get(channelName);
         if (initializer == null)
@@ -462,9 +432,10 @@ public class Babel {
         BabelMessageSerializer serializer = new BabelMessageSerializer(new ConcurrentHashMap<>());
         SecureChannelToProtoForwarder forwarder = new SecureChannelToProtoForwarder(channelId);
 
-        var sec = securityConfig.core();
+        var keyManager = idAlias != null ? security.getSingleKeyManager(idAlias) : security.getKeyManager();
+        var trustManager = security.getTrustManager();
         SecureIChannel<BabelMessage> newChannel = initializer.initialize(serializer, forwarder,
-                keyManager.orElse(sec.getKeyManager()), trustManager.orElse(sec.getTrustManager()), props, protoId);
+                                                      keyManager, trustManager, props, protoId);
 
         secureChannelMap.put(channelId, Triple.of(newChannel, forwarder, serializer));
         return channelId;
@@ -738,6 +709,8 @@ public class Babel {
 				throw new InvalidParameterException("Unknown parameter: " + arg);
 		}
 
+		security.loadConfig(props);
+
 		return props;
 	}
 
@@ -757,15 +730,6 @@ public class Babel {
 		}
 		return config;
 	}
-
-    /**
-     * TODO document better <p>
-     * If using security features, this method and changes to the returned object
-     * must be made before {@link Babel#start()} to ensure correct behaviour.
-     */
-    public SecurityConfiguration securityConfiguration() {
-        return securityConfig;
-    }
 
 	public long getMillisSinceStart() {
 		return started ? System.currentTimeMillis() - startTime : 0;

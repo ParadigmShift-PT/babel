@@ -31,11 +31,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
-import pt.unl.fct.di.novasys.babel.core.security.CredentialGenerator;
+import pt.unl.fct.di.novasys.babel.core.security.IdentityGenerator;
 import pt.unl.fct.di.novasys.babel.core.security.IdentityCrypt;
 import pt.unl.fct.di.novasys.babel.core.security.SecretCrypt;
 import pt.unl.fct.di.novasys.babel.core.security.IdFromCertExtractor;
 import pt.unl.fct.di.novasys.babel.core.security.IdentityPair;
+import pt.unl.fct.di.novasys.babel.internal.security.BabelCredentialHandler;
 import pt.unl.fct.di.novasys.babel.internal.security.IdAliasMapper;
 import pt.unl.fct.di.novasys.babel.internal.security.PeerIdEncoder;
 import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
@@ -58,20 +59,63 @@ public class BabelSecurity {
 
     public static final String PREFIX = "babel.security";
 
+    private static final String PAR_KEY_STORE_TYPE = PREFIX + ".keystore.type";
+    private String keyStoreType = "PKCS12";
+    private static final String PAR_KEY_STORE_PATH = PREFIX + ".keystore.path";
+    private String keyStoreLoadPath = null;
+    /**
+     * Can be a String (a path) or a boolean. If boolean and true, keyStoreWritePath
+     * must be set to keyStoreLoadPath
+     */
+    private static final String PAR_KEY_STORE_WRITABLE = PREFIX + ".keystore.writable";
+    private String keyStoreWritePath = null;
+    private static final String PAR_DEFAULT_ID = PREFIX + ".keystore.default_identity";
+    private String defaultIdentityAlias;
+    // TODO support KeyStore.LoadStorePrameter? (or at least DomainLoadStorePrameter?)
+
+    private static final String PAR_ID_EXTRACTOR = PREFIX + ".keystore.identity_extractor";
+    private Class<? extends IdFromCertExtractor> identityExtractorClass = BabelCredentialHandler.class;
+    private static final String PAR_ID_GENERATOR = PREFIX + ".keystore.identity_generator";
+    private Class<? extends IdentityGenerator> IdentityGeneratorClass = BabelCredentialHandler.class;
+
+    private static final String PAR_TRUST_STORE_TYPE = PREFIX + ".truststore.type";
+    private String trustStoreType = "PKCS12";
+    private static final String PAR_TRUST_STORE_PATH = PREFIX + ".truststore.path";
+    private String trustStoreLoadPath = null;
+    /**
+     * Can be a String (a path) or a boolean. If boolean and true, trustStoreWritePath
+     * must be set to trustStoreLoadPath
+     */
+    private static final String PAR_TRUST_STORE_WRITABLE = PREFIX + ".truststore.writable";
+    private String trustStoreWritePath = null;
+
+    private static final String PAR_SECRET_STORE_TYPE = PREFIX + ".secretstore.type";
+    private String secretStoreType = "PKCS12";
+    private static final String PAR_SECRET_STORE_PATH = PREFIX + ".secretstore.path";
+    private String secretStoreLoadPath = null;
+    /**
+     * Can be a String (a path) or a boolean. If boolean and true, secretStoreWritePath
+     * must be set to secretStoreLoadPath
+     */
+    private static final String PAR_SECRET_STORE_WRITABLE = PREFIX + ".secretstore.writable";
+    private String secretStoreWritePath = null;
+    private static final String PAR_DEFAULT_SECRET = PREFIX + ".secretstore.default_secret";
+    private String defaultSecretAlias;
+
     // See https://docs.oracle.com/en/java/javase/21/docs/specs/security/standard-names.html
-    public static final String PAR_HASH_ALG = PREFIX+"hash_algorithm";
+    public static final String PAR_HASH_ALG = PREFIX + ".hash_algorithm";
     private String hashAlgorithm = "SHA256";
 
-    public static final String PAR_MAC_ALG = PREFIX+"mac_algorithm";
+    public static final String PAR_MAC_ALG = PREFIX + ".mac_algorithm";
     private String macAlgorithm = null;
     // The defaults loosely follow TLS 1.3 as described in https://www.rfc-editor.org/rfc/rfc5288
-    public static final String PAR_CIPHER_ALG = PREFIX+"cipher.algorithm";
-    private String cipherAlgorithm = null;
-    public static final String PAR_CIPHER_MODE = PREFIX+"cipher.mode";
+    public static final String PAR_CIPHER_TRANSFORM = PREFIX + ".cipher.transformation";
+    private String cipherTransform = null;
+    public static final String PAR_CIPHER_MODE = PREFIX + ".cipher.mode";
     private String cipherMode = "GCM";
-    public static final String PAR_CIPHER_PADDING = PREFIX+"cipher.padding";
+    public static final String PAR_CIPHER_PADDING = PREFIX + ".cipher.padding";
     private String cipherPadding = "NoPadding";
-    public static final String PAR_CIPHER_PARAM_GEN = PREFIX+"cipher.parameter_supplier";
+    public static final String PAR_CIPHER_PARAM_GEN = PREFIX + ".cipher.parameter_supplier";
     private Supplier<AlgorithmParameterSpec> cipherParameterSupplier = () -> new GCMParameterSpec(128, generateIv(12));
     //public static final String PAR_CIPHER_IV_SIZE = PREFIX+"cipher.iv_size"; // bytes
     //private int cipherIvSize = 12;
@@ -103,8 +147,8 @@ public class BabelSecurity {
     private KeyStore ephTrustStore; // TODO make Babel trust manager support two key stores for this
     private X509ITrustManager trustManager;
 
-    private CredentialGenerator credentialGenerator;
-    private IdFromCertExtractor idFromCertExtractor;
+    private IdentityGenerator credentialGenerator;
+    private IdFromCertExtractor identityExtractor;
 
     public final Provider PROVIDER = new BouncyCastleProvider();
 
@@ -146,6 +190,8 @@ public class BabelSecurity {
         */
         // TODO global security config
     }
+
+    // -------- Lazy loaders
 
     KeyStore getKeyStore() {
         throw new UnsupportedOperationException("TODO");
@@ -242,7 +288,7 @@ public class BabelSecurity {
         var keyEntry = credentialGenerator.generateRandomCredentials();
         byte[] id;
         try {
-            id = idFromCertExtractor.extractIdentity(keyEntry.getCertificate());
+            id = identityExtractor.extractIdentity(keyEntry.getCertificate());
         } catch (CertificateException e) {
             throw new RuntimeException(e); // Shouldn't happen
         }
@@ -260,7 +306,7 @@ public class BabelSecurity {
         var keyEntry = credentialGenerator.generateRandomCredentials();
         byte[] id;
         try {
-            id = idFromCertExtractor.extractIdentity(keyEntry.getCertificate());
+            id = identityExtractor.extractIdentity(keyEntry.getCertificate());
         } catch (CertificateException e) {
             throw new RuntimeException(e); // Shouldn't happen
         }
@@ -380,9 +426,9 @@ public class BabelSecurity {
 
     private SecretCrypt getSecretCrypt(String alias, SecretKey key) throws NoSuchAlgorithmException {
         var macAlgorithm = this.macAlgorithm == null ? "Hmac" + this.hashAlgorithm : this.macAlgorithm;
-        return cipherAlgorithm == null
+        return cipherTransform == null
                 ? new SecretCrypt(alias, key, macAlgorithm, cipherMode, cipherPadding, cipherParameterSupplier)
-                : new SecretCrypt(alias, key, macAlgorithm, cipherAlgorithm, cipherParameterSupplier);
+                : new SecretCrypt(alias, key, macAlgorithm, cipherTransform, cipherParameterSupplier);
     }
 
     private SecretCrypt getSecretCrypt(String alias, SecretKey key, String hashAlg, String cipherTransformation,

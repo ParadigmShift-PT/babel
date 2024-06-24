@@ -34,7 +34,7 @@ public class SecretCrypt {
     private final String alias;
     private final SecretKey key;
     private final String macAlgorithm;
-    private final String cipherAlgorithm;
+    private final String cipherTransform;
     private final Supplier<AlgorithmParameterSpec> cipherParamSupplier;
 
     private static final BabelSecurity babelSecurity = BabelSecurity.getInstance();
@@ -57,7 +57,7 @@ public class SecretCrypt {
      *      "https://docs.oracle.com/en/java/javase/21/docs/specs/security/standard-names.html">Java
      *      Security Standard Algorithm Names</a>
      */
-    public SecretCrypt(String alias, SecretKey key, String macAlgorithm, String cipherAlgorithm,
+    public SecretCrypt(String alias, SecretKey key, String macAlgorithm, String cipherTransform,
             Supplier<AlgorithmParameterSpec> cipherParamSupplier)
             throws NoSuchAlgorithmException {
         this.alias = alias;
@@ -69,12 +69,12 @@ public class SecretCrypt {
         // Some cipher algorithms (stream ciphers) don't use the default algorithm
         // naming format, and have the same name as the key algorithm, so this checks
         // if this might be the case.
-        this.cipherAlgorithm = algorithms.contains(cipherAlgorithm)
-                ? cipherAlgorithm
+        this.cipherTransform = algorithms.contains(cipherTransform)
+                ? cipherTransform
                 : key.getAlgorithm();
 
-        if (!algorithms.contains(cipherAlgorithm))
-            throw new NoSuchAlgorithmException("Cipher algorithm not available: " + cipherAlgorithm);
+        if (!algorithms.contains(cipherTransform))
+            throw new NoSuchAlgorithmException("Cipher algorithm not available: " + cipherTransform);
     }
 
     /**
@@ -236,7 +236,7 @@ public class SecretCrypt {
     public Cipher initDecryptCipher(AlgorithmParameterSpec params)
             throws InvalidKeyException, InvalidAlgorithmParameterException {
         try {
-            return initDecryptCipher(cipherAlgorithm, params);
+            return initDecryptCipher(cipherTransform, params);
         } catch (NoSuchPaddingException | NoSuchAlgorithmException e) {
             throw new AssertionError(e); // Shouldn't happen
         }
@@ -330,7 +330,7 @@ public class SecretCrypt {
 
     public Cipher initEncryptCipher() throws InvalidKeyException, InvalidAlgorithmParameterException {
         try {
-            return initEncryptCipher(cipherAlgorithm, cipherParamSupplier.get());
+            return initEncryptCipher(cipherTransform, cipherParamSupplier.get());
         } catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
             throw new AssertionError(e); // Shouldn't happen
         }

@@ -6,7 +6,7 @@ import java.security.KeyStore.PrivateKeyEntry;
 import pt.unl.fct.di.novasys.babel.internal.security.CryptUtils;
 
 @FunctionalInterface
-public interface SimpleCredentialGenerator extends CredentialGenerator {
+public interface SimpleIdentityGenerator extends IdentityGenerator {
     @Override
     default PrivateKeyEntry generateRandomCredentials() {
         KeyPair keyPair = CryptUtils.getInstance().createRandomKeyPair();

@@ -12,10 +12,15 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import pt.unl.fct.di.novasys.babel.core.security.IdFromCertExtractor;
 import pt.unl.fct.di.novasys.network.data.Bytes;
 
 public class IdAliasMapper {
+
+    private static final Logger logger = LogManager.getLogger(IdAliasMapper.class);
 
     private final Map<String, byte[]> aliasToId;
     private final Map<Bytes, String> idToAlias;
@@ -39,10 +44,10 @@ public class IdAliasMapper {
 
     public IdAliasMapper populateFromPrivateKeyStore(KeyStore keyStore, ProtectionParameter protParam,
             IdFromCertExtractor idExtractor) throws KeyStoreException {
-        try {
-            var it = keyStore.aliases().asIterator();
-            while (it.hasNext()) {
-                String alias = it.next();
+        var it = keyStore.aliases().asIterator();
+        while (it.hasNext()) {
+            String alias = it.next();
+            try {
                 KeyStore.Entry entry = keyStore.getEntry(alias, protParam);
                 if (entry instanceof PrivateKeyEntry privEntry) {
                     byte[] id = idExtractor.extractIdentity(privEntry.getCertificateChain()[0]);
@@ -50,11 +55,12 @@ public class IdAliasMapper {
                     if (this.defaultAlias == null)
                         this.setDefaultAlias(alias);
                 }
+            } catch (UnrecoverableEntryException | NoSuchAlgorithmException | CertificateException e) {
+                // Ignore this entry and continue
+                logger.error("Couldn't read entry with alias. Ignoring. Cause: {}", alias, e);
             }
-        } catch (NoSuchAlgorithmException | UnrecoverableEntryException | CertificateException
-                | NullPointerException e) {
-            throw new KeyStoreException(e);
         }
+
         return this;
     }
 

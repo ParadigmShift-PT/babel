@@ -1,7 +1,12 @@
 package pt.unl.fct.di.novasys.babel.core;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.security.InvalidKeyException;
 import java.security.KeyStore;
+import java.security.KeyStore.CallbackHandlerProtection;
+import java.security.KeyStore.PasswordProtection;
 import java.security.KeyStore.PrivateKeyEntry;
 import java.security.KeyStore.ProtectionParameter;
 import java.security.spec.AlgorithmParameterSpec;
@@ -24,11 +29,15 @@ import java.util.function.Supplier;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
+import javax.security.auth.callback.Callback;
+import javax.security.auth.callback.PasswordCallback;
+import javax.security.auth.callback.UnsupportedCallbackException;
 
 import org.apache.commons.lang3.Functions;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.net.ssl.KeyStoreConfiguration;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import pt.unl.fct.di.novasys.babel.core.security.IdentityGenerator;
@@ -69,14 +78,17 @@ public class BabelSecurity {
      */
     private static final String PAR_KEY_STORE_WRITABLE = PREFIX + ".keystore.writable";
     private String keyStoreWritePath = null;
+    private static final String PAR_KEY_STORE_PWD = PREFIX + ".keystore.password";
+    private static final String PAR_KEY_STORE_PROTECTION = PREFIX + ".keystore.protection_handler";
+    private ProtectionParameter keyStoreProtection = EMPTY_PWD;
     private static final String PAR_DEFAULT_ID = PREFIX + ".keystore.default_identity";
     private String defaultIdentityAlias;
     // TODO support KeyStore.LoadStorePrameter? (or at least DomainLoadStorePrameter?)
 
     private static final String PAR_ID_EXTRACTOR = PREFIX + ".keystore.identity_extractor";
-    private Class<? extends IdFromCertExtractor> identityExtractorClass = BabelCredentialHandler.class;
+    private IdFromCertExtractor identityExtractor;
     private static final String PAR_ID_GENERATOR = PREFIX + ".keystore.identity_generator";
-    private Class<? extends IdentityGenerator> IdentityGeneratorClass = BabelCredentialHandler.class;
+    private IdentityGenerator identityGenerator;
 
     private static final String PAR_TRUST_STORE_TYPE = PREFIX + ".truststore.type";
     private String trustStoreType = "PKCS12";
@@ -137,7 +149,6 @@ public class BabelSecurity {
     */
 
     private KeyStore keyStore;
-    private ProtectionParameter keyStoreProtection;
     private KeyStore ephKeyStore; // TODO make Babel key manager support two key stores for this
     private X509IKeyManager keyManager;
     private IdAliasMapper idAliasMapper;
@@ -146,9 +157,6 @@ public class BabelSecurity {
     private ProtectionParameter trustStoreProtection;
     private KeyStore ephTrustStore; // TODO make Babel trust manager support two key stores for this
     private X509ITrustManager trustManager;
-
-    private IdentityGenerator credentialGenerator;
-    private IdFromCertExtractor identityExtractor;
 
     public final Provider PROVIDER = new BouncyCastleProvider();
 
@@ -165,8 +173,7 @@ public class BabelSecurity {
             throw new AssertionError(e); // Shouldn't happen
         }
 
-        //this.config = new SecurityConfiguration();
-        // TODO
+        // TODO //improve config loading. This is just so its minimal
     }
 
     // Called by Babel's loadConfig. I'm hoping these things get loaded before they
@@ -193,12 +200,41 @@ public class BabelSecurity {
 
     // -------- Lazy loaders
 
-    KeyStore getKeyStore() {
-        throw new UnsupportedOperationException("TODO");
+    public KeyStore getKeyStore() {
+        if (keyStore == null) {
+            try {
+                File file = keyStoreLoadPath != null ? new File(keyStoreLoadPath) : null;
+                keyStore = file != null && file.exists()
+                        ? KeyStore.Builder.newInstance(file, keyStoreProtection).getKeyStore()
+                        : KeyStore.Builder.newInstance(keyStoreType, null, keyStoreProtection).getKeyStore();
+
+                if (keyStore.size() == 0) {
+                    logger.debug("Empty key store loaded. Generating an identity...");
+                    generateIdentityWithAliasPrefix(true, "babel");
+                } else {
+                    logger.debug("Non-empty key store loaded. Analyzing its private key entries...");
+                    idAliasMapper.populateFromPrivateKeyStore(keyStore, keyStoreProtection, identityExtractor);
+                }
+            } catch (KeyStoreException e) {
+                throw new AssertionError(e); // Shouldn't happen // TODO verify that the keystore type is available when loading config
+            }
+        }
+
+        return keyStore;
     }
 
-    KeyStore getEphKeyStore() {
-        throw new UnsupportedOperationException("TODO");
+    public KeyStore getEphKeyStore() {
+        if (ephKeyStore == null) {
+            try {
+                logger.debug("Creating new ephemeral key store with an auto-generated identity.");
+                ephKeyStore = KeyStore.Builder.newInstance(keyStoreType, null, EMPTY_PWD).getKeyStore();
+                generateIdentityWithAliasPrefix(false, "babel");
+            } catch (KeyStoreException e) {
+                throw new AssertionError(e); // Shouldn't happen
+            }
+        }
+
+        return ephKeyStore;
     }
 
     X509IKeyManager getKeyManager() {
@@ -213,7 +249,7 @@ public class BabelSecurity {
         throw new UnsupportedOperationException("TODO");
     }
 
-    /* ---------- General public utilities ---------- */
+    /* -------------- General utilities -------------- */
 
     public byte[] generateIv(int size) {
         var iv = new byte[size];
@@ -229,6 +265,21 @@ public class BabelSecurity {
         return keyRng;
     }
 
+    // ------ Private
+
+    private char[] getPassword(ProtectionParameter protParam, String storeName)
+            throws IOException, UnsupportedCallbackException {
+        if (protParam instanceof PasswordProtection pwdProt) {
+            return pwdProt.getPassword();
+        } else if (protParam instanceof CallbackHandlerProtection callbackProt) {
+            var callback = new PasswordCallback("Password for " + storeName, false);
+            callbackProt.getCallbackHandler().handle(new Callback[] { callback });
+            return callback.getPassword();
+        } else {
+            return null;
+        }
+    }
+
     /* ----------------- Identities ----------------- */
 
     // ------ Public methods
@@ -240,7 +291,18 @@ public class BabelSecurity {
             ProtectionParameter protection = chosenPair.getRight();
             idAliasMapper.put(alias, id);
             keyStore.setEntry(alias, entry, protection);
+
+            if (peristToDisk && keyStoreWritePath != null)
+                keyStore.store(new FileOutputStream(keyStoreWritePath),
+                        getPassword(keyStoreProtection, keyStoreWritePath));
+
         } catch (KeyStoreException e) {
+            // From KeyStore.setEntry():
+            // "KeyStoreException if the keystore has not been initialized (loaded), or
+            // if this operation fails for **some other reason**"...
+            throw new RuntimeException(e);
+        } catch (NoSuchAlgorithmException | CertificateException | IOException | UnsupportedCallbackException e) {
+            // TODO deal with these
             throw new RuntimeException(e);
         }
     }
@@ -284,8 +346,8 @@ public class BabelSecurity {
         return generateIdentity(peristToDisk, null);
     }
 
-    public IdentityCrypt generateIdWithAliasPrefix(boolean peristToDisk, String aliasPrefix) {
-        var keyEntry = credentialGenerator.generateRandomCredentials();
+    public IdentityCrypt generateIdentityWithAliasPrefix(boolean peristToDisk, String aliasPrefix) {
+        var keyEntry = identityGenerator.generateRandomCredentials();
         byte[] id;
         try {
             id = identityExtractor.extractIdentity(keyEntry.getCertificate());
@@ -303,7 +365,7 @@ public class BabelSecurity {
     }
 
     public IdentityCrypt generateIdentity(boolean peristToDisk, String alias) {
-        var keyEntry = credentialGenerator.generateRandomCredentials();
+        var keyEntry = identityGenerator.generateRandomCredentials();
         byte[] id;
         try {
             id = identityExtractor.extractIdentity(keyEntry.getCertificate());

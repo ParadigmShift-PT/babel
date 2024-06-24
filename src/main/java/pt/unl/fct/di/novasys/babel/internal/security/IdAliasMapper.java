@@ -16,6 +16,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import pt.unl.fct.di.novasys.babel.core.security.IdFromCertExtractor;
+import pt.unl.fct.di.novasys.babel.core.security.IdentityPair;
 import pt.unl.fct.di.novasys.network.data.Bytes;
 
 public class IdAliasMapper {
@@ -78,28 +79,9 @@ public class IdAliasMapper {
         return getId(defaultAlias);
     }
 
-    public Entry<String, byte[]> getDefaultEntry() {
-        return new Entry<String, byte[]>() {
-            String alias = defaultAlias;
-            byte[] id = getId(alias);
-
-            @Override
-            public String getKey() {
-                return alias;
-            }
-
-            @Override
-            public byte[] getValue() {
-                return id;
-            }
-
-            @Override
-            public byte[] setValue(byte[] value) {
-                var old = id;
-                id = value;
-                return old;
-            }
-        };
+    public IdentityPair getDefault() {
+        return defaultAlias != null ? new IdentityPair(defaultAlias, getId(defaultAlias))
+                                    : null;
     }
 
     public synchronized String setDefaultAlias(String alias) {

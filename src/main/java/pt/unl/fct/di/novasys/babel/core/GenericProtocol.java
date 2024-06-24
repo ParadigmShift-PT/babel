@@ -4,6 +4,7 @@ import pt.unl.fct.di.novasys.babel.core.security.IdentityCrypt;
 import pt.unl.fct.di.novasys.babel.core.security.IdentityPair;
 import pt.unl.fct.di.novasys.babel.core.security.SecretCrypt;
 import pt.unl.fct.di.novasys.babel.core.security.SecureProtocol;
+import pt.unl.fct.di.novasys.babel.core.security.exceptions.NoSuchIdentityException;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.handlers.*;
@@ -29,6 +30,7 @@ import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.Signature;
+import java.security.UnrecoverableEntryException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -98,8 +100,8 @@ public abstract class GenericProtocol {
 
     public static final Babel babel = Babel.getInstance();
 
-    private IdentityPair defaultId;
-    private String defaultSecretKeyAlias;
+    private IdentityCrypt defaultIdentity;
+    private SecretCrypt defaultSecret;
 
     public static final BabelSecurity babelSecurity = BabelSecurity.getInstance();
 
@@ -1157,32 +1159,7 @@ public abstract class GenericProtocol {
 
     /* -------------------------- IDENTITY MANAGEMENT ----------------------- */
 
-    // TODO maybe make these be accecible through a final protected field that is an internal class (just for the namespace)
-
-    // TODO make persistOnDisk be ommitable (in which case, the default from properties should be used)
-
-    // TODO make security properties per protocol
-
-    // TODO some of these operations should also be available through an external
-    // api for non Protocol (e.g. application) classes. The reason these are here
-    // is that a protocol might want to use its default identity or one that is
-    // only available to it.
-
-    protected final IdentityCrypt generateIdentity(boolean persistToDisk) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    protected final IdentityCrypt generateIdentity(boolean persistToDisk, String alias) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    protected final IdentityCrypt generateIdentity(boolean persistToDisk, KeyPair keyPair) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    protected final IdentityCrypt generateIdentity(boolean persistToDisk, String alias, KeyPair keyPair) {
-        throw new UnsupportedOperationException("TODO");
-    }
+    // TODO make security properties per protocol??
 
     /* TODO should these methods be a thing?
     // TODO make Properties option to load a specific keystore for a specific protocol?
@@ -1207,113 +1184,138 @@ public abstract class GenericProtocol {
     }
     */
 
-    protected final Pair<byte[], KeyPair> removeId(boolean persistOnDisk, String alias) {
-        throw new UnsupportedOperationException("TODO");
+    protected final IdentityCrypt generateIdentity() {
+        return generateIdentity(true);
     }
 
-    protected final Pair<String, KeyPair> removeId(boolean persistOnDisk, byte[] id) {
-        throw new UnsupportedOperationException("TODO");
+    protected final IdentityCrypt generateIdentity(boolean persistOnDisk) {
+        var id = babelSecurity.generateIdentityWithAliasPrefix(persistOnDisk, protoName);
+        if (defaultIdentity == null)
+            defaultIdentity = id;
+        return id;
     }
 
-    protected final String getIdAlias(byte[] id) {
-        throw new UnsupportedOperationException("TODO");
+    protected final IdentityCrypt generateIdentity(String alias) {
+        return generateIdentity(true, alias);
     }
 
-    protected final byte[] getAliasId(String alias) {
-        throw new UnsupportedOperationException("TODO");
+    protected final IdentityCrypt generateIdentity(boolean persistOnDisk, String alias) {
+        var id = babelSecurity.generateIdentity(persistOnDisk, alias);
+        if (defaultIdentity == null)
+            defaultIdentity = id;
+        return id;
     }
 
-    protected final IdentityCrypt getDefaultIdCrypt() {
-        // Get default Babel Id if protocol doesn't have one specifically
-        // Always check if id still exists
-        throw new UnsupportedOperationException("TODO");
+    protected final IdentityCrypt generateIdentity(KeyPair keyPair) {
+        return generateIdentity(true, keyPair);
     }
 
-    protected final void setDefaultId(String alias) {
-        throw new UnsupportedOperationException("TODO");
+    protected final IdentityCrypt generateIdentity(boolean persistOnDisk, KeyPair keyPair) {
+        var id = babelSecurity.generateIdentityWithAliasPrefix(persistOnDisk, protoName, keyPair);
+        if (defaultIdentity == null)
+            defaultIdentity = id;
+        return id;
     }
 
-    protected final void setDefaultId(byte[] id) {
-        throw new UnsupportedOperationException("TODO");
+    protected final IdentityCrypt generateIdentity(boolean persistToDisk, String alias, KeyPair keyPair) {
+        var id = babelSecurity.generateIdentity(persistToDisk, alias, keyPair);
+        if (defaultIdentity == null)
+            defaultIdentity = id;
+        return id;
     }
 
-    // Gets all Babel + this Protocol ids
-    protected final Set<IdentityPair> getAllIds() {
-        throw new UnsupportedOperationException("TODO");
+    protected final IdentityCrypt setDefaultProtoIdentity(String alias) throws NoSuchIdentityException {
+        try {
+            defaultIdentity = babelSecurity.getIdentityCrypt(alias);
+            return defaultIdentity;
+        } catch (NoSuchAlgorithmException | UnrecoverableEntryException e) {
+            throw new NoSuchIdentityException(
+                    "Couldn't retreive identity with alias " + alias, e);
+        }
     }
 
-    protected final Set<IdentityPair> getAllProtocolIds() {
-        throw new UnsupportedOperationException("TODO");
+    protected final IdentityCrypt setDefaultProtoIdentity(byte[] id) throws NoSuchIdentityException {
+        try {
+            defaultIdentity = babelSecurity.getIdentityCrypt(id);
+            return defaultIdentity;
+        } catch (NoSuchAlgorithmException | UnrecoverableEntryException e) {
+            throw new NoSuchIdentityException(
+                    "Couldn't get retreive identity with id " + PeerIdEncoder.encodeToString(id), e);
+        }
     }
 
-    protected final IdentityCrypt getIdCrypt(String alias) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    protected final IdentityCrypt getIdCrypt(byte[] id) {
-        throw new UnsupportedOperationException("TODO");
+    protected final IdentityCrypt getDefaultProtoIdentity() {
+        return defaultIdentity;
     }
 
     /* -------------------------- SECRET MANAGEMENT ----------------------- */
 
+    protected final SecretCrypt generateSecret() {
+        return generateSecret(true);
+    }
+
     protected final SecretCrypt generateSecret(boolean persistOnDisk) {
-        throw new UnsupportedOperationException("TODO");
+        var secret = babelSecurity.generateSecretWithAliasPrefix(persistOnDisk, protoName);
+        if (defaultSecret == null)
+            defaultSecret = secret;
+        return secret;
+    }
+
+    protected final SecretCrypt generateSecret(String alias) {
+        return generateSecret(true);
     }
 
     protected final SecretCrypt generateSecret(boolean persistOnDisk, String alias) {
-        throw new UnsupportedOperationException("TODO");
+        var secret = babelSecurity.generateSecret(persistOnDisk, alias);
+        if (defaultSecret == null)
+            defaultSecret = secret;
+        return secret;
     }
 
-    protected final SecretCrypt addSecret(boolean persistOnDisk, SecretKey secret) {
-        throw new UnsupportedOperationException("TODO");
+    protected final SecretCrypt addSecret(SecretKey secretKey) {
+        return addSecret(true, secretKey);
     }
 
-    protected final SecretCrypt addSecret(boolean persistOnDisk, String alias, SecretKey secret) {
-        throw new UnsupportedOperationException("TODO");
+    protected final SecretCrypt addSecret(boolean persistOnDisk, SecretKey secretKey) {
+        var secret = babelSecurity.addSecretWithAliasPrefix(persistOnDisk, protoName, secretKey);
+        if (defaultSecret == null)
+            defaultSecret = secret;
+        return secret;
     }
 
-    protected final SecretKey removeSecret(boolean persistOnDisk, String alias) {
-        throw new UnsupportedOperationException("TODO");
+    protected final SecretCrypt addSecret(String alias, SecretKey secretKey) {
+        return addSecret(true, alias, secretKey);
     }
 
-    protected final SecretCrypt generateProtocolSecret(boolean persistOnDisk) {
-        throw new UnsupportedOperationException("TODO");
+    protected final SecretCrypt addSecret(boolean persistOnDisk, String alias, SecretKey secretKey) {
+        var secret = babelSecurity.addSecret(persistOnDisk, alias, secretKey);
+        if (defaultSecret == null)
+            defaultSecret = secret;
+        return secret;
     }
 
-    protected final SecretCrypt generateProtocolSecret(boolean persistOnDisk, String alias) {
-        throw new UnsupportedOperationException("TODO");
+    protected final IdentityCrypt setDefaultProtoSecret(String alias) throws NoSuchIdentityException {
+        try {
+            defaultSecret = babelSecurity.getSecret(alias);
+            return defaultIdentity;
+        } catch (NoSuchAlgorithmException | UnrecoverableEntryException e) {
+            throw new NoSuchIdentityException(
+                    "Couldn't retreive identity with alias " + alias, e);
+        }
     }
 
-    protected final SecretCrypt addProtocolSecret(boolean persistOnDisk, SecretKey secret) {
-        throw new UnsupportedOperationException("TODO");
+    protected final IdentityCrypt setDefaultProtoIdentity(byte[] id) throws NoSuchIdentityException {
+        try {
+            defaultIdentity = babelSecurity.getIdentityCrypt(id);
+            return defaultIdentity;
+        } catch (NoSuchAlgorithmException | UnrecoverableEntryException e) {
+            throw new NoSuchIdentityException(
+                    "Couldn't get retreive identity with id " + PeerIdEncoder.encodeToString(id), e);
+        }
     }
 
-    protected final SecretCrypt addProtocolSecret(boolean persistOnDisk, String alias, SecretKey secret) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    protected final SecretCrypt getSecret(String alias) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    protected final SecretCrypt getDefaultSecret() {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    protected final String getDefaultSecretAlias() {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    protected final void setDefaultSecret(String alias) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    protected final Set<String> getAllSecretAliases() {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    protected final Set<String> getAllProtocolSecretAliases() {
-        throw new UnsupportedOperationException("TODO");
+    protected final IdentityCrypt getDefaultProtoIdentity() {
+        return defaultIdentity;
     }
 
     // --------------------------------- DELIVERERS FROM BABEL ------------------------------------

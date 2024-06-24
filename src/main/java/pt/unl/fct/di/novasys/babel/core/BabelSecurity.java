@@ -3,14 +3,19 @@ package pt.unl.fct.di.novasys.babel.core;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.security.InvalidKeyException;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.KeyStore.CallbackHandlerProtection;
+import java.security.KeyStore.Entry;
 import java.security.KeyStore.PasswordProtection;
 import java.security.KeyStore.PrivateKeyEntry;
 import java.security.KeyStore.ProtectionParameter;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.KeyStoreException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.SecureRandom;
@@ -18,12 +23,14 @@ import java.security.Security;
 import java.security.UnrecoverableEntryException;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 import java.util.function.Supplier;
 
+import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
@@ -114,6 +121,10 @@ public class BabelSecurity {
      */
     private static final String PAR_SECRET_STORE_WRITABLE = PREFIX + ".secretstore.writable";
     private String secretStoreWritePath = null;
+    private static final String PAR_SECRET_ALG = PREFIX + ".secretkey_algorithm";
+    private String secretKeyAlgorithm = "AES";
+    private static final String PAR_SECRET_LEN = PREFIX + ".secretkey_length";
+    private int secretKeyLength = 128;
 
     // See https://docs.oracle.com/en/java/javase/21/docs/specs/security/standard-names.html
     public static final String PAR_HASH_ALG = PREFIX + ".hash_algorithm";
@@ -128,6 +139,7 @@ public class BabelSecurity {
     private String cipherMode = "GCM";
     public static final String PAR_CIPHER_PADDING = PREFIX + ".cipher.padding";
     private String cipherPadding = "NoPadding";
+    public static final String PAR_CIPHER_IV_SIZE = PREFIX + ".cipher.iv_size";
     public static final String PAR_CIPHER_PARAM_GEN = PREFIX + ".cipher.parameter_supplier";
     private Supplier<AlgorithmParameterSpec> cipherParameterSupplier = () -> new GCMParameterSpec(128, generateIv(12));
     //public static final String PAR_CIPHER_KEYWRAP_ALG = "kwyrap_cipher";
@@ -331,29 +343,6 @@ public class BabelSecurity {
 
     // ------ Public methods
 
-    public void storeIdentity(boolean peristToDisk, String alias, byte[] id, PrivateKeyEntry entry) {
-        try {
-            var chosenPair = chooseKeyStore(__ -> peristToDisk);
-            KeyStore keyStore = chosenPair.getLeft();
-            ProtectionParameter protection = chosenPair.getRight();
-            idAliasMapper.put(alias, id);
-            keyStore.setEntry(alias, entry, protection);
-
-            if (peristToDisk && keyStoreWritePath != null)
-                keyStore.store(new FileOutputStream(keyStoreWritePath),
-                        getPassword(keyStoreProtection, keyStoreWritePath));
-
-        } catch (KeyStoreException e) {
-            // From KeyStore.setEntry():
-            // "KeyStoreException if the keystore has not been initialized (loaded), or
-            // if this operation fails for **some other reason**"...
-            throw new RuntimeException(e);
-        } catch (NoSuchAlgorithmException | CertificateException | IOException | UnsupportedCallbackException e) {
-            // TODO deal with these
-            throw new RuntimeException(e);
-        }
-    }
-
     public Pair<PrivateKeyEntry, String> deleteIdentity(byte[] identity) throws UnrecoverableEntryException {
         String alias = idAliasMapper.getAlias(identity);
 
@@ -390,43 +379,71 @@ public class BabelSecurity {
     }
 
     public IdentityCrypt generateIdentity(boolean peristToDisk) {
-        return generateIdentity(peristToDisk, null);
+        return addIdentity(peristToDisk, identityGenerator.generateRandomCredentials());
     }
 
     public IdentityCrypt generateIdentityWithAliasPrefix(boolean peristToDisk, String aliasPrefix) {
-        var keyEntry = identityGenerator.generateRandomCredentials();
+        return addIdentityWithAliasPrefix(peristToDisk, aliasPrefix, identityGenerator.generateRandomCredentials());
+    }
+
+    public IdentityCrypt generateIdentity(boolean peristToDisk, String alias) {
+        return addIdentity(peristToDisk, alias, identityGenerator.generateRandomCredentials());
+    }
+
+    public IdentityCrypt generateIdentity(boolean peristToDisk, KeyPair keyPair) {
+        return addIdentity(peristToDisk, identityGenerator.generateCredentials(keyPair));
+    }
+
+    public IdentityCrypt generateIdentityWithAliasPrefix(boolean peristToDisk, String aliasPrefix, KeyPair keyPair) {
+        return addIdentityWithAliasPrefix(peristToDisk, aliasPrefix, identityGenerator.generateCredentials(keyPair));
+    }
+
+    public IdentityCrypt generateIdentity(boolean peristToDisk, String alias, KeyPair keyPair) {
+        return addIdentity(peristToDisk, alias, identityGenerator.generateCredentials(keyPair));
+    }
+
+    public IdentityCrypt addIdentity(boolean peristToDisk, PrivateKeyEntry keyStoreEntry) {
+        return addIdentity(peristToDisk, null, keyStoreEntry);
+    }
+
+    public IdentityCrypt addIdentityWithAliasPrefix(boolean peristToDisk, String aliasPrefix, PrivateKeyEntry keyStoreEntry) {
         byte[] id;
         try {
-            id = identityExtractor.extractIdentity(keyEntry.getCertificate());
+            id = identityExtractor.extractIdentity(keyStoreEntry.getCertificate());
         } catch (CertificateException e) {
             throw new RuntimeException(e); // Shouldn't happen
         }
         String alias = aliasPrefix + "." + PeerIdEncoder.encodeToString(id);
-        storeIdentity(peristToDisk, alias, id, keyEntry);
+        addIdentity(peristToDisk, alias, id, keyStoreEntry);
         try {
-            return getIdentityCrypt(alias, id, keyEntry);
+            return getIdentityCrypt(alias, id, keyStoreEntry);
         } catch (NoSuchAlgorithmException e) {
-            logger.error("Coludn't create IdentityCrypt from newly generated id: " + e);
+            logger.error("Coludn't create IdentityCrypt from newly added id: " + e);
             return null;
         }
     }
 
-    public IdentityCrypt generateIdentity(boolean peristToDisk, String alias) {
-        var keyEntry = identityGenerator.generateRandomCredentials();
+    public IdentityCrypt addIdentity(boolean peristToDisk, String alias, PrivateKeyEntry keyStoreEntry) {
         byte[] id;
         try {
-            id = identityExtractor.extractIdentity(keyEntry.getCertificate());
+            id = identityExtractor.extractIdentity(keyStoreEntry.getCertificate());
         } catch (CertificateException e) {
             throw new RuntimeException(e); // Shouldn't happen
         }
         alias = alias == null ? PeerIdEncoder.encodeToString(id) : alias;
-        storeIdentity(peristToDisk, alias, id, keyEntry);
+        addIdentity(peristToDisk, alias, id, keyStoreEntry);
         try {
-            return getIdentityCrypt(alias, id, keyEntry);
+            return getIdentityCrypt(alias, id, keyStoreEntry);
         } catch (NoSuchAlgorithmException e) {
-            logger.error("Coludn't create IdentityCrypt from newly generated id: " + e);
+            logger.error("Coludn't create IdentityCrypt from newly added id: " + e);
             return null;
         }
+    }
+
+    public IdentityCrypt getDefaultIdentityCrypt()
+            throws NoSuchAlgorithmException, UnrecoverableEntryException {
+        IdentityPair idPair = idAliasMapper.getDefault();
+        return idPair == null ? null : getIdentityCrypt(idPair.alias(), idPair.id());
     }
 
     public IdentityCrypt getIdentityCrypt(String alias)
@@ -471,9 +488,44 @@ public class BabelSecurity {
         }
     }
 
-    // TODO more...?
+    public String getIdentityAlias(byte[] identity) {
+        return idAliasMapper.getAlias(identity);
+    }
+
+    public byte[] getAliasIdentity(String alias) {
+        return idAliasMapper.getId(alias);
+    }
+
+    public IdentityPair getDefaultIdentity() {
+        return idAliasMapper.getDefault();
+    }
+
+    // TODO add trusted
 
     // ----- Auxiliary methods
+
+    private void addIdentity(boolean peristOnDisk, String alias, byte[] id, PrivateKeyEntry entry) {
+        try {
+            var chosenPair = chooseKeyStore(__ -> peristOnDisk);
+            KeyStore keyStore = chosenPair.getLeft();
+            ProtectionParameter protection = chosenPair.getRight();
+            idAliasMapper.put(alias, id);
+            keyStore.setEntry(alias, entry, protection);
+
+            if (peristOnDisk && keyStoreWritePath != null)
+                keyStore.store(new FileOutputStream(keyStoreWritePath),
+                        getPassword(keyStoreProtection, keyStoreWritePath));
+
+        } catch (KeyStoreException e) {
+            // From KeyStore.setEntry():
+            // "KeyStoreException if the keystore has not been initialized (loaded), or
+            // if this operation fails for **some other reason**"...
+            throw new RuntimeException(e);
+        } catch (NoSuchAlgorithmException | CertificateException | IOException | UnsupportedCallbackException e) {
+            // TODO deal with these
+            throw new RuntimeException(e);
+        }
+    }
 
     private IdentityCrypt getIdentityCrypt(String alias, byte[] id)
             throws NoSuchAlgorithmException, UnrecoverableEntryException {
@@ -529,7 +581,74 @@ public class BabelSecurity {
     /* ------------------- Secrets ------------------- */
 
     // ------ Public methods
-    // TODO...
+
+    // TODO Make a way to facilitate secret agreement? Might be terrible
+
+    public SecretCrypt generateSecretFromPassword(boolean peristToDisk, String password) {
+        throw new UnsupportedOperationException("generateSecretFromPassword"); //TODO
+    }
+
+    public SecretCrypt generateSecret(boolean peristToDisk) {
+        return addSecret(peristToDisk, generateSecretKey());
+    }
+
+    public SecretCrypt generateSecretWithAliasPrefix(boolean peristToDisk, String aliasPrefix) {
+        return addSecretWithAliasPrefix(peristToDisk, aliasPrefix, generateSecretKey());
+    }
+
+    public SecretCrypt generateSecret(boolean peristToDisk, String alias) {
+        return addSecret(peristToDisk, alias, generateSecretKey());
+    }
+
+    public SecretCrypt addSecretWithAliasPrefix(boolean peristOnDisk, String aliasPrefix, SecretKey secretKey) {
+        return addSecret(peristOnDisk, aliasPrefix + "." + generateSecretAlias(secretKey), secretKey);
+    }
+
+    public SecretCrypt addSecret(boolean peristOnDisk, SecretKey secretKey) {
+        return addSecret(peristOnDisk, generateSecretAlias(secretKey), secretKey);
+    }
+
+    public SecretCrypt addSecret(boolean peristOnDisk, String alias, SecretKey secretKey) {
+        try {
+            var chosenPair = chooseSecretStore(__ -> peristOnDisk);
+            KeyStore store = chosenPair.getLeft();
+            ProtectionParameter protection = chosenPair.getRight();
+
+            store.setEntry(alias, new KeyStore.SecretKeyEntry(secretKey), protection);
+
+            if (peristOnDisk && keyStoreWritePath != null)
+                store.store(new FileOutputStream(secretStoreWritePath),
+                        getPassword(secretStoreProtection, secretStoreWritePath));
+        } catch (IOException | NoSuchAlgorithmException e) {
+            logger.error("Couldn't store newly added secret: " + e);
+        } catch (KeyStoreException | CertificateException | UnsupportedCallbackException e) {
+            // From KeyStore.setEntry():
+            // "KeyStoreException if the keystore has not been initialized (loaded), or
+            // if this operation fails for **some other reason**"...
+            throw new RuntimeException(e);
+        }
+
+        try {
+            return getSecretCrypt(alias, secretKey);
+        } catch (NoSuchAlgorithmException e) {
+            logger.error("Coludn't create SecretCrypt from newly added secret: " + e);
+            return null;
+        }
+    }
+
+    public SecretCrypt getSecretCrypt(String alias) throws NoSuchAlgorithmException, UnrecoverableEntryException {
+        try {
+            var chosenPair = chooseSecretStore(store -> store.containsAlias(alias));
+            KeyStore.Entry entry = chosenPair.getLeft().getEntry(alias, chosenPair.getRight());
+            if (entry instanceof KeyStore.SecretKeyEntry secreteEntry) {
+                return getSecretCrypt(alias, secreteEntry.getSecretKey());
+            } else {
+                return null;
+            }
+        } catch (KeyStoreException e) {
+            throw new AssertionError(e); // Shouldn't happen
+        }
+    }
 
     // ----- Auxiliary methods
 
@@ -540,10 +659,38 @@ public class BabelSecurity {
                 : new SecretCrypt(alias, key, macAlgorithm, cipherTransform, cipherParameterSupplier);
     }
 
+    private SecretKey generateSecretKey() {
+        try {
+            var gen = KeyGenerator.getInstance(secretKeyAlgorithm);
+            gen.init(secretKeyLength, keyRng);
+            return gen.generateKey();
+        } catch (NoSuchAlgorithmException e) {
+            throw new AssertionError(e); // Shouldn't happen
+        }
+    }
+
     private SecretCrypt getSecretCrypt(String alias, SecretKey key, String hashAlg, String cipherTransformation,
             Supplier<AlgorithmParameterSpec> cipherParameterSupplier)
             throws InvalidKeyException, NoSuchAlgorithmException {
         return new SecretCrypt(alias, key, hashAlg, cipherTransformation, cipherParameterSupplier);
+    }
+
+    private Pair<KeyStore, ProtectionParameter> chooseSecretStore(KeyStorePredicate shouldBePersistent)
+            throws KeyStoreException {
+        KeyStore persistent = getSecretStore();
+        return shouldBePersistent.test(persistent)
+                ? Pair.of(persistent, secretStoreProtection)
+                : Pair.of(getEphemeralSecretStore(), EMPTY_PWD);
+    }
+
+    private String generateSecretAlias(SecretKey key) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance(hashAlgorithm);
+            digest.update(key.getEncoded());
+            return Base64.getEncoder().encodeToString(digest.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new AssertionError(e); // Shouldn't happen
+        }
     }
 
     /* ------------------- Config ------------------- */

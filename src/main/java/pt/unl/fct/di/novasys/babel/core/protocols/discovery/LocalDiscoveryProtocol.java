@@ -10,6 +10,7 @@ import java.net.InterfaceAddress;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -98,7 +99,12 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
     }
 
     protected InetSocketAddress addInetSocketAddres(String address, int port) {
-        var socketAddress = new InetSocketAddress(address, port);
+        InetSocketAddress socketAddress;
+		try {
+			socketAddress = new InetSocketAddress(InetAddress.getByName(address), port);
+		} catch (UnknownHostException e) {
+			socketAddress = new InetSocketAddress(address, port);
+		}
         socketAddresses.add(socketAddress);
         return socketAddress;
     }
@@ -167,7 +173,7 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
             for (byte[] m : announces) {
                 for (var socketAddress : socketAddresses) {
                     logger.debug("Going to send an announce with " + m.length + " bytes to " + socketAddress);
-                    logger.trace("Sending from socket bounded  (" + socket.isBound() + ") to: " + socket.getLocalAddress() + ":" + socket.getLocalPort());  
+                    logger.debug("Sending from socket bounded  (" + socket.isBound() + ") to: " + socket.getLocalAddress() + ":" + socket.getLocalPort());  
                 	socket.send(new DatagramPacket(m, m.length, socketAddress));
                     logger.debug("Sent one message to " + socketAddress.getAddress() + ":"
                             + socketAddress.getPort() + " from " + socket.getLocalAddress() + ":"

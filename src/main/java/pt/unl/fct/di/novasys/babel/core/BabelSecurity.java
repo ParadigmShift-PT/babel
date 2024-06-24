@@ -3,6 +3,7 @@ package pt.unl.fct.di.novasys.babel.core;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.security.InvalidKeyException;
 import java.security.KeyStore;
 import java.security.KeyStore.CallbackHandlerProtection;
@@ -18,12 +19,10 @@ import java.security.Security;
 import java.security.UnrecoverableEntryException;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
-import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import javax.crypto.SecretKey;
@@ -33,11 +32,9 @@ import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.PasswordCallback;
 import javax.security.auth.callback.UnsupportedCallbackException;
 
-import org.apache.commons.lang3.Functions;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.net.ssl.KeyStoreConfiguration;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import pt.unl.fct.di.novasys.babel.core.security.IdentityGenerator;
@@ -48,6 +45,8 @@ import pt.unl.fct.di.novasys.babel.core.security.IdentityPair;
 import pt.unl.fct.di.novasys.babel.internal.security.BabelCredentialHandler;
 import pt.unl.fct.di.novasys.babel.internal.security.IdAliasMapper;
 import pt.unl.fct.di.novasys.babel.internal.security.PeerIdEncoder;
+import pt.unl.fct.di.novasys.babel.internal.security.X509BabelKeyManager;
+import pt.unl.fct.di.novasys.babel.internal.security.X509BabelTrustManager;
 import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
@@ -82,16 +81,18 @@ public class BabelSecurity {
     private static final String PAR_KEY_STORE_PROTECTION = PREFIX + ".keystore.protection_handler";
     private ProtectionParameter keyStoreProtection = EMPTY_PWD;
     private static final String PAR_DEFAULT_ID = PREFIX + ".keystore.default_identity";
-    private String defaultIdentityAlias;
     // TODO support KeyStore.LoadStorePrameter? (or at least DomainLoadStorePrameter?)
 
     private static final String PAR_ID_EXTRACTOR = PREFIX + ".keystore.identity_extractor";
-    private IdFromCertExtractor identityExtractor;
+    private IdFromCertExtractor identityExtractor = new BabelCredentialHandler();
     private static final String PAR_ID_GENERATOR = PREFIX + ".keystore.identity_generator";
-    private IdentityGenerator identityGenerator;
+    private IdentityGenerator identityGenerator = (BabelCredentialHandler) identityExtractor;
 
     private static final String PAR_TRUST_STORE_TYPE = PREFIX + ".truststore.type";
     private String trustStoreType = "PKCS12";
+    private static final String PAR_TRUST_STORE_PWD = PREFIX + ".truststore.password";
+    private static final String PAR_TRUST_STORE_PROTECTION = PREFIX + ".truststore.protection_handler";
+    private ProtectionParameter trustStoreProtection = EMPTY_PWD;
     private static final String PAR_TRUST_STORE_PATH = PREFIX + ".truststore.path";
     private String trustStoreLoadPath = null;
     /**
@@ -103,6 +104,9 @@ public class BabelSecurity {
 
     private static final String PAR_SECRET_STORE_TYPE = PREFIX + ".secretstore.type";
     private String secretStoreType = "PKCS12";
+    private static final String PAR_SECRET_STORE_PWD = PREFIX + ".secretstore.password";
+    private static final String PAR_SECRET_STORE_PROTECTION = PREFIX + ".secretstore.protection_handler";
+    private ProtectionParameter secretStoreProtection = EMPTY_PWD;
     private static final String PAR_SECRET_STORE_PATH = PREFIX + ".secretstore.path";
     private String secretStoreLoadPath = null;
     /**
@@ -111,8 +115,6 @@ public class BabelSecurity {
      */
     private static final String PAR_SECRET_STORE_WRITABLE = PREFIX + ".secretstore.writable";
     private String secretStoreWritePath = null;
-    private static final String PAR_DEFAULT_SECRET = PREFIX + ".secretstore.default_secret";
-    private String defaultSecretAlias;
 
     // See https://docs.oracle.com/en/java/javase/21/docs/specs/security/standard-names.html
     public static final String PAR_HASH_ALG = PREFIX + ".hash_algorithm";
@@ -129,16 +131,10 @@ public class BabelSecurity {
     private String cipherPadding = "NoPadding";
     public static final String PAR_CIPHER_PARAM_GEN = PREFIX + ".cipher.parameter_supplier";
     private Supplier<AlgorithmParameterSpec> cipherParameterSupplier = () -> new GCMParameterSpec(128, generateIv(12));
-    //public static final String PAR_CIPHER_IV_SIZE = PREFIX+"cipher.iv_size"; // bytes
-    //private int cipherIvSize = 12;
-    //public static final String PAR_CIPHER_GCM_TAG_LEN = PREFIX+"cipher.gcm_tag_length"; // bits
-    //private int cipherGcmTagLength = 128;
-    //public static final String PAR_CIPHER_KEYWRAP = "kwyrap_cipher";
+    //public static final String PAR_CIPHER_KEYWRAP_ALG = "kwyrap_cipher";
     /*
-    public static final String PAR_ = PREFIX +
+    public static final String PAR_... = PREFIX + ... ?
      */
-
-    //private final SecurityConfiguration config;
 
     // TODO should this be a thing?
     /*
@@ -148,17 +144,22 @@ public class BabelSecurity {
     private final Map<String, SecurityConfiguration> protoConfigs;
     */
 
+    // Lazy loaded fields
     private KeyStore keyStore;
-    private KeyStore ephKeyStore; // TODO make Babel key manager support two key stores for this
+    private KeyStore ephKeyStore; // TODO make a keystore wrapper so both keystores can be used as one when needed
     private X509IKeyManager keyManager;
-    private IdAliasMapper idAliasMapper;
 
     private KeyStore trustStore;
-    private ProtectionParameter trustStoreProtection;
-    private KeyStore ephTrustStore; // TODO make Babel trust manager support two key stores for this
+    private KeyStore ephTrustStore; // TODO make a truststore wrapper so both keystores can be used as one when needed
     private X509ITrustManager trustManager;
 
+    private KeyStore secretStore;
+    private KeyStore ephSecretStore;
+
+    // Fields to be instantiated at construction
     public final Provider PROVIDER = new BouncyCastleProvider();
+
+    private final IdAliasMapper idAliasMapper;
 
     private final SecureRandom keyRng;
     private final SecureRandom nonceRng;
@@ -173,29 +174,7 @@ public class BabelSecurity {
             throw new AssertionError(e); // Shouldn't happen
         }
 
-        // TODO //improve config loading. This is just so its minimal
-    }
-
-    // Called by Babel's loadConfig. I'm hoping these things get loaded before they
-    // get used...
-    void loadConfig(Properties config) {
-        /*
-        Map<String, Map<String, String>> toBeParsedProtoProps = new HashMap<>();
-        for (var prop : config.entrySet()) {
-            String key = (String) prop.getKey();
-            if (key.startsWith(PROTO)) {
-                String[] split = key.split("babel\\.security\\.proto\\.|\\.");
-                if (split.length != 3) // expected: { "", protoName, parameter }
-                    continue;
-                String protoName = split[1];
-                String parameter = split[2];
-
-                toBeParsedProtoProps.computeIfAbsent(protoName, __ -> new HashMap<>())
-                        .put(parameter, (String) prop.getValue());
-            }
-        }
-        */
-        // TODO global security config
+        idAliasMapper = new IdAliasMapper();
     }
 
     // -------- Lazy loaders
@@ -203,10 +182,7 @@ public class BabelSecurity {
     public KeyStore getKeyStore() {
         if (keyStore == null) {
             try {
-                File file = keyStoreLoadPath != null ? new File(keyStoreLoadPath) : null;
-                keyStore = file != null && file.exists()
-                        ? KeyStore.Builder.newInstance(file, keyStoreProtection).getKeyStore()
-                        : KeyStore.Builder.newInstance(keyStoreType, null, keyStoreProtection).getKeyStore();
+                keyStore = loadOrCreateStore(keyStoreLoadPath, keyStoreType, keyStoreProtection);
 
                 if (keyStore.size() == 0) {
                     logger.debug("Empty key store loaded. Generating an identity...");
@@ -223,7 +199,7 @@ public class BabelSecurity {
         return keyStore;
     }
 
-    public KeyStore getEphKeyStore() {
+    public KeyStore getEphemeralKeyStore() {
         if (ephKeyStore == null) {
             try {
                 logger.debug("Creating new ephemeral key store with an auto-generated identity.");
@@ -237,16 +213,88 @@ public class BabelSecurity {
         return ephKeyStore;
     }
 
-    X509IKeyManager getKeyManager() {
-        throw new UnsupportedOperationException("TODO");
+    public X509IKeyManager getKeyManager() {
+        if (keyManager == null) {
+            try {
+                // TODO get joined key store method and class (to use persistent and ephemeral stores simultaneously)
+                keyManager = new X509BabelKeyManager(getKeyStore(), keyStoreProtection, idAliasMapper);
+            } catch (KeyStoreException e) {
+                throw new AssertionError(e); // Shouldn't happen
+            }
+        }
+
+        return keyManager;
     }
 
-    X509IKeyManager getSingleKeyManager(String alias) {
-        throw new UnsupportedOperationException("TODO");
+    public KeyStore getTrustStore() {
+        if (trustStore == null) {
+            try {
+                trustStore = loadOrCreateStore(trustStoreLoadPath, trustStoreType, trustStoreProtection);
+            } catch (KeyStoreException e) {
+                throw new AssertionError(e); // Shouldn't happen // TODO verify that the keystore type is available when loading config
+            }
+        }
+
+        return trustStore;
     }
 
-    X509ITrustManager getTrustManager() {
-        throw new UnsupportedOperationException("TODO");
+    public KeyStore getEphemeralTrustStore() {
+        if (ephTrustStore == null) {
+            try {
+                logger.debug("Creating new ephemeral trust store");
+                ephTrustStore = KeyStore.Builder.newInstance(trustStoreType, null, EMPTY_PWD).getKeyStore();
+            } catch (KeyStoreException e) {
+                throw new AssertionError(e); // Shouldn't happen
+            }
+        }
+
+        return ephTrustStore;
+    }
+
+    public X509ITrustManager getTrustManager() {
+        if (trustManager == null) {
+            try {
+                // TODO get joined trust store method and class (to use persistent and ephemeral stores simultaneously)
+                trustManager = new X509BabelTrustManager(getTrustStore(), trustStoreProtection, identityExtractor);
+            } catch (KeyStoreException e) {
+                throw new AssertionError(e); // Shouldn't happen
+            }
+        }
+
+        return trustManager;
+    }
+
+    public KeyStore getSecretStore() {
+        if (secretStore == null) {
+            try {
+                secretStore = loadOrCreateStore(secretStoreLoadPath, secretStoreType, secretStoreProtection);
+            } catch (KeyStoreException e) {
+                throw new AssertionError(e); // Shouldn't happen // TODO verify that the keystore type is available when loading config
+            }
+        }
+
+        return secretStore;
+    }
+
+    public KeyStore getEphemeralSecretStore() {
+        if (ephSecretStore == null) {
+            try {
+                logger.debug("Creating new ephemeral trust store");
+                ephSecretStore = KeyStore.Builder.newInstance(secretStoreType, null, EMPTY_PWD).getKeyStore();
+            } catch (KeyStoreException e) {
+                throw new AssertionError(e); // Shouldn't happen // TODO verify that the keystore type is available when loading config
+            }
+        }
+
+        return ephSecretStore;
+    }
+
+    private static KeyStore loadOrCreateStore(String loadPath, String storeType, ProtectionParameter protection) throws KeyStoreException {
+        logger.debug("Loading (or creating) a key store from " + loadPath);
+        File file = loadPath != null ? new File(loadPath) : null;
+        return file != null && file.exists()
+                ? KeyStore.Builder.newInstance(file, protection).getKeyStore()
+                : KeyStore.Builder.newInstance(storeType, null, protection).getKeyStore();
     }
 
     /* -------------- General utilities -------------- */
@@ -471,7 +519,7 @@ public class BabelSecurity {
         KeyStore persistent = getKeyStore();
         return shouldBePersistent.test(persistent)
                 ? Pair.of(persistent, keyStoreProtection)
-                : Pair.of(getEphKeyStore(), EMPTY_PWD);
+                : Pair.of(getEphemeralKeyStore(), EMPTY_PWD);
     }
 
     @FunctionalInterface
@@ -499,4 +547,69 @@ public class BabelSecurity {
         return new SecretCrypt(alias, key, hashAlg, cipherTransformation, cipherParameterSupplier);
     }
 
+    /* ------------------- Config ------------------- */
+
+    // Called by Babel's loadConfig. I'm hoping these things get loaded before they
+    // get used...
+    void loadConfig(Properties config) {
+        keyStoreType = config.getProperty(PAR_KEY_STORE_TYPE, keyStoreType);
+        keyStoreLoadPath = config.getProperty(PAR_KEY_STORE_PATH);
+
+        String param = config.getProperty(PAR_KEY_STORE_WRITABLE);
+        keyStoreWritePath = param == null || param.equals("false")
+                ? null
+                : param.equals("true")
+                        ? keyStoreLoadPath
+                        : param;
+
+        param = config.getProperty(PAR_KEY_STORE_PWD);
+        keyStoreProtection = param != null
+                ? new PasswordProtection(param.toCharArray())
+                : loadClassParameter(ProtectionParameter.class, config,
+                        PAR_KEY_STORE_PROTECTION, keyStoreProtection);
+
+        param = config.getProperty(PAR_DEFAULT_ID);
+        if (param != null)
+            idAliasMapper.setDefaultAlias(param);
+
+        identityExtractor = loadClassParameter(IdFromCertExtractor.class, config,
+                PAR_ID_EXTRACTOR, identityExtractor);
+
+        identityGenerator = loadClassParameter(IdentityGenerator.class, config,
+                PAR_ID_GENERATOR, identityGenerator);
+
+        // TODO rest of params
+
+        // I was doing this for the idea of having diferent parameters for each proto.
+        // This will probably be scrapped
+        /*
+        Map<String, Map<String, String>> toBeParsedProtoProps = new HashMap<>();
+        for (var prop : config.entrySet()) {
+            String key = (String) prop.getKey();
+            if (key.startsWith(PROTO)) {
+                String[] split = key.split("babel\\.security\\.proto\\.|\\.");
+                if (split.length != 3) // expected: { "", protoName, parameter }
+                    continue;
+                String protoName = split[1];
+                String parameter = split[2];
+
+                toBeParsedProtoProps.computeIfAbsent(protoName, __ -> new HashMap<>())
+                        .put(parameter, (String) prop.getValue());
+            }
+        }
+        */
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T loadClassParameter(Class<T> clazz, Properties props, String parameter, T defaultValue) {
+        String className = props.getProperty(parameter);
+        if (parameter == null)
+            return defaultValue;
+        try {
+            return ((Class<? extends T>) Class.forName(className)).getDeclaredConstructor().newInstance();
+        } catch (Exception e) {
+            logger.error("Failed loading {} paremeter {}. Using default. Cause: {}", parameter, className, e);
+            return defaultValue;
+        }
+    }
 }

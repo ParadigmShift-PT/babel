@@ -52,8 +52,6 @@ public class IdAliasMapper {
                 if (entry instanceof PrivateKeyEntry privEntry) {
                     byte[] id = idExtractor.extractIdentity(privEntry.getCertificateChain()[0]);
                     this.put(alias, id);
-                    if (this.defaultAlias == null)
-                        this.setDefaultAlias(alias);
                 }
             } catch (UnrecoverableEntryException | NoSuchAlgorithmException | CertificateException e) {
                 // Ignore this entry and continue
@@ -121,17 +119,26 @@ public class IdAliasMapper {
     }
 
     public synchronized void put(String alias, byte[] id) {
+        if (defaultAlias == null)
+            defaultAlias = alias;
+
         idToAlias.put(Bytes.of(id), alias);
         aliasToId.put(alias, id);
     }
 
     public synchronized String removeId(byte[] id) {
         String alias = idToAlias.remove(Bytes.of(id));
+        if (defaultAlias == alias && !aliasToId.isEmpty())
+            defaultAlias = aliasToId.keySet().iterator().next();
+
         aliasToId.remove(alias);
         return alias;
     }
 
     public synchronized byte[] removeAlias(String alias) {
+        if (defaultAlias == alias && !aliasToId.isEmpty())
+            defaultAlias = aliasToId.keySet().iterator().next();
+
         byte[] id = aliasToId.remove(alias);
         idToAlias.remove(Bytes.of(id));
         return id;

@@ -2,6 +2,7 @@ package pt.unl.fct.di.novasys.babel.internal.security;
 
 import java.security.KeyStore;
 import java.security.KeyStore.ProtectionParameter;
+import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
@@ -30,14 +31,15 @@ public class X509BabelTrustManager extends X509ITrustManager {
     private IdFromCertExtractor idExtractor;
 
     public X509BabelTrustManager() {
-        this(null, null);
     }
 
-    public X509BabelTrustManager(KeyStore trustStore, ProtectionParameter protParam) {
+    public X509BabelTrustManager(KeyStore trustStore, ProtectionParameter protParam) throws KeyStoreException {
         this(trustStore, protParam, new BabelCredentialHandler());
     }
 
-    public X509BabelTrustManager(KeyStore trustStore, ProtectionParameter protParam, IdFromCertExtractor idExtractor) {
+    public X509BabelTrustManager(KeyStore trustStore, ProtectionParameter protParam, IdFromCertExtractor idExtractor) throws KeyStoreException {
+        trustStore.size(); // Trigger KeyStoreException early if keyStore was not initialized.
+
         this.trustStore = trustStore;
         this.protParam = protParam;
         this.idExtractor = idExtractor;

@@ -1,7 +1,7 @@
 package pt.unl.fct.di.novasys.babel.core;
 
 import pt.unl.fct.di.novasys.babel.core.security.IdentityCrypt;
-import pt.unl.fct.di.novasys.babel.core.security.IdPair;
+import pt.unl.fct.di.novasys.babel.core.security.IdentityPair;
 import pt.unl.fct.di.novasys.babel.core.security.SecretCrypt;
 import pt.unl.fct.di.novasys.babel.core.security.SecureProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
@@ -98,7 +98,7 @@ public abstract class GenericProtocol {
 
     public static final Babel babel = Babel.getInstance();
 
-    private IdPair defaultId;
+    private IdentityPair defaultId;
     private String defaultSecretKeyAlias;
 
     public static final BabelSecurity babelSecurity = BabelSecurity.getInstance();
@@ -1238,11 +1238,11 @@ public abstract class GenericProtocol {
     }
 
     // Gets all Babel + this Protocol ids
-    protected final Set<IdPair> getAllIds() {
+    protected final Set<IdentityPair> getAllIds() {
         throw new UnsupportedOperationException("TODO");
     }
 
-    protected final Set<IdPair> getAllProtocolIds() {
+    protected final Set<IdentityPair> getAllProtocolIds() {
         throw new UnsupportedOperationException("TODO");
     }
 

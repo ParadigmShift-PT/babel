@@ -1,34 +1,41 @@
 package pt.unl.fct.di.novasys.babel.core;
 
-import java.security.AlgorithmParameters;
 import java.security.InvalidKeyException;
 import java.security.KeyStore;
 import java.security.KeyStore.PrivateKeyEntry;
 import java.security.KeyStore.ProtectionParameter;
-import java.security.KeyStore.SecretKeyEntry;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.UnrecoverableEntryException;
 import java.security.cert.CertificateException;
+import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Properties;
+import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 
+import org.apache.commons.lang3.Functions;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.internal.asn1.cms.GCMParameters;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 import pt.unl.fct.di.novasys.babel.core.security.CredentialGenerator;
 import pt.unl.fct.di.novasys.babel.core.security.IdentityCrypt;
 import pt.unl.fct.di.novasys.babel.core.security.SecretCrypt;
 import pt.unl.fct.di.novasys.babel.core.security.IdFromCertExtractor;
+import pt.unl.fct.di.novasys.babel.core.security.IdentityPair;
 import pt.unl.fct.di.novasys.babel.internal.security.IdAliasMapper;
 import pt.unl.fct.di.novasys.babel.internal.security.PeerIdEncoder;
 import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
@@ -176,62 +183,174 @@ public class BabelSecurity {
         return keyRng;
     }
 
-    /* ---------- Identities ---------- */
+    /* ----------------- Identities ----------------- */
 
     // ------ Public methods
 
-    public void storeCredential(boolean peristToDisk, String alias, byte[] id, PrivateKeyEntry entry) {
-        KeyStore keyStore;
-        ProtectionParameter protection;
-        if (peristToDisk) {
-            keyStore = getKeyStore();
-            protection = this.keyStoreProtection;
-        } else {
-            keyStore = getEphKeyStore();
-            protection = EMPTY_PWD;
-        }
-        idAliasMapper.put(alias, id);
+    public void storeIdentity(boolean peristToDisk, String alias, byte[] id, PrivateKeyEntry entry) {
         try {
+            var chosenPair = chooseKeyStore(__ -> peristToDisk);
+            KeyStore keyStore = chosenPair.getLeft();
+            ProtectionParameter protection = chosenPair.getRight();
+            idAliasMapper.put(alias, id);
             keyStore.setEntry(alias, entry, protection);
         } catch (KeyStoreException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public IdentityCrypt generateId(boolean peristToDisk) {
-        return generateId(peristToDisk, null);
+    public Pair<PrivateKeyEntry, String> deleteIdentity(byte[] identity) throws UnrecoverableEntryException {
+        String alias = idAliasMapper.getAlias(identity);
+
+        var result = deleteIdentity(alias);
+        assert Arrays.equals(result.getRight(), identity);
+
+        return Pair.of(result.getLeft(), alias);
     }
 
-    public IdentityCrypt generateId(boolean peristToDisk, String alias) {
+    public Pair<PrivateKeyEntry, byte[]> deleteIdentity(String alias) throws UnrecoverableEntryException {
+        try {
+            var chosenPair = chooseKeyStore(store -> store.containsAlias(alias));
+            KeyStore keyStore = chosenPair.getLeft();
+            ProtectionParameter protection = chosenPair.getRight();
+            try {
+                KeyStore.Entry entry = keyStore.getEntry(alias, protection);
+                if (entry instanceof PrivateKeyEntry deleted) {
+                    keyStore.deleteEntry(alias);
+
+                    byte[] removedId = idAliasMapper.removeAlias(alias);
+                    return Pair.of(deleted, removedId);
+                } else {
+                    return null;
+                }
+            } catch (NoSuchAlgorithmException e) {
+                // Delete anyways
+                keyStore.deleteEntry(alias);
+                byte[] removedId = idAliasMapper.removeAlias(alias);
+                return Pair.of(null, removedId);
+            }
+        } catch (KeyStoreException e) {
+            throw new AssertionError(e); // Shouldn't happen
+        }
+    }
+
+    public IdentityCrypt generateIdentity(boolean peristToDisk) {
+        return generateIdentity(peristToDisk, null);
+    }
+
+    public IdentityCrypt generateIdWithAliasPrefix(boolean peristToDisk, String aliasPrefix) {
         var keyEntry = credentialGenerator.generateRandomCredentials();
         byte[] id;
         try {
-            id = idFromCertExtractor.extractId(keyEntry.getCertificate());
+            id = idFromCertExtractor.extractIdentity(keyEntry.getCertificate());
         } catch (CertificateException e) {
             throw new RuntimeException(e); // Shouldn't happen
         }
-        alias = alias == null ? PeerIdEncoder.encodeToString(id) : alias;
-        storeCredential(peristToDisk, alias, id, keyEntry);
+        String alias = aliasPrefix + "." + PeerIdEncoder.encodeToString(id);
+        storeIdentity(peristToDisk, alias, id, keyEntry);
         try {
-            return getIdCrypt(alias, id, keyEntry);
+            return getIdentityCrypt(alias, id, keyEntry);
         } catch (NoSuchAlgorithmException e) {
             logger.error("Coludn't create IdentityCrypt from newly generated id: " + e);
             return null;
         }
     }
 
-    // TODO more...
+    public IdentityCrypt generateIdentity(boolean peristToDisk, String alias) {
+        var keyEntry = credentialGenerator.generateRandomCredentials();
+        byte[] id;
+        try {
+            id = idFromCertExtractor.extractIdentity(keyEntry.getCertificate());
+        } catch (CertificateException e) {
+            throw new RuntimeException(e); // Shouldn't happen
+        }
+        alias = alias == null ? PeerIdEncoder.encodeToString(id) : alias;
+        storeIdentity(peristToDisk, alias, id, keyEntry);
+        try {
+            return getIdentityCrypt(alias, id, keyEntry);
+        } catch (NoSuchAlgorithmException e) {
+            logger.error("Coludn't create IdentityCrypt from newly generated id: " + e);
+            return null;
+        }
+    }
+
+    public IdentityCrypt getIdentityCrypt(String alias)
+            throws NoSuchAlgorithmException, UnrecoverableEntryException {
+        byte[] id = idAliasMapper.getId(alias);
+        return id == null ? null : getIdentityCrypt(alias, id);
+    }
+
+    public IdentityCrypt getIdentityCrypt(byte[] identity)
+            throws NoSuchAlgorithmException, UnrecoverableEntryException {
+        String alias = idAliasMapper.getAlias(identity);
+        return alias == null ? null : getIdentityCrypt(alias, identity);
+    }
+
+    public Set<IdentityPair> getAllIdentities() {
+        try {
+            Set<IdentityPair> ids = new HashSet<>(keyStore.size() + ephKeyStore.size());
+            keyStore.aliases().asIterator()
+                    .forEachRemaining(alias -> ids.add(new IdentityPair(alias, idAliasMapper.getId(alias))));
+            ephKeyStore.aliases().asIterator()
+                    .forEachRemaining(alias -> ids.add(new IdentityPair(alias, idAliasMapper.getId(alias))));
+            return ids;
+        } catch (KeyStoreException e) {
+            throw new AssertionError(e); // Shouldn't happen
+        }
+    }
+
+    public Set<IdentityPair> getAllIdentitiesWithPrefix(String aliasPrefix) {
+        try {
+            Set<IdentityPair> ids = new HashSet<>(keyStore.size() + ephKeyStore.size());
+
+            for (var enumeration : List.of(keyStore.aliases(), ephKeyStore.aliases())) {
+                while (enumeration.hasMoreElements()) {
+                    String alias = enumeration.nextElement();
+                    if (alias.startsWith(aliasPrefix + "."))
+                        ids.add(new IdentityPair(alias, idAliasMapper.getId(alias)));
+                }
+            }
+            return ids;
+        } catch (KeyStoreException e) {
+            throw new AssertionError(e); // Shouldn't happen
+        }
+    }
+
+    // TODO more...?
 
     // ----- Auxiliary methods
 
-    private IdentityCrypt getIdCrypt(String alias, byte[] id, PrivateKeyEntry entry) throws NoSuchAlgorithmException {
+    private IdentityCrypt getIdentityCrypt(String alias, byte[] id)
+            throws NoSuchAlgorithmException, UnrecoverableEntryException {
+        return getIdentityCrypt(alias, id, (String) null);
+    }
+
+    private IdentityCrypt getIdentityCrypt(String alias, byte[] id, String sigHashOrAlg)
+            throws NoSuchAlgorithmException, UnrecoverableEntryException {
+        try {
+            var chosenPair = chooseKeyStore(store -> store.containsAlias(alias));
+            KeyStore.Entry entry = chosenPair.getLeft().getEntry(alias, chosenPair.getRight());
+            if (entry instanceof PrivateKeyEntry pkEntry) {
+                return sigHashOrAlg == null
+                        ? getIdentityCrypt(alias, id, pkEntry)
+                        : getIdentityCrypt(alias, id, pkEntry, sigHashOrAlg);
+            } else {
+                return null;
+            }
+        } catch (KeyStoreException e) {
+            throw new AssertionError(e); // Shouldn't happen
+        }
+    }
+
+    private IdentityCrypt getIdentityCrypt(String alias, byte[] id, PrivateKeyEntry entry)
+            throws NoSuchAlgorithmException {
         String sigAlg = hashAlgorithm;
         if (entry.getPrivateKey().getAlgorithm().equals("EdDSA"))
             sigAlg = "EdDSA";
-        return getIdCrypt(alias, id, entry, sigAlg);
+        return getIdentityCrypt(alias, id, entry, sigAlg);
     }
 
-    private IdentityCrypt getIdCrypt(String alias, byte[] id, PrivateKeyEntry entry, String sigHashOrAlg)
+    private IdentityCrypt getIdentityCrypt(String alias, byte[] id, PrivateKeyEntry entry, String sigHashOrAlg)
             throws NoSuchAlgorithmException {
         var privKey = entry.getPrivateKey();
         var pubKey = entry.getCertificate().getPublicKey();
@@ -239,7 +358,20 @@ public class BabelSecurity {
         return new IdentityCrypt(alias, id, privKey, pubKey, certChain, sigHashOrAlg);
     }
 
-    /* ---------- Secrets ---------- */
+    private Pair<KeyStore, ProtectionParameter> chooseKeyStore(KeyStorePredicate shouldBePersistent)
+            throws KeyStoreException {
+        KeyStore persistent = getKeyStore();
+        return shouldBePersistent.test(persistent)
+                ? Pair.of(persistent, keyStoreProtection)
+                : Pair.of(getEphKeyStore(), EMPTY_PWD);
+    }
+
+    @FunctionalInterface
+    private interface KeyStorePredicate {
+        boolean test(KeyStore keyStore) throws KeyStoreException;
+    }
+
+    /* ------------------- Secrets ------------------- */
 
     // ------ Public methods
     // TODO...

@@ -317,7 +317,7 @@ public class SecurityConfiguration {
     private void putGeneratedId(KeyStore store, ProtectionParameter protParam)
             throws CertificateException, KeyStoreException {
         PrivateKeyEntry entry = credentialGenerator.generateRandomCredentials();
-        byte[] id = idFromCertExtractor.extractId(entry.getCertificate());
+        byte[] id = idFromCertExtractor.extractIdentity(entry.getCertificate());
         String alias = PeerIdEncoder.encodeToString(id);
 
         logger.debug("Generated id " + alias);

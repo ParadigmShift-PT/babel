@@ -28,7 +28,7 @@ public class BabelCredentialHandler implements SimpleCredentialGenerator, IdFrom
     }
 
     @Override
-    public byte[] extractId(Certificate certificate) throws CertificateException {
+    public byte[] extractIdentity(Certificate certificate) throws CertificateException {
         if (certificate instanceof X509Certificate cert) {
 
             PublicKey pubKey = cert.getPublicKey();

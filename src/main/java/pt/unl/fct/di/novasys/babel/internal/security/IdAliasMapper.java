@@ -45,7 +45,7 @@ public class IdAliasMapper {
                 String alias = it.next();
                 KeyStore.Entry entry = keyStore.getEntry(alias, protParam);
                 if (entry instanceof PrivateKeyEntry privEntry) {
-                    byte[] id = idExtractor.extractId(privEntry.getCertificateChain()[0]);
+                    byte[] id = idExtractor.extractIdentity(privEntry.getCertificateChain()[0]);
                     this.put(alias, id);
                     if (this.defaultAlias == null)
                         this.setDefaultAlias(alias);

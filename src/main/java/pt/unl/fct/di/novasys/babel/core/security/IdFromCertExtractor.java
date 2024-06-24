@@ -6,5 +6,5 @@ import java.security.cert.CertificateException;
 // TODO documentation
 @FunctionalInterface
 public interface IdFromCertExtractor {
-    byte[] extractId(Certificate certificate) throws CertificateException;
+    byte[] extractIdentity(Certificate certificate) throws CertificateException;
 }

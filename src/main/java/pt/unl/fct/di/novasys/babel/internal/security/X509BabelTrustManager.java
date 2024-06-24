@@ -82,7 +82,7 @@ public class X509BabelTrustManager extends X509ITrustManager {
 
     @Override
     public byte[] extractIdFromCertificate(X509Certificate certificate) throws CertificateException {
-        return idExtractor.extractId(certificate);
+        return idExtractor.extractIdentity(certificate);
     }
 
     @Override

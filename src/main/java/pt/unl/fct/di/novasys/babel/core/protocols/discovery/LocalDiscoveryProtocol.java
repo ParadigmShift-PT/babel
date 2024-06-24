@@ -87,19 +87,14 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
         return address;
     }
 
-    protected InetSocketAddress addInetSocketAddres(InetAddress address, int port) {
+    protected InetSocketAddress addInetSocketAddress(InetAddress address, int port) {
         var socketAddress = new InetSocketAddress(address, port);
         socketAddresses.add(socketAddress);
         return socketAddress;
     }
 
-    protected InetSocketAddress addInetSocketAddres(String address, int port) {
-        InetSocketAddress socketAddress;
-		try {
-			socketAddress = new InetSocketAddress(InetAddress.getByName(address), port);
-		} catch (UnknownHostException e) {
-			socketAddress = new InetSocketAddress(address, port);
-		}
+    protected InetSocketAddress addInetSocketAddress(String address, int port) {
+        var socketAddress = new InetSocketAddress(address, port);
         socketAddresses.add(socketAddress);
         return socketAddress;
     }

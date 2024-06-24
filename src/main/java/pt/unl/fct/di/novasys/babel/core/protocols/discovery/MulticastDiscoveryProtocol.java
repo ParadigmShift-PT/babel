@@ -59,7 +59,7 @@ public class MulticastDiscoveryProtocol extends LocalDiscoveryProtocol {
 			targetPort = Integer.parseInt(props.getProperty(PAR_DISCOVERY_MULTICAST_PORT));
 		}
 
-		multicastSocketAddress = addInetSocketAddres(props.getProperty(PAR_DISCOVERY_MULTICAST_ADDRESS, MULTICAST_ADDRESS), targetPort);
+		multicastSocketAddress = addInetSocketAddress(props.getProperty(PAR_DISCOVERY_MULTICAST_ADDRESS, MULTICAST_ADDRESS), targetPort);
 
 		NetworkInterface networkInterface;
 		if (!props.containsKey(PAR_DISCOVERY_MULTICAST_INTERFACE)) {

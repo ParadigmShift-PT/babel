@@ -64,7 +64,7 @@ public class BroadcastDiscoveryProtocol extends LocalDiscoveryProtocol {
 		for (NetworkInterface n : broadcastInterfaces) {
 			for (InterfaceAddress a : n.getInterfaceAddresses()) {
 				if (a.getBroadcast() instanceof Inet4Address) {
-					addInetSocketAddres(a.getBroadcast(), bcastPort);
+					addInetSocketAddress(a.getBroadcast(), bcastPort);
 				}
 			}
 		}

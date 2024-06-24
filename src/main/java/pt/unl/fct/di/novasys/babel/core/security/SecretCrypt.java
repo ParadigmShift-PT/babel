@@ -188,9 +188,9 @@ public class SecretCrypt {
     }
 
     /**
-     * @param See the Cipher section in the <a href=
-     *            "https://docs.oracle.com/en/java/javase/21/docs/specs/security/standard-names.html#cipher-algorithms">
-     *            Java Security Standard Algorithm Names Specification</a>
+     * @see <a href=
+     *      "https://docs.oracle.com/en/java/javase/21/docs/specs/security/standard-names.html#cipher-algorithms">
+     *      Java Security Standard Algorithm Names Specification</a>
      * @throws NoSuchPaddingException
      * @throws BadPaddingException
      * @throws IllegalBlockSizeException
@@ -285,9 +285,9 @@ public class SecretCrypt {
     }
 
     /**
-     * @param See the Cipher section in the <a href=
-     *            "https://docs.oracle.com/en/java/javase/21/docs/specs/security/standard-names.html#cipher-algorithms">
-     *            Java Security Standard Algorithm Names Specification</a>
+     * @see <a href=
+     *      "https://docs.oracle.com/en/java/javase/21/docs/specs/security/standard-names.html#cipher-algorithms">
+     *      Java Security Standard Algorithm Names Specification</a>
      * @throws InvalidAlgorithmParameterException
      * @throws IllegalBlockSizeException
      */

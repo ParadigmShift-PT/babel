@@ -4,7 +4,6 @@ import pt.unl.fct.di.novasys.babel.core.security.IdentityCrypt;
 import pt.unl.fct.di.novasys.babel.core.security.IdentityPair;
 import pt.unl.fct.di.novasys.babel.core.security.SecretCrypt;
 import pt.unl.fct.di.novasys.babel.core.security.SecureProtocol;
-import pt.unl.fct.di.novasys.babel.core.security.exceptions.NoSuchIdentityException;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.handlers.*;
@@ -31,8 +30,10 @@ import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.Signature;
 import java.security.UnrecoverableEntryException;
+import java.security.KeyStore.SecretKeyEntry;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
@@ -700,29 +701,29 @@ public abstract class GenericProtocol {
      *
      * @param channelName  the name of the channel
      * @param props        channel-specific properties. See the documentation for each channel.
-     * @param id           the single identity to be used during communication.
+     * @param identity     the single identity to be used during communication.
      *
      * @return the id of the newly created channel
      * @throws UnsupportedOperationException if this protocol doesn't have the {@link SecureProtocol} annotation.
      * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
      */
-    protected final int createSecureChannel(String channelName, Properties props, byte[] id) throws IOException {
-        return createSecureChannel(channelName, props, getIdAlias(id));
+    protected final int createSecureChannel(String channelName, Properties props, byte[] identity) throws IOException {
+        return createSecureChannel(channelName, props, babelSecurity.getIdentityAlias(identity));
     }
 
     /**
      * Creates a new secure channel that will only use the identity specified by the given alias.
      *
-     * @param channelName  the name of the channel
-     * @param props        channel-specific properties. See the documentation for each channel.
-     * @param idAlias      the alias of the single identity to be used during communication.
+     * @param channelName   the name of the channel
+     * @param props         channel-specific properties. See the documentation for each channel.
+     * @param identityAlias the alias of the single identity to be used during communication.
      *
      * @return the id of the newly created channel
      * @throws UnsupportedOperationException if this protocol doesn't have the {@link SecureProtocol} annotation.
      * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
      */
-    protected final int createSecureChannel(String channelName, Properties props, String idAlias) throws IOException {
-        int channelId = babel.createSecureChannel(channelName, this.protoId, props, idAlias);
+    protected final int createSecureChannel(String channelName, Properties props, String identityAlias) throws IOException {
+        int channelId = babel.createSecureChannel(channelName, this.protoId, props, identityAlias);
         registerSharedChannel(channelId);
         return channelId;
     }
@@ -1224,22 +1225,25 @@ public abstract class GenericProtocol {
         return id;
     }
 
-    protected final IdentityCrypt setDefaultProtoIdentity(String alias) throws NoSuchIdentityException {
+    protected final IdentityCrypt setDefaultProtoIdentity(String alias) throws NoSuchElementException {
         try {
-            defaultIdentity = babelSecurity.getIdentityCrypt(alias);
+            var identityCrypt = babelSecurity.getIdentityCrypt(alias);
+            if (identityCrypt == null)
+                throw new NoSuchElementException("Couldn't get retreive identity with alias " + alias);
             return defaultIdentity;
         } catch (NoSuchAlgorithmException | UnrecoverableEntryException e) {
-            throw new NoSuchIdentityException(
-                    "Couldn't retreive identity with alias " + alias, e);
+            throw new NoSuchElementException("Couldn't get retreive identity with alias " + alias, e);
         }
     }
 
-    protected final IdentityCrypt setDefaultProtoIdentity(byte[] id) throws NoSuchIdentityException {
+    protected final IdentityCrypt setDefaultProtoIdentity(byte[] id) throws NoSuchElementException {
         try {
-            defaultIdentity = babelSecurity.getIdentityCrypt(id);
+            var identityCrypt = babelSecurity.getIdentityCrypt(id);
+            if (identityCrypt == null)
+                throw new NoSuchElementException("Couldn't get retreive identity with id " + PeerIdEncoder.encodeToString(id));
             return defaultIdentity;
         } catch (NoSuchAlgorithmException | UnrecoverableEntryException e) {
-            throw new NoSuchIdentityException(
+            throw new NoSuchElementException(
                     "Couldn't get retreive identity with id " + PeerIdEncoder.encodeToString(id), e);
         }
     }
@@ -1294,28 +1298,21 @@ public abstract class GenericProtocol {
         return secret;
     }
 
-    protected final IdentityCrypt setDefaultProtoSecret(String alias) throws NoSuchIdentityException {
+    protected final SecretCrypt setDefaultProtoSecret(String alias) throws NoSuchElementException {
         try {
-            defaultSecret = babelSecurity.getSecret(alias);
-            return defaultIdentity;
+            var secret = babelSecurity.getSecretCrypt(alias);
+            if (secret == null)
+                throw new NoSuchElementException("Couldn't retreive secret with alias " + alias);
+            defaultSecret = secret;
+            return defaultSecret;
         } catch (NoSuchAlgorithmException | UnrecoverableEntryException e) {
-            throw new NoSuchIdentityException(
-                    "Couldn't retreive identity with alias " + alias, e);
+            throw new NoSuchElementException(
+                    "Couldn't retreive secret with alias " + alias, e);
         }
     }
 
-    protected final IdentityCrypt setDefaultProtoIdentity(byte[] id) throws NoSuchIdentityException {
-        try {
-            defaultIdentity = babelSecurity.getIdentityCrypt(id);
-            return defaultIdentity;
-        } catch (NoSuchAlgorithmException | UnrecoverableEntryException e) {
-            throw new NoSuchIdentityException(
-                    "Couldn't get retreive identity with id " + PeerIdEncoder.encodeToString(id), e);
-        }
-    }
-
-    protected final IdentityCrypt getDefaultProtoIdentity() {
-        return defaultIdentity;
+    protected final SecretCrypt getDefaultProtoSecret() {
+        return defaultSecret;
     }
 
     // --------------------------------- DELIVERERS FROM BABEL ------------------------------------

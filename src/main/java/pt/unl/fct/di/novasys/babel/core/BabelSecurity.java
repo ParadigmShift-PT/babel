@@ -3,7 +3,6 @@ package pt.unl.fct.di.novasys.babel.core;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.security.InvalidKeyException;
 import java.security.KeyStore;
 import java.security.KeyStore.CallbackHandlerProtection;

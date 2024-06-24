@@ -425,7 +425,8 @@ public class Babel {
         BabelMessageSerializer serializer = new BabelMessageSerializer(new ConcurrentHashMap<>());
         SecureChannelToProtoForwarder forwarder = new SecureChannelToProtoForwarder(channelId);
 
-        var keyManager = idAlias != null ? security.getSingleKeyManager(idAlias) : security.getKeyManager();
+        var keyManager = idAlias != null ? security.getKeyManager().singleKeyManager(idAlias)
+                                         : security.getKeyManager();
         var trustManager = security.getTrustManager();
         SecureIChannel<BabelMessage> newChannel = initializer.initialize(serializer, forwarder,
                                                       keyManager, trustManager, props, protoId);

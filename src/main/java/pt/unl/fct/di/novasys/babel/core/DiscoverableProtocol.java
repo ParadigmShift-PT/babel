@@ -72,6 +72,13 @@ public abstract class DiscoverableProtocol extends GenericProtocol {
      */
     public abstract void addContact(Host host);
 
+    /**
+     * Gets any contact that this protocol has
+     * 
+     * @return a host representing the contact
+     */
+    public abstract Host getContact();
+
     protected final void setMyself(Host h) {
         this.myself = h;
     }

@@ -60,7 +60,7 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
     protected final Map<String, Map<String, Parameter>> protocolToParameterConfigured;
     protected final Map<String, SelfConfigurableProtocol> protocolMap;
     protected final Map<Host, ParameterMessage> msgToSend;
-    protected final Map<String, Set<Host>> whisperers;
+    protected final Set<Host> whisperers;
 
     private Host myself;
 
@@ -74,7 +74,7 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
         protocolToParameterConfigured = new ConcurrentHashMap<>();
         protocolMap = new ConcurrentHashMap<>();
         msgToSend = new HashMap<>();
-        whisperers = new ConcurrentHashMap<>();
+        whisperers = ConcurrentHashMap.newKeySet();
     }
 
     @Override
@@ -122,7 +122,11 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
     public void addProtocolParameterToConfigure(String parameterName, Method setter, Method getter,
             SelfConfigurableProtocol proto) {
         if (protocolToParameterToConfigure.isEmpty()) {
-            babel.askRunningDiscovery(this, myself, true);
+            if (!babel.askRunningDiscovery(this, myself, true)) {
+                var whisperCandidate = proto.getMyself();
+                if (whisperCandidate != null)
+                    whisperers.add(new Host(proto.getContact().getAddress(), Integer.valueOf(DEFAULT_PORT)));
+            }
             setupTimer(new SearchTimer(), SEARCH_COOLDOWN);
         }
         Parameter parameter = new Parameter(getter, setter, proto, parameterName);
@@ -157,14 +161,13 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
     public void search(SearchTimer timer, long timerId) {
         logger.info("Trying to search");
         for (var protoEntry : protocolToParameterToConfigure.entrySet()) {
-            Set<Host> protoHost = whisperers.get("*");
             synchronized (msgToSend) {
-                for (var host : protoHost) {
+                for (var host : whisperers) {
                     ParameterMessage msg = msgToSend.get(host);
                     if (msg == null) {
                         msg = new ParameterMessage();
                         msgToSend.put(host, msg);
-                        logger.info("Opening connection to " + protoHost);
+                        logger.info("Opening connection to " + host);
                         openConnection(host, defaultChannelID);
                     }
                     for (var paramEntry : protoEntry.getValue().entrySet()) {
@@ -353,13 +356,7 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
     }
 
     private void uponFoundServiceReply(FoundServiceReply reply, short sourceProto) {
-        // TODO CREATE A MESSAGE TO ASK WHAT CONFIGS THE NEW GUY HAS
-        var serviceWhisperers = whisperers.get("*");
-        if (serviceWhisperers == null) {
-            serviceWhisperers = ConcurrentHashMap.newKeySet();
-            whisperers.put("*", serviceWhisperers);
-        }
-        serviceWhisperers.add(reply.getServiceHost());
+        whisperers.add(reply.getServiceHost());
     }
 
     public Host getMyself() {

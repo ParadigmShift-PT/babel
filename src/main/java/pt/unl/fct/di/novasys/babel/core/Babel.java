@@ -210,7 +210,15 @@ public class Babel {
 		}
 	}
 
-	public void askRunningDiscovery(GenericProtocol proto, Host myself, boolean listen) {
+	/**
+	 * Asks all the running discoveries for a contact for proto
+	 * 
+	 * @param proto the protocol to receive the contact
+	 * @param myself host representing the protocol
+	 * @param listen if it should listen or just register
+	 * @return true if a discovery protocol is running
+	 */
+	public boolean askRunningDiscovery(GenericProtocol proto, Host myself, boolean listen) {
 		for (var discovery : discoveries) {
 			if (discovery.hasProtocolThreadStarted())
 				proto.sendRequest(new RequestDiscovery(proto.getProtoName(), myself, proto.getProtoName(), listen),
@@ -220,6 +228,7 @@ public class Babel {
 						new RequestDiscovery(proto.getProtoName(), myself, proto.getProtoName(), listen),
 						proto.getProtoId());
 		}
+		return !discoveries.isEmpty();
 	}
 
 	/**

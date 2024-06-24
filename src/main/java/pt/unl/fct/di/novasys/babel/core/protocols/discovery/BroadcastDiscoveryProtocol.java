@@ -2,11 +2,11 @@ package pt.unl.fct.di.novasys.babel.core.protocols.discovery;
 
 import java.io.IOException;
 import java.net.DatagramSocket;
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InterfaceAddress;
 import java.net.NetworkInterface;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Properties;
 import java.util.Set;
 
@@ -32,7 +32,6 @@ public class BroadcastDiscoveryProtocol extends LocalDiscoveryProtocol {
 
 	private int bcastPort;
 	private Thread listeningThread;
-	private Set<InetAddress> broadcastAddresses;
 
 	public BroadcastDiscoveryProtocol() throws IOException, HandlerRegistrationException {
 		super(PROTO_NAME, PROTO_ID);
@@ -51,9 +50,9 @@ public class BroadcastDiscoveryProtocol extends LocalDiscoveryProtocol {
 		Set<NetworkInterface> broadcastInterfaces = new HashSet<NetworkInterface>();
 
 		if (!props.containsKey(PAR_DISCOVERY_BROADCAST_INTERFACE)) {
-			Iterator<NetworkInterface> iterator = NetworkInterface.networkInterfaces().distinct().iterator();
-			while (iterator.hasNext()) {
-				NetworkInterface n = iterator.next();
+			var iterator = NetworkInterface.getNetworkInterfaces();
+			while (iterator.hasMoreElements()) {
+				NetworkInterface n = iterator.nextElement();
 				if (!n.isLoopback() && !n.isVirtual() && n.isUp()) {
 					broadcastInterfaces.add(n);
 				}
@@ -62,11 +61,15 @@ public class BroadcastDiscoveryProtocol extends LocalDiscoveryProtocol {
 			broadcastInterfaces.add(NetworkInterface.getByName(props.getProperty(PAR_DISCOVERY_BROADCAST_INTERFACE)));
 		}
 
-		for (NetworkInterface n : broadcastInterfaces)
-			for (InterfaceAddress a : n.getInterfaceAddresses())
-				addInetSocketAddres(a.getBroadcast(), bcastPort);
+		for (NetworkInterface n : broadcastInterfaces) {
+			for (InterfaceAddress a : n.getInterfaceAddresses()) {
+				if (a.getBroadcast() instanceof Inet4Address) {
+					addInetSocketAddres(a.getBroadcast(), bcastPort);
+				}
+			}
+		}
 
-		if (this.broadcastAddresses.size() == 0)
+		if (!this.hasSocketAddresses())
 			throw new RuntimeException("No available broadcast address in network interface");
 
 		InetAddress address = getAddressForSocket(props);

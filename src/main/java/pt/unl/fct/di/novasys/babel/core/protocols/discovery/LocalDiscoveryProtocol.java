@@ -13,8 +13,8 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -63,28 +63,23 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
         if (props.containsKey(PAR_DISCOVERY_UNICAST_ADDRESS)) {
             address = InetAddress.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_ADDRESS));
         } else if (props.containsKey(PAR_DISCOVERY_UNICAST_INTERFACE)) {
-            List<InterfaceAddress> l = NetworkInterface.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_INTERFACE))
-                    .getInterfaceAddresses();
-            for (InterfaceAddress a : l) {
+            var l = NetworkInterface.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_INTERFACE))
+                    .getInterfaceAddresses().iterator();
+            while (l.hasNext() && address == null) {
+                var a = l.next();
                 if (a.getAddress() != null && a.getAddress() instanceof Inet4Address) {
                     address = a.getAddress();
-                    break;
                 }
-                if (address != null)
-                    break;
             }
         } else {
-            Iterator<NetworkInterface> iterator = NetworkInterface.networkInterfaces().distinct().iterator();
-            while (iterator.hasNext()) {
-                NetworkInterface n = iterator.next();
+            Enumeration<NetworkInterface> iterator = NetworkInterface.getNetworkInterfaces();
+            while (iterator.hasMoreElements() && address == null) {
+                NetworkInterface n = iterator.nextElement();
                 if (!n.isLoopback() && !n.isVirtual() && n.isUp() && !n.isPointToPoint()) {
                     for (InterfaceAddress a : n.getInterfaceAddresses()) {
                         if (a.getAddress() != null && a.getAddress() instanceof Inet4Address)
                             address = a.getAddress();
-                        break;
                     }
-                    if (address != null)
-                        break;
                 }
             }
         }
@@ -271,6 +266,10 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                 e.printStackTrace();
             }
         }
+    }
+
+    protected boolean hasSocketAddresses() {
+        return !socketAddresses.isEmpty();
     }
 
     public void uponRequestDiscovery(RequestDiscovery request, short sourceProtocol) {

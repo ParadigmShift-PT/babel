@@ -213,7 +213,7 @@ public class Babel {
 	/**
 	 * Asks all the running discoveries for a contact for proto
 	 * 
-	 * @param proto the protocol to receive the contact
+	 * @param proto  the protocol to receive the contact
 	 * @param myself host representing the protocol
 	 * @param listen if it should listen or just register
 	 * @return true if a discovery protocol is running
@@ -261,7 +261,8 @@ public class Babel {
 				Class<? extends SelfConfigurationProtocol> selfConfigurationClass = (Class<? extends SelfConfigurationProtocol>) Class
 						.forName(props.getProperty(PAR_SELF_CONFIGURATION_PROTOCOL));
 				this.selfConfiguration = selfConfigurationClass.getDeclaredConstructor().newInstance();
-			} catch (Exception e) {
+			} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | IllegalArgumentException
+					| InvocationTargetException | NoSuchMethodException e) {
 				e.printStackTrace();
 				logger.error("Unable to load SelfConfigurationProtocol: '"
 						+ props.getProperty(PAR_SELF_CONFIGURATION_PROTOCOL) + "'");
@@ -279,7 +280,8 @@ public class Babel {
 				Class<? extends DNSSelfConfigurationProtocol> dnsSelfConfigurationClass = (Class<? extends DNSSelfConfigurationProtocol>) Class
 						.forName(props.getProperty(PAR_DNS_CONFIGURATION_PROTOCOL));
 				this.dnsSelfConfiguration = dnsSelfConfigurationClass.getDeclaredConstructor().newInstance();
-			} catch (Exception e) {
+			} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | IllegalArgumentException
+					| InvocationTargetException | NoSuchMethodException e) {
 				e.printStackTrace();
 				logger.error("Unable to load DNSSelfConfigurationProtocol: '"
 						+ props.getProperty(PAR_DNS_CONFIGURATION_PROTOCOL) + "'");

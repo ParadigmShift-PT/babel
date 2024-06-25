@@ -1,6 +1,9 @@
 package pt.unl.fct.di.novasys.babel.internal;
 
+import java.util.Optional;
+
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
+import pt.unl.fct.di.novasys.babel.internal.security.PeerIdEncoder;
 import pt.unl.fct.di.novasys.network.data.Host;
 
 /**
@@ -13,16 +16,25 @@ public class MessageFailedEvent extends InternalEvent {
 
     private final BabelMessage msg;
     private final Host to;
-    private final int channelId;
+    private final Optional<byte[]> toId;
     private final Throwable cause;
+    private final int channelId;
 
     /**
      * Create a protocol message event with the provided numeric identifier
      */
     public MessageFailedEvent(BabelMessage msg, Host to, Throwable cause, int channelId) {
+        this(msg, to, null, cause, channelId);
+    }
+
+    /**
+     * Create a protocol message event with the provided numeric identifier
+     */
+    public MessageFailedEvent(BabelMessage msg, Host to, byte[] toId, Throwable cause, int channelId) {
         super(EventType.MESSAGE_FAILED_EVENT);
-        this.to = to;
         this.msg = msg;
+        this.to = to;
+        this.toId = Optional.ofNullable(toId);
         this.cause = cause;
         this.channelId = channelId;
     }
@@ -32,6 +44,7 @@ public class MessageFailedEvent extends InternalEvent {
         return "MessageFailedEvent{" +
                 "msg=" + msg +
                 ", to=" + to +
+                toId.map(id -> ", toId=" + PeerIdEncoder.encodeToString(id)).orElse("") +
                 ", cause=" + cause +
                 ", channelId=" + channelId +
                 '}';
@@ -39,6 +52,10 @@ public class MessageFailedEvent extends InternalEvent {
 
     public final Host getTo() {
         return to;
+    }
+
+    public final Optional<byte[]> getToId() {
+        return this.toId;
     }
 
     public int getChannelId() {

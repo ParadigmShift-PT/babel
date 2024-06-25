@@ -12,6 +12,7 @@ import java.security.KeyStore.PasswordProtection;
 import java.security.KeyStore.PrivateKeyEntry;
 import java.security.KeyStore.ProtectionParameter;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidKeySpecException;
 import java.security.KeyStoreException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -33,8 +34,11 @@ import java.util.function.Supplier;
 
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
 import javax.security.auth.callback.Callback;
 import javax.security.auth.callback.PasswordCallback;
 import javax.security.auth.callback.UnsupportedCallbackException;
@@ -126,6 +130,20 @@ public class BabelSecurity {
     private String secretKeyAlgorithm = "AES";
     private static final String PAR_SECRET_LEN = PREFIX + ".secretkey_length";
     private int secretKeyLength = 128;
+
+    /** Algorithm for password based key derivation function */
+    private static final String PAR_PBKDF_ALG = PREFIX + ".pbkdf.algorithm";
+    private String pbkdfAlgorithm = "PBKDF2WithHmacSHA256";
+    private static final String PAR_PBKDF_PWD = PREFIX + ".pbkdf.password";
+    private String pbkdfPassword = null;
+    /** Base64 encoded salt for the PBKDF */
+    private static final String PAR_PBKDF_SALT = PREFIX + ".pbkdf.salt";
+    // TODO change this? Unset this? How to do with this?
+    private byte[] pbkdfSalt = "Babel sa(u)lt defa(u)lt! You (or I?) should change this!!!".getBytes();
+    private static final String PAR_PBKDF_ITERATIONS = PREFIX + ".pbkdf.iterations";
+    private int pbkdfIterations = 131072; // TODO find the biggest number that's fast enough on an RPi
+    private static final String PAR_PBKDF_KEY_LEN = PREFIX + ".pbkdf.key_length";
+    private int pbkdfKeyLength = 256;
 
     // See https://docs.oracle.com/en/java/javase/21/docs/specs/security/standard-names.html
     public static final String PAR_HASH_ALG = PREFIX + ".hash_algorithm";
@@ -661,8 +679,22 @@ public class BabelSecurity {
 
     // TODO Make a way to facilitate secret agreement? Might be terrible
 
-    public SecretCrypt generateSecretFromPassword(boolean peristToDisk, String password) {
-        throw new UnsupportedOperationException("generateSecretFromPassword"); //TODO
+    public SecretCrypt generateSecretFromPasswordWithAliasPrefix(boolean peristToDisk, String aliasPrefix,
+                String password) {
+        return addSecretWithAliasPrefix(peristToDisk, aliasPrefix, applyPBKDF(password.toCharArray(), pbkdfSalt));
+    }
+
+    public SecretCrypt generateSecretFromPasswordWithAliasPrefix(boolean peristToDisk, String aliasPrefix,
+                String password, byte[] salt) {
+        return addSecretWithAliasPrefix(peristToDisk, aliasPrefix, applyPBKDF(password.toCharArray(), salt));
+    }
+
+    public SecretCrypt generateSecretFromPassword(boolean peristToDisk, String alias, String password) {
+        return addSecret(peristToDisk, alias, applyPBKDF(password.toCharArray(), pbkdfSalt));
+    }
+
+    public SecretCrypt generateSecretFromPassword(boolean peristToDisk, String alias, String password, byte[] salt) {
+        return addSecret(peristToDisk, alias, applyPBKDF(password.toCharArray(), salt));
     }
 
     public SecretCrypt generateSecret(boolean peristToDisk) {
@@ -767,6 +799,27 @@ public class BabelSecurity {
             return Base64.getEncoder().encodeToString(digest.digest());
         } catch (NoSuchAlgorithmException e) {
             throw new AssertionError(e); // Shouldn't happen
+        }
+    }
+
+    private SecretKey applyPBKDF(char[] password, byte[] salt) {
+        SecretKeyFactory fac;
+        try {
+            fac = SecretKeyFactory.getInstance(pbkdfAlgorithm, PROVIDER);
+        } catch (NoSuchAlgorithmException e1) {
+            try {
+                fac = SecretKeyFactory.getInstance(pbkdfAlgorithm);
+            } catch (NoSuchAlgorithmException e2) {
+                throw new AssertionError(e2); // Shouldn't happen
+            }
+        }
+
+        try {
+            SecretKey pbkdfKey = fac.generateSecret(
+                    new PBEKeySpec(password, salt, pbkdfIterations, pbkdfKeyLength));
+            return new SecretKeySpec(pbkdfKey.getEncoded(), secretKeyAlgorithm);
+        } catch (InvalidKeySpecException e) {
+            throw new AssertionError(e); // Shouldn't happen // TODO verify that it's valid when loading config 
         }
     }
 

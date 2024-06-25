@@ -15,7 +15,6 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import pt.unl.fct.di.novasys.babel.core.security.IdFromCertExtractor;
 import pt.unl.fct.di.novasys.babel.core.security.SimpleIdentityGenerator;
 
-// TODO probably should be merged with idfromcert extractor?
 public class BabelCredentialHandler implements SimpleIdentityGenerator, IdFromCertExtractor {
     private static final int DEFAULT_VALID_CERT_DAYS = 365;
 

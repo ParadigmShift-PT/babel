@@ -28,7 +28,6 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
@@ -85,8 +84,7 @@ public class BabelSecurity {
     private static final String PAR_KEY_STORE_TYPE = PREFIX + ".keystore.type";
     private String keyStoreType = "PKCS12";
     private static final String PAR_KEY_STORE_PATH = PREFIX + ".keystore.path";
-    private static final String DEF_KEY_STORE_PATH = "babelKeyStore.jks";
-    private String keyStoreLoadPath = null;
+    private String keyStoreLoadPath = "babelKeyStore.jks";
     /**
      * Can be a String (a path) or a boolean. If boolean and true, keyStoreWritePath
      * must be set to keyStoreLoadPath
@@ -97,8 +95,7 @@ public class BabelSecurity {
     private static final String PAR_KEY_STORE_PROTECTION = PREFIX + ".keystore.protection_handler";
     private ProtectionParameter keyStoreProtection = EMPTY_PWD;
     private static final String PAR_DEFAULT_ID = PREFIX + ".keystore.default_identity";
-    // TODO support KeyStore.LoadStorePrameter? (or at least
-    // DomainLoadStorePrameter?)
+    // TODO support LoadStorePrameter (or at least DomainLoadStorePrameter)?
 
     private static final String PAR_ID_EXTRACTOR = PREFIX + ".identity_extractor";
     private IdFromCertExtractor identityExtractor = new BabelCredentialHandler();
@@ -111,12 +108,10 @@ public class BabelSecurity {
     private static final String PAR_TRUST_STORE_PROTECTION = PREFIX + ".truststore.protection_handler";
     private ProtectionParameter trustStoreProtection = EMPTY_PWD;
     private static final String PAR_TRUST_STORE_PATH = PREFIX + ".truststore.path";
-    private static final String DEF_TRUST_STORE_PATH = "babelTrustStore.jks";
-    private String trustStoreLoadPath = null;
+    private String trustStoreLoadPath = "babelTrustStore.jks";
     /**
      * Can be a String (a path) or a boolean. If boolean and true,
-     * trustStoreWritePath
-     * must be set to trustStoreLoadPath
+     * trustStoreWritePath must be set to trustStoreLoadPath
      */
     private static final String PAR_TRUST_STORE_WRITABLE = PREFIX + ".truststore.writable";
     private String trustStoreWritePath = null;
@@ -137,8 +132,7 @@ public class BabelSecurity {
     private String secretStoreLoadPath = null;
     /**
      * Can be a String (a path) or a boolean. If boolean and true,
-     * secretStoreWritePath
-     * must be set to secretStoreLoadPath
+     * secretStoreWritePath must be set to secretStoreLoadPath
      */
     private static final String PAR_SECRET_STORE_WRITABLE = PREFIX + ".secretstore.writable";
     private String secretStoreWritePath = null;
@@ -150,6 +144,10 @@ public class BabelSecurity {
     /** Algorithm for password based key derivation function */
     private static final String PAR_PBKDF_ALG = PREFIX + ".pbkdf.algorithm";
     private String pbkdfAlgorithm = "PBKDF2WithHmacSHA256";
+    /**
+     * If set, a secret key from this password will be generated at startup and
+     * added to the ephemeral key manager.
+     */
     private static final String PAR_PBKDF_PWD = PREFIX + ".pbkdf.password";
     private String pbkdfPassword = null;
     /** Base64 encoded salt for the PBKDF */
@@ -193,12 +191,11 @@ public class BabelSecurity {
 
     // Lazy loaded fields
     private KeyStore keyStore;
-    private KeyStore ephKeyStore; // TODO make a keystore wrapper so both keystores can be used as one when needed
+    private KeyStore ephKeyStore;
     private X509IKeyManager keyManager;
 
     private KeyStore trustStore;
-    private KeyStore ephTrustStore; // TODO make a truststore wrapper so both keystores can be used as one when
-                                    // needed
+    private KeyStore ephTrustStore;
     private X509ITrustManager trustManager;
 
     private KeyStore secretStore;
@@ -629,13 +626,13 @@ public class BabelSecurity {
                 keyStore.store(new FileOutputStream(keyStoreWritePath),
                         getPassword(keyStoreProtection, keyStoreWritePath));
 
+        } catch (NoSuchAlgorithmException | CertificateException | IOException | UnsupportedCallbackException e) {
+            logger.error("Couldn't persist key store to {} after adding identity {}. Cause: {}",
+                    keyStoreWritePath, alias, e);
         } catch (KeyStoreException e) {
             // From KeyStore.setEntry():
             // "KeyStoreException if the keystore has not been initialized (loaded), or
             // if this operation fails for **some other reason**"...
-            throw new RuntimeException(e);
-        } catch (NoSuchAlgorithmException | CertificateException | IOException | UnsupportedCallbackException e) {
-            // TODO deal with these...
             throw new RuntimeException(e);
         }
     }
@@ -796,9 +793,10 @@ public class BabelSecurity {
             if (peristOnDisk && keyStoreWritePath != null)
                 store.store(new FileOutputStream(secretStoreWritePath),
                         getPassword(secretStoreProtection, secretStoreWritePath));
-        } catch (IOException | NoSuchAlgorithmException e) {
-            logger.error("Couldn't store newly added secret: " + e);
-        } catch (KeyStoreException | CertificateException | UnsupportedCallbackException e) {
+        } catch (IOException | NoSuchAlgorithmException | CertificateException | UnsupportedCallbackException e) {
+            logger.error("Couldn't persist secret store to {} after adding secret {}. Cause: {}",
+                    secretStoreWritePath, alias, e);
+        } catch (KeyStoreException e) {
             // From KeyStore.setEntry():
             // "KeyStoreException if the keystore has not been initialized (loaded), or
             // if this operation fails for **some other reason**"...
@@ -846,12 +844,6 @@ public class BabelSecurity {
         }
     }
 
-    private SecretCrypt getSecretCrypt(String alias, SecretKey key, String hashAlg, String cipherTransformation,
-            Supplier<AlgorithmParameterSpec> cipherParameterSupplier)
-            throws InvalidKeyException, NoSuchAlgorithmException {
-        return new SecretCrypt(alias, key, hashAlg, cipherTransformation, cipherParameterSupplier);
-    }
-
     private Pair<KeyStore, ProtectionParameter> chooseSecretStore(KeyStorePredicate shouldBePersistent)
             throws KeyStoreException {
         KeyStore persistent = getSecretStore();
@@ -893,11 +885,12 @@ public class BabelSecurity {
 
     /* ------------------- Config ------------------- */
 
-    // Called by Babel's loadConfig. I'm hoping these things get loaded before they
-    // get used...
+    /**
+     * Called by Babel's load config.
+     */
     void loadConfig(Properties config) {
         keyStoreType = config.getProperty(PAR_KEY_STORE_TYPE, keyStoreType);
-        keyStoreLoadPath = config.getProperty(PAR_KEY_STORE_PATH);
+        keyStoreLoadPath = config.getProperty(PAR_KEY_STORE_PATH, keyStoreLoadPath);
 
         String param = config.getProperty(PAR_KEY_STORE_WRITABLE);
         keyStoreWritePath = param == null || param.equals("false")

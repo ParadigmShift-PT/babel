@@ -20,7 +20,6 @@ import org.apache.logging.log4j.Logger;
 import pt.unl.fct.di.novasys.babel.core.security.IdFromCertExtractor;
 import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 
-// TODO make a Babel keystore generator program for BabelCommons?
 public class X509BabelKeyManager extends X509IKeyManager {
     private final static Logger logger = LogManager.getLogger(X509BabelKeyManager.class);
 

@@ -3,13 +3,11 @@ package pt.unl.fct.di.novasys.babel.core;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.nio.ByteBuffer;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
-import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.KeyStore.CallbackHandlerProtection;
-import java.security.KeyStore.Entry;
 import java.security.KeyStore.PasswordProtection;
 import java.security.KeyStore.PrivateKeyEntry;
 import java.security.KeyStore.ProtectionParameter;
@@ -18,8 +16,11 @@ import java.security.KeyStoreException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.Provider;
+import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.security.UnrecoverableEntryException;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
@@ -341,6 +342,77 @@ public class BabelSecurity {
         }
     }
 
+    /* ------- General cryptographic operations ------- */
+
+    public boolean verifySignature(byte[] signature, PublicKey publicKey, byte[]... data)
+            throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+        Signature sig = initVerifySignature(publicKey, data);
+        return sig.verify(signature);
+    }
+
+    public boolean verifySignature(byte[] signature, PublicKey publicKey, ByteBuffer data)
+            throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+        Signature sig = initVerifySignature(publicKey, data);
+        return sig.verify(signature);
+    }
+
+    public boolean verifySignature(String algorithm, byte[] signature, PublicKey publicKey, byte[]... data)
+            throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+        Signature sig = initVerifySignature(algorithm, publicKey, data);
+        return sig.verify(signature);
+    }
+
+    public boolean verifySignature(String algorithm, byte[] signature, PublicKey publicKey, ByteBuffer data)
+            throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+        Signature sig = initVerifySignature(algorithm, publicKey, data);
+        return sig.verify(signature);
+    }
+
+    public Signature initVerifySignature(PublicKey publicKey, byte[]... data)
+            throws NoSuchAlgorithmException, InvalidKeyException {
+        return initVerifySignature(getSignatureAlgorithmFor(publicKey.getAlgorithm()), publicKey, data);
+    }
+
+    public Signature initVerifySignature(PublicKey publicKey, ByteBuffer data)
+            throws NoSuchAlgorithmException, InvalidKeyException {
+        return initVerifySignature(getSignatureAlgorithmFor(publicKey.getAlgorithm()), publicKey, data);
+    }
+
+    public Signature initVerifySignature(String algorithm, PublicKey publicKey, byte[]... data)
+            throws NoSuchAlgorithmException, InvalidKeyException {
+        Signature sig;
+        try {
+            sig = Signature.getInstance(algorithm, PROVIDER);
+        } catch (NoSuchAlgorithmException e) {
+            sig = Signature.getInstance(algorithm);
+        }
+        sig.initVerify(publicKey);
+        try {
+            for (byte[] part : data)
+                sig.update(part);
+        } catch (SignatureException e) {
+            throw new AssertionError(e); // Shouldn't happen
+        }
+        return sig;
+    }
+
+    public Signature initVerifySignature(String algorithm, PublicKey publicKey, ByteBuffer data)
+            throws NoSuchAlgorithmException, InvalidKeyException {
+        Signature sig;
+        try {
+            sig = Signature.getInstance(algorithm, PROVIDER);
+        } catch (NoSuchAlgorithmException e) {
+            sig = Signature.getInstance(algorithm);
+        }
+        sig.initVerify(publicKey);
+        try {
+            sig.update(data);
+        } catch (SignatureException e) {
+            throw new AssertionError(e); // Shouldn't happen
+        }
+        return sig;
+    }
+
     /* ----------------- Identities ----------------- */
 
     // ------ Public methods
@@ -553,10 +625,7 @@ public class BabelSecurity {
 
     private IdentityCrypt getIdentityCrypt(String alias, byte[] id, PrivateKeyEntry entry)
             throws NoSuchAlgorithmException {
-        String sigAlg = hashAlgorithm;
-        if (entry.getPrivateKey().getAlgorithm().equals("EdDSA"))
-            sigAlg = "EdDSA";
-        return getIdentityCrypt(alias, id, entry, sigAlg);
+        return getIdentityCrypt(alias, id, entry, getSignatureAlgorithmFor(entry.getPrivateKey().getAlgorithm()));
     }
 
     private IdentityCrypt getIdentityCrypt(String alias, byte[] id, PrivateKeyEntry entry, String sigHashOrAlg)
@@ -565,6 +634,12 @@ public class BabelSecurity {
         var pubKey = entry.getCertificate().getPublicKey();
         var certChain = entry.getCertificateChain();
         return new IdentityCrypt(alias, id, privKey, pubKey, certChain, sigHashOrAlg);
+    }
+
+    private String getSignatureAlgorithmFor(String keyAlgorithm) {
+        if (keyAlgorithm.equals("EdDSA"))
+            return "EdDSA";
+        return hashAlgorithm + "with" + keyAlgorithm;
     }
 
     private Pair<KeyStore, ProtectionParameter> chooseKeyStore(KeyStorePredicate shouldBePersistent)

@@ -21,17 +21,9 @@ public class SecureChannelToProtoForwarder extends ChannelToProtoForwarder
         super(channelId);
     }
 
-    /**
-     * {@inheritDoc}
-     * @throws IllegalArgumentException if {@code consumer} is not a secure protocol.
-     */
     @Override
     public void addConsumer(short protoId, GenericProtocol consumer) {
-        if (consumer.isSecureProtocol())
-            super.addConsumer(protoId, consumer);
-        else
-            throw new IllegalArgumentException(
-                    "Tried to to add a non-secure protcol as a listener for a secure channel. Consider adding the @SecureProtocol annotation to your protocol.");
+        super.addConsumer(protoId, consumer);
     }
 
     @Override

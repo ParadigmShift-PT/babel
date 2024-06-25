@@ -3,7 +3,6 @@ package pt.unl.fct.di.novasys.babel.core;
 import pt.unl.fct.di.novasys.babel.core.security.IdentityCrypt;
 import pt.unl.fct.di.novasys.babel.core.security.IdentityPair;
 import pt.unl.fct.di.novasys.babel.core.security.SecretCrypt;
-import pt.unl.fct.di.novasys.babel.core.security.SecureProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.exceptions.NoSuchProtocolException;
 import pt.unl.fct.di.novasys.babel.handlers.*;
@@ -87,11 +86,13 @@ public abstract class GenericProtocol {
     private final Thread executionThread;
     private final String protoName;
     private final short protoId;
-    private final boolean isSecureProtocol;
 
     private boolean protocolThreadedStarted;
     
     private int defaultChannel;
+
+    private IdentityCrypt defaultIdentity;
+    private SecretCrypt defaultSecret;
 
     private final Map<Integer, ChannelHandlers> channels;
     private final Map<Short, TimerHandler<? extends ProtoTimer>> timerHandlers;
@@ -100,10 +101,6 @@ public abstract class GenericProtocol {
     private final Map<Short, NotificationHandler<? extends ProtoNotification>> notificationHandlers;
 
     public static final Babel babel = Babel.getInstance();
-
-    private IdentityCrypt defaultIdentity;
-    private SecretCrypt defaultSecret;
-
     public static final BabelSecurity babelSecurity = BabelSecurity.getInstance();
 
     //Debug
@@ -142,15 +139,6 @@ public abstract class GenericProtocol {
         this.notificationHandlers = new HashMap<>();
 
         //tmx.setThreadContentionMonitoringEnabled(true);
-
-        this.isSecureProtocol = this.getClass().isAnnotationPresent(SecureProtocol.class);
-    }
-
-    /**
-     * @return whether this protocol has the {@link SecureProtocol} annotation.
-     */
-    public boolean isSecureProtocol() {
-        return this.isSecureProtocol;
     }
 
     /**
@@ -689,7 +677,6 @@ public abstract class GenericProtocol {
      * @param props        channel-specific properties. See the documentation for each channel.
      *
      * @return the id of the newly created channel
-     * @throws UnsupportedOperationException if this protocol doesn't have the {@link SecureProtocol} annotation.
      * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
      */
     protected final int createSecureChannel(String channelName, Properties props) throws IOException {
@@ -704,7 +691,6 @@ public abstract class GenericProtocol {
      * @param identity     the single identity to be used during communication.
      *
      * @return the id of the newly created channel
-     * @throws UnsupportedOperationException if this protocol doesn't have the {@link SecureProtocol} annotation.
      * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
      */
     protected final int createSecureChannel(String channelName, Properties props, byte[] identity) throws IOException {
@@ -719,7 +705,6 @@ public abstract class GenericProtocol {
      * @param identityAlias the alias of the single identity to be used during communication.
      *
      * @return the id of the newly created channel
-     * @throws UnsupportedOperationException if this protocol doesn't have the {@link SecureProtocol} annotation.
      * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
      */
     protected final int createSecureChannel(String channelName, Properties props, String identityAlias) throws IOException {
@@ -1159,31 +1144,6 @@ public abstract class GenericProtocol {
     }
 
     /* -------------------------- IDENTITY MANAGEMENT ----------------------- */
-
-    // TODO make security properties per protocol??
-
-    /* TODO should these methods be a thing?
-    // TODO make Properties option to load a specific keystore for a specific protocol?
-    // Generates an id that can only be used by this protocol
-    protected final IdCrypt generateProtocolId(boolean persistOnDisk) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    // Generates an id that can only be used by this protocol
-    protected final IdCrypt generateProtocolId(boolean persistOnDisk, String alias) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    // Generates an id that can only be used by this protocol
-    protected final IdCrypt generateProtocolId(boolean persistOnDisk, KeyPair keyPair) {
-        throw new UnsupportedOperationException("TODO");
-    }
-
-    // Generates an id that can only be used by this protocol
-    protected final IdCrypt generateProtocolId(boolean persistOnDisk, String alias, KeyPair keyPair) {
-        throw new UnsupportedOperationException("TODO");
-    }
-    */
 
     protected final IdentityCrypt generateIdentity() {
         return generateIdentity(true);

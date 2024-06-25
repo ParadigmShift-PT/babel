@@ -86,7 +86,6 @@ public class Babel {
 	private static final Logger logger = LogManager.getLogger(Babel.class);
 
 	private static Babel system;
-	private static BabelSecurity security;
 	private static Properties props;
 
 	/**
@@ -752,7 +751,7 @@ public class Babel {
 				throw new InvalidParameterException("Unknown parameter: " + arg);
 		}
 
-		security.loadConfig(props);
+		BabelSecurity.getInstance().loadConfig(props);
 
 		return props;
 	}

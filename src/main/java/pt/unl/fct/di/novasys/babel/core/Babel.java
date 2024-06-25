@@ -471,6 +471,7 @@ public class Babel {
         BabelMessageSerializer serializer = new BabelMessageSerializer(new ConcurrentHashMap<>());
         SecureChannelToProtoForwarder forwarder = new SecureChannelToProtoForwarder(channelId);
 
+        var security = BabelSecurity.getInstance();
         var keyManager = security.getKeyManager();
         keyManager = idAliases != null
                 ? keyManager.subKeyManagerWithAliases(idAliases)

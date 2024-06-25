@@ -124,7 +124,7 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
         if (protocolToParameterToConfigure.isEmpty()) {
             if (!babel.askRunningDiscovery(this, myself, true)) {
                 var whisperCandidate = proto.getMyself();
-                if (whisperCandidate != null)
+                if (whisperCandidate != null && proto.getContact() != null)
                     whisperers.add(new Host(proto.getContact().getAddress(), Integer.valueOf(DEFAULT_PORT)));
             }
             setupTimer(new SearchTimer(), SEARCH_COOLDOWN);
@@ -142,6 +142,9 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
 
     public void addProtocolParameterConfigured(String parameterName, Method setter, Method getter,
             SelfConfigurableProtocol proto) {
+        if (proto.getContact() != null) {
+            whisperers.add(new Host(proto.getContact().getAddress(), Integer.valueOf(DEFAULT_PORT)));
+        }
         Parameter parameter = new Parameter(getter, setter, proto, parameterName);
         Map<String, Parameter> protocolParameter = protocolToParameterConfigured.get(proto.getProtoName());
         if (protocolParameter == null) {

@@ -13,29 +13,61 @@ Cryptographic material management, utilities and secure channels backed by the f
 ## Authors
 
 - Rafael Matos (rd.matos@campus.fct.unl.pt)
-- Felipe Carmo (fp.carmo@campus.fct.unl.pt)
+- Felipe Rossi (fp.carmo@campus.fct.unl.pt)
 - João Leitão (jc.leitao@fct.unl.pt)
 
 # Installation
 
 ### Dependencies
 
-Copy and paste the following block inside your ```pom.xml dependencies``` block.
+Copy and paste the following block inside your `pom.xml dependencies` block.
 
-```
+```xml
 <dependency>
-	<groupId>pt.unl.fct.di.novasys.babel</groupId>
-	<artifactId>babel-sc-core</artifactId>
-	<version>[0.4.0,)</version>
+    <groupId>pt.unl.fct.di.novasys.babel</groupId>
+    <artifactId>babel-sc-core</artifactId>
+    <version>[0.4.0,)</version>
 </dependency>
 ```
+
+If using Maven Shade plugin, add the following to its configuration:
+
+```xml
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-shade-plugin</artifactId>
+    ...
+    <executions>
+        <execution>
+            ...
+            <configuration>
+                <filters>
+                    <filter>
+                        <artifact>*:*</artifact>
+                        <excludes>
+                            <exclude>META-INF/*.SF</exclude>
+                            <exclude>META-INF/*.DSA</exclude>
+                            <exclude>META-INF/*.RSA</exclude>
+                        </excludes>
+                    </filter>
+                </filters>
+                ...
+            </configuration>
+        </execution>
+    </executions>
+</plugin>
+```
+
+this is so Bouncy Castle signatures don't get included in the jar, as the resulting
+jar of your project will be different from the one signed by them, causing the JVM
+to refuse to run the program.
 
 
 ### Repository Setup
 
 If you haven't already done so, you will need to add the following to your ```pom.xml``` file.
 
-```
+```xml
 <repositories>
     <repository>
         <id>novasys-mvn</id>

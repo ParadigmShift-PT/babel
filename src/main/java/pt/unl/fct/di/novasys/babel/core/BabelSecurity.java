@@ -81,6 +81,7 @@ public class BabelSecurity {
     private static final String PAR_KEY_STORE_TYPE = PREFIX + ".keystore.type";
     private String keyStoreType = "PKCS12";
     private static final String PAR_KEY_STORE_PATH = PREFIX + ".keystore.path";
+    private static final String DEF_KEY_STORE_PATH = "babelKeyStore.jks";
     private String keyStoreLoadPath = null;
     /**
      * Can be a String (a path) or a boolean. If boolean and true, keyStoreWritePath
@@ -105,6 +106,7 @@ public class BabelSecurity {
     private static final String PAR_TRUST_STORE_PROTECTION = PREFIX + ".truststore.protection_handler";
     private ProtectionParameter trustStoreProtection = EMPTY_PWD;
     private static final String PAR_TRUST_STORE_PATH = PREFIX + ".truststore.path";
+    private static final String DEF_TRUST_STORE_PATH = "babelTrustStore.jks";
     private String trustStoreLoadPath = null;
     /**
      * Can be a String (a path) or a boolean. If boolean and true, trustStoreWritePath
@@ -119,6 +121,7 @@ public class BabelSecurity {
     private static final String PAR_SECRET_STORE_PROTECTION = PREFIX + ".secretstore.protection_handler";
     private ProtectionParameter secretStoreProtection = EMPTY_PWD;
     private static final String PAR_SECRET_STORE_PATH = PREFIX + ".secretstore.path";
+    private static final String DEF_SECRET_STORE_PATH = "babelSecretStore.jks";
     private String secretStoreLoadPath = null;
     /**
      * Can be a String (a path) or a boolean. If boolean and true, secretStoreWritePath
@@ -138,7 +141,6 @@ public class BabelSecurity {
     private String pbkdfPassword = null;
     /** Base64 encoded salt for the PBKDF */
     private static final String PAR_PBKDF_SALT = PREFIX + ".pbkdf.salt";
-    // TODO change this? Unset this? How to do with this?
     private byte[] pbkdfSalt = "Babel sa(u)lt defa(u)lt! You (or I?) should change this!!!".getBytes();
     private static final String PAR_PBKDF_ITERATIONS = PREFIX + ".pbkdf.iterations";
     private int pbkdfIterations = 131072; // TODO find the biggest number that's fast enough on an RPi
@@ -855,25 +857,6 @@ public class BabelSecurity {
                 PAR_ID_GENERATOR, identityGenerator);
 
         // TODO rest of params
-
-        // I was doing this for the idea of having diferent parameters for each proto.
-        // This will probably be scrapped
-        /*
-        Map<String, Map<String, String>> toBeParsedProtoProps = new HashMap<>();
-        for (var prop : config.entrySet()) {
-            String key = (String) prop.getKey();
-            if (key.startsWith(PROTO)) {
-                String[] split = key.split("babel\\.security\\.proto\\.|\\.");
-                if (split.length != 3) // expected: { "", protoName, parameter }
-                    continue;
-                String protoName = split[1];
-                String parameter = split[2];
-
-                toBeParsedProtoProps.computeIfAbsent(protoName, __ -> new HashMap<>())
-                        .put(parameter, (String) prop.getValue());
-            }
-        }
-        */
     }
 
     @SuppressWarnings("unchecked")

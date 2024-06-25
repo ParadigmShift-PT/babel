@@ -1178,8 +1178,8 @@ public abstract class GenericProtocol {
         return id;
     }
 
-    protected final IdentityCrypt generateIdentity(boolean persistToDisk, String alias, KeyPair keyPair) {
-        var id = babelSecurity.generateIdentity(persistToDisk, alias, keyPair);
+    protected final IdentityCrypt generateIdentity(boolean persistOnDisk, String alias, KeyPair keyPair) {
+        var id = babelSecurity.generateIdentity(persistOnDisk, alias, keyPair);
         if (defaultIdentity == null)
             defaultIdentity = id;
         return id;
@@ -1213,6 +1213,25 @@ public abstract class GenericProtocol {
     }
 
     /* -------------------------- SECRET MANAGEMENT ----------------------- */
+
+    protected final SecretCrypt generateSecretFromPassword(String password) {
+        return generateSecretFromPassword(true, password);
+    }
+
+    protected final SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String password) {
+        var secret = babelSecurity.generateSecretFromPasswordWithAliasPrefix(persistOnDisk, protoName, password);
+        if (defaultSecret == null)
+            defaultSecret = secret;
+        return secret;
+    }
+
+    protected final SecretCrypt generateSecretFromPassword(String password, String alias) {
+        return generateSecretFromPassword(true, password, alias);
+    }
+
+    protected final SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String password, String alias) {
+        return generateSecretFromPassword(persistOnDisk, password, alias);
+    }
 
     protected final SecretCrypt generateSecret() {
         return generateSecret(true);

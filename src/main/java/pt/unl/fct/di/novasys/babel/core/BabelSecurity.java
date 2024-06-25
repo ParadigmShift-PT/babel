@@ -862,7 +862,7 @@ public class BabelSecurity {
     @SuppressWarnings("unchecked")
     private static <T> T loadClassParameter(Class<T> clazz, Properties props, String parameter, T defaultValue) {
         String className = props.getProperty(parameter);
-        if (parameter == null)
+        if (className == null)
             return defaultValue;
         try {
             return ((Class<? extends T>) Class.forName(className)).getDeclaredConstructor().newInstance();

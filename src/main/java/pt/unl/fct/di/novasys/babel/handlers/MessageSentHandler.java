@@ -18,4 +18,14 @@ public interface MessageSentHandler<T extends ProtoMessage> {
      * @param msg the received message
      */
     void onMessageSent(T msg, Host to, short destProto, int channelId);
+
+    /**
+     * Performs this operation on the ProtocolMessage.
+     *
+     * @param msg the received message
+     */
+    default void onMessageSent(T msg, Host to, byte[] toId, short destProto, int channelId) {
+        onMessageSent(msg, to, destProto, channelId);
+    }
+
 }

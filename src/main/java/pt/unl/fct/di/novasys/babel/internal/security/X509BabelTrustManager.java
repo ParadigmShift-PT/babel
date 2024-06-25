@@ -1,12 +1,13 @@
 package pt.unl.fct.di.novasys.babel.internal.security;
 
 import java.security.KeyStore;
-import java.security.KeyStore.ProtectionParameter;
 import java.security.KeyStoreException;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collection;
+import java.util.Enumeration;
 import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
@@ -15,54 +16,50 @@ import org.apache.logging.log4j.Logger;
 import pt.unl.fct.di.novasys.babel.core.security.IdFromCertExtractor;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
-// TODO change the name of this class to reflect that it accepts all ids, and isn't specific
 public class X509BabelTrustManager extends X509ITrustManager {
-    private final static Logger logger = LogManager.getLogger(X509BabelTrustManager.class);
+
+    private static final Logger logger = LogManager.getLogger(X509BabelTrustManager.class);
+
+    public enum TrustPolicy {
+        UNKOWN, KNOWN; // TODO CERTIFICATE_AUTHORITY?
+    }
+
+    private TrustPolicy trustPolicy;
 
     // TODO store and make getter for all previously accepted (and refused)
-    // identities and their certificates.
+    // identities and their certificates? Make parameter to set how many
+    // certificates are saved?
 
-    // TODO make a separate TrustManager that only accepts ids from a given
-    // trustStore (like a regular trust manager), instead of all valid peer ids.
+    private final Collection<KeyStore> trustStores;
 
-    // TODO does nothing for now
-    private List<KeyStore> trustStores;
-    private ProtectionParameter protParam;
+    /**
+     * Checks if the certificate (already verified to be consistent in id) should be
+     * trusted.
+     */
+    private X509CertificateChainPredicate trustConsistentCertificate;
 
-    private IdFromCertExtractor idExtractor;
+    /**
+     * Defines what to do when a consistent unknown certificate is received when
+     * {@code policy} is {@value TrustPolicy#KNOWN}.
+     * <p>
+     * An example is a callback that prompts the user what to do, and if they choose
+     * to accept it, return {@code true} and add it to the trust store via
+     * {@code BabelSecurity.getInstance().addTrustedCertificate(cert)}.
+     */
+    private X509CertificateChainPredicate trustUnknownCertCallback;
 
-    public X509BabelTrustManager() {
-    }
+    private final IdFromCertExtractor idExtractor;
 
-    public X509BabelTrustManager(ProtectionParameter protParam, KeyStore... trustStores) throws KeyStoreException {
-        this(protParam, new BabelCredentialHandler(), trustStores);
-    }
+    public X509BabelTrustManager(IdFromCertExtractor idExtractor, Collection<KeyStore> trustStores,
+            TrustPolicy trustPolicy, X509CertificateChainPredicate trustUnknownCertCallback)
+            throws KeyStoreException {
+        // Trigger KeyStoreException early if KeyStore was not initialized.
+        for (KeyStore store : trustStores)
+            store.size();
 
-    public X509BabelTrustManager(ProtectionParameter protParam, IdFromCertExtractor idExtractor, KeyStore... trustStores) throws KeyStoreException {
-        for (var ts : trustStores)
-            ts.size(); // Trigger KeyStoreException early if keyStore was not initialized.
-
-        this.trustStores = List.of(trustStores);
-        this.protParam = protParam;
+        this.trustStores = trustStores;
         this.idExtractor = idExtractor;
-    }
-
-    private void checkTrusted(X509Certificate cert, byte[] expectedId) throws CertificateException {
-        byte[] id = extractIdFromCertificate(cert);
-        if (!Arrays.equals(id, expectedId))
-            throw new CertificateException("Expected id: %s Got: %s"
-                    .formatted(PeerIdEncoder.encodeToString(expectedId), PeerIdEncoder.encodeToString(id)));
-    }
-
-    private void checkTrusted(X509Certificate cert) throws CertificateException {
-        extractIdFromCertificate(cert);
-    }
-
-    @Override
-    public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
-        if (chain == null || chain.length == 0)
-            throw new CertificateException("No certificate.");
-        checkTrusted(chain[0]);
+        this.trustUnknownCertCallback = trustUnknownCertCallback;
     }
 
     @Override
@@ -71,17 +68,40 @@ public class X509BabelTrustManager extends X509ITrustManager {
     }
 
     @Override
-    public void checkServerTrusted(X509Certificate[] chain, byte[] expectedId, String authType)
-            throws CertificateException {
+    public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
         if (chain == null || chain.length == 0)
             throw new CertificateException("No certificate.");
-        checkTrusted(chain[0], expectedId);
+
+        byte[] identity = checkConsistentId(chain[0]);
+
+        if (!trustConsistentCertificate.test(chain, identity)) {
+            String msg = "Didn't trust certificate with identity %s. Trust manager policy was %s."
+                    .formatted(PeerIdEncoder.encodeToString(identity), trustPolicy);
+            logger.info(msg);
+            throw new CertificateException(msg);
+        }
     }
 
     @Override
     public void checkClientTrusted(X509Certificate[] chain, byte[] expectedId, String authType)
             throws CertificateException {
         checkServerTrusted(chain, expectedId, authType);
+    }
+
+    @Override
+    public void checkServerTrusted(X509Certificate[] chain, byte[] expectedId, String authType)
+            throws CertificateException {
+        if (chain == null || chain.length == 0)
+            throw new CertificateException("No certificate.");
+
+        byte[] identity = checkConsistentId(chain[0], expectedId);
+
+        if (!trustConsistentCertificate.test(chain, identity)) {
+            String msg = "Didn't trust certificate with identity %s. Trust manager policy was %s."
+                    .formatted(PeerIdEncoder.encodeToString(identity), trustPolicy);
+            logger.info(msg);
+            throw new CertificateException(msg);
+        }
     }
 
     @Override
@@ -107,6 +127,54 @@ public class X509BabelTrustManager extends X509ITrustManager {
     @Override
     public X509Certificate[] getAcceptedIssuers() {
         return new X509Certificate[0];
+    }
+
+    public TrustPolicy getTrustPolicy() {
+        return trustPolicy;
+    }
+
+    public void setTrustPolicy(TrustPolicy newPolicy) {
+        trustPolicy = newPolicy;
+
+        trustConsistentCertificate = switch (trustPolicy) {
+            case UNKOWN -> (chain, id) -> true;
+            case KNOWN -> this::knownPolicyTrustConsistentCertificate;
+        };
+    }
+
+    public void setTrustUnknownCertificateCallback(X509CertificateChainPredicate trustUnknownCertCallback) {
+        this.trustUnknownCertCallback = trustUnknownCertCallback;
+    }
+
+    private boolean knownPolicyTrustConsistentCertificate(X509Certificate[] certificateChain, byte[] idInRootCert)
+            throws CertificateException {
+        for (KeyStore store : trustStores) {
+            try {
+                Enumeration<String> aliases = store.aliases();
+                while (aliases.hasMoreElements()) {
+                    String alias = aliases.nextElement();
+                    Certificate entry = store.getCertificate(alias);
+                    if (Arrays.equals(entry.getEncoded(), certificateChain[0].getEncoded()))
+                        return true;
+                }
+            } catch (KeyStoreException e) {
+                throw new AssertionError(e); // Shouldn't happen
+            }
+        }
+        logger.debug("Unknown certificate received. Calling \"trust unkown certificate\" callback handler.");
+        return trustUnknownCertCallback.test(certificateChain, idInRootCert);
+    }
+
+    private byte[] checkConsistentId(X509Certificate cert, byte[] expectedId) throws CertificateException {
+        byte[] id = extractIdFromCertificate(cert);
+        if (!Arrays.equals(id, expectedId))
+            throw new CertificateException("Expected id: %s Got: %s"
+                    .formatted(PeerIdEncoder.encodeToString(expectedId), PeerIdEncoder.encodeToString(id)));
+        return id;
+    }
+
+    private byte[] checkConsistentId(X509Certificate cert) throws CertificateException {
+        return extractIdFromCertificate(cert);
     }
 
 }

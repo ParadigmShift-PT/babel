@@ -13,6 +13,7 @@ import java.security.KeyStore.PrivateKeyEntry;
 import java.security.KeyStore.ProtectionParameter;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidKeySpecException;
+import java.time.Instant;
 import java.security.KeyStoreException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -23,9 +24,11 @@ import java.security.Security;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.security.UnrecoverableEntryException;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
@@ -58,6 +61,7 @@ import pt.unl.fct.di.novasys.babel.internal.security.IdAliasMapper;
 import pt.unl.fct.di.novasys.babel.internal.security.PeerIdEncoder;
 import pt.unl.fct.di.novasys.babel.internal.security.X509BabelKeyManager;
 import pt.unl.fct.di.novasys.babel.internal.security.X509BabelTrustManager;
+import pt.unl.fct.di.novasys.babel.internal.security.X509CertificateChainPredicate;
 import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
@@ -93,11 +97,12 @@ public class BabelSecurity {
     private static final String PAR_KEY_STORE_PROTECTION = PREFIX + ".keystore.protection_handler";
     private ProtectionParameter keyStoreProtection = EMPTY_PWD;
     private static final String PAR_DEFAULT_ID = PREFIX + ".keystore.default_identity";
-    // TODO support KeyStore.LoadStorePrameter? (or at least DomainLoadStorePrameter?)
+    // TODO support KeyStore.LoadStorePrameter? (or at least
+    // DomainLoadStorePrameter?)
 
-    private static final String PAR_ID_EXTRACTOR = PREFIX + ".keystore.identity_extractor";
+    private static final String PAR_ID_EXTRACTOR = PREFIX + ".identity_extractor";
     private IdFromCertExtractor identityExtractor = new BabelCredentialHandler();
-    private static final String PAR_ID_GENERATOR = PREFIX + ".keystore.identity_generator";
+    private static final String PAR_ID_GENERATOR = PREFIX + ".identity_generator";
     private IdentityGenerator identityGenerator = (BabelCredentialHandler) identityExtractor;
 
     private static final String PAR_TRUST_STORE_TYPE = PREFIX + ".truststore.type";
@@ -109,11 +114,18 @@ public class BabelSecurity {
     private static final String DEF_TRUST_STORE_PATH = "babelTrustStore.jks";
     private String trustStoreLoadPath = null;
     /**
-     * Can be a String (a path) or a boolean. If boolean and true, trustStoreWritePath
+     * Can be a String (a path) or a boolean. If boolean and true,
+     * trustStoreWritePath
      * must be set to trustStoreLoadPath
      */
     private static final String PAR_TRUST_STORE_WRITABLE = PREFIX + ".truststore.writable";
     private String trustStoreWritePath = null;
+
+    private static final String PAR_TRUST_MANAGER_POLICY = PREFIX + ".trustmanager.policy";
+    private X509BabelTrustManager.TrustPolicy trustManagerPolicy = X509BabelTrustManager.TrustPolicy.UNKOWN;
+    private static final String PAR_TRUST_MANAGER_UNKNOWN_CERT_CALLBACK = PREFIX
+            + ".trustmanager.unknown_cert_callback";
+    private X509CertificateChainPredicate trustManagerUknownCertCallback = (certChain, id) -> false;
 
     private static final String PAR_SECRET_STORE_TYPE = PREFIX + ".secretstore.type";
     private String secretStoreType = "PKCS12";
@@ -124,7 +136,8 @@ public class BabelSecurity {
     private static final String DEF_SECRET_STORE_PATH = "babelSecretStore.jks";
     private String secretStoreLoadPath = null;
     /**
-     * Can be a String (a path) or a boolean. If boolean and true, secretStoreWritePath
+     * Can be a String (a path) or a boolean. If boolean and true,
+     * secretStoreWritePath
      * must be set to secretStoreLoadPath
      */
     private static final String PAR_SECRET_STORE_WRITABLE = PREFIX + ".secretstore.writable";
@@ -147,13 +160,15 @@ public class BabelSecurity {
     private static final String PAR_PBKDF_KEY_LEN = PREFIX + ".pbkdf.key_length";
     private int pbkdfKeyLength = 256;
 
-    // See https://docs.oracle.com/en/java/javase/21/docs/specs/security/standard-names.html
+    // See
+    // https://docs.oracle.com/en/java/javase/21/docs/specs/security/standard-names.html
     public static final String PAR_HASH_ALG = PREFIX + ".hash_algorithm";
     private String hashAlgorithm = "SHA256";
 
     public static final String PAR_MAC_ALG = PREFIX + ".mac_algorithm";
     private String macAlgorithm = null;
-    // The defaults loosely follow TLS 1.3 as described in https://www.rfc-editor.org/rfc/rfc5288
+    // The defaults loosely follow TLS 1.3 as described in
+    // https://www.rfc-editor.org/rfc/rfc5288
     public static final String PAR_CIPHER_TRANSFORM = PREFIX + ".cipher.transformation";
     private String cipherTransform = null;
     public static final String PAR_CIPHER_MODE = PREFIX + ".cipher.mode";
@@ -163,18 +178,18 @@ public class BabelSecurity {
     public static final String PAR_CIPHER_IV_SIZE = PREFIX + ".cipher.iv_size";
     public static final String PAR_CIPHER_PARAM_GEN = PREFIX + ".cipher.parameter_supplier";
     private Supplier<AlgorithmParameterSpec> cipherParameterSupplier = () -> new GCMParameterSpec(128, generateIv(12));
-    //public static final String PAR_CIPHER_KEYWRAP_ALG = "kwyrap_cipher";
+    // public static final String PAR_CIPHER_KEYWRAP_ALG = "kwyrap_cipher";
     /*
-    public static final String PAR_... = PREFIX + ... ?
+     * public static final String PAR_... = PREFIX + ... ?
      */
 
     // TODO should this be a thing?
     /*
-    // A protocol specific property map. These are specified as
-    // "babel.security.proto.{protoId}.{prop}"
-    // If the protocol name has spaces, they must be escaped
-    private final Map<String, SecurityConfiguration> protoConfigs;
-    */
+     * // A protocol specific property map. These are specified as
+     * // "babel.security.proto.{protoId}.{prop}"
+     * // If the protocol name has spaces, they must be escaped
+     * private final Map<String, SecurityConfiguration> protoConfigs;
+     */
 
     // Lazy loaded fields
     private KeyStore keyStore;
@@ -182,7 +197,8 @@ public class BabelSecurity {
     private X509IKeyManager keyManager;
 
     private KeyStore trustStore;
-    private KeyStore ephTrustStore; // TODO make a truststore wrapper so both keystores can be used as one when needed
+    private KeyStore ephTrustStore; // TODO make a truststore wrapper so both keystores can be used as one when
+                                    // needed
     private X509ITrustManager trustManager;
 
     private KeyStore secretStore;
@@ -224,7 +240,8 @@ public class BabelSecurity {
                     idAliasMapper.populateFromPrivateKeyStore(keyStore, keyStoreProtection, identityExtractor);
                 }
             } catch (KeyStoreException e) {
-                throw new AssertionError(e); // Shouldn't happen // TODO verify that the keystore type is available when loading config
+                // TODO verify that the keystore type is available when loading config
+                throw new AssertionError(e); // Shouldn't happen
             }
         }
 
@@ -248,7 +265,6 @@ public class BabelSecurity {
     public X509IKeyManager getKeyManager() {
         if (keyManager == null) {
             try {
-                // TODO get joined key store method and class (to use persistent and ephemeral stores simultaneously)
                 keyManager = new X509BabelKeyManager(keyStoreProtection, idAliasMapper,
                         getKeyStore(), getEphemeralKeyStore());
             } catch (KeyStoreException e) {
@@ -264,7 +280,8 @@ public class BabelSecurity {
             try {
                 trustStore = loadOrCreateStore(trustStoreLoadPath, trustStoreType, trustStoreProtection);
             } catch (KeyStoreException e) {
-                throw new AssertionError(e); // Shouldn't happen // TODO verify that the keystore type is available when loading config
+                // TODO verify that the keystore type is available when loading config
+                throw new AssertionError(e); // Shouldn't happen
             }
         }
 
@@ -287,9 +304,9 @@ public class BabelSecurity {
     public X509ITrustManager getTrustManager() {
         if (trustManager == null) {
             try {
-                // TODO get joined trust store method and class (to use persistent and ephemeral stores simultaneously)
-                trustManager = new X509BabelTrustManager(trustStoreProtection, identityExtractor,
-                        getTrustStore(), getEphemeralTrustStore());
+                trustManager = new X509BabelTrustManager(identityExtractor,
+                        List.of(getTrustStore(), getEphemeralTrustStore()),
+                        trustManagerPolicy, trustManagerUknownCertCallback);
             } catch (KeyStoreException e) {
                 throw new AssertionError(e); // Shouldn't happen
             }
@@ -303,7 +320,8 @@ public class BabelSecurity {
             try {
                 secretStore = loadOrCreateStore(secretStoreLoadPath, secretStoreType, secretStoreProtection);
             } catch (KeyStoreException e) {
-                throw new AssertionError(e); // Shouldn't happen // TODO verify that the keystore type is available when loading config
+                // TODO verify that the keystore type is available when loading config
+                throw new AssertionError(e); // Shouldn't happen
             }
         }
 
@@ -316,14 +334,16 @@ public class BabelSecurity {
                 logger.debug("Creating new ephemeral trust store");
                 ephSecretStore = KeyStore.Builder.newInstance(secretStoreType, null, EMPTY_PWD).getKeyStore();
             } catch (KeyStoreException e) {
-                throw new AssertionError(e); // Shouldn't happen // TODO verify that the keystore type is available when loading config
+                // TODO verify that the keystore type is available when loading config
+                throw new AssertionError(e); // Shouldn't happen
             }
         }
 
         return ephSecretStore;
     }
 
-    private static KeyStore loadOrCreateStore(String loadPath, String storeType, ProtectionParameter protection) throws KeyStoreException {
+    private static KeyStore loadOrCreateStore(String loadPath, String storeType, ProtectionParameter protection)
+            throws KeyStoreException {
         logger.debug("Loading (or creating) a key store from " + loadPath);
         File file = loadPath != null ? new File(loadPath) : null;
         return file != null && file.exists()
@@ -472,35 +492,36 @@ public class BabelSecurity {
         }
     }
 
-    public IdentityCrypt generateIdentity(boolean peristToDisk) {
-        return addIdentity(peristToDisk, identityGenerator.generateRandomCredentials());
+    public IdentityCrypt generateIdentity(boolean persistOnDisk) {
+        return addIdentity(persistOnDisk, identityGenerator.generateRandomCredentials());
     }
 
-    public IdentityCrypt generateIdentityWithAliasPrefix(boolean peristToDisk, String aliasPrefix) {
-        return addIdentityWithAliasPrefix(peristToDisk, aliasPrefix, identityGenerator.generateRandomCredentials());
+    public IdentityCrypt generateIdentityWithAliasPrefix(boolean persistOnDisk, String aliasPrefix) {
+        return addIdentityWithAliasPrefix(persistOnDisk, aliasPrefix, identityGenerator.generateRandomCredentials());
     }
 
-    public IdentityCrypt generateIdentity(boolean peristToDisk, String alias) {
-        return addIdentity(peristToDisk, alias, identityGenerator.generateRandomCredentials());
+    public IdentityCrypt generateIdentity(boolean persistOnDisk, String alias) {
+        return addIdentity(persistOnDisk, alias, identityGenerator.generateRandomCredentials());
     }
 
-    public IdentityCrypt generateIdentity(boolean peristToDisk, KeyPair keyPair) {
-        return addIdentity(peristToDisk, identityGenerator.generateCredentials(keyPair));
+    public IdentityCrypt generateIdentity(boolean persistOnDisk, KeyPair keyPair) {
+        return addIdentity(persistOnDisk, identityGenerator.generateCredentials(keyPair));
     }
 
-    public IdentityCrypt generateIdentityWithAliasPrefix(boolean peristToDisk, String aliasPrefix, KeyPair keyPair) {
-        return addIdentityWithAliasPrefix(peristToDisk, aliasPrefix, identityGenerator.generateCredentials(keyPair));
+    public IdentityCrypt generateIdentityWithAliasPrefix(boolean persistOnDisk, String aliasPrefix, KeyPair keyPair) {
+        return addIdentityWithAliasPrefix(persistOnDisk, aliasPrefix, identityGenerator.generateCredentials(keyPair));
     }
 
-    public IdentityCrypt generateIdentity(boolean peristToDisk, String alias, KeyPair keyPair) {
-        return addIdentity(peristToDisk, alias, identityGenerator.generateCredentials(keyPair));
+    public IdentityCrypt generateIdentity(boolean persistOnDisk, String alias, KeyPair keyPair) {
+        return addIdentity(persistOnDisk, alias, identityGenerator.generateCredentials(keyPair));
     }
 
-    public IdentityCrypt addIdentity(boolean peristToDisk, PrivateKeyEntry keyStoreEntry) {
-        return addIdentity(peristToDisk, null, keyStoreEntry);
+    public IdentityCrypt addIdentity(boolean persistOnDisk, PrivateKeyEntry keyStoreEntry) {
+        return addIdentity(persistOnDisk, null, keyStoreEntry);
     }
 
-    public IdentityCrypt addIdentityWithAliasPrefix(boolean peristToDisk, String aliasPrefix, PrivateKeyEntry keyStoreEntry) {
+    public IdentityCrypt addIdentityWithAliasPrefix(boolean persistOnDisk, String aliasPrefix,
+            PrivateKeyEntry keyStoreEntry) {
         byte[] id;
         try {
             id = identityExtractor.extractIdentity(keyStoreEntry.getCertificate());
@@ -508,7 +529,7 @@ public class BabelSecurity {
             throw new RuntimeException(e); // Shouldn't happen
         }
         String alias = aliasPrefix + "." + PeerIdEncoder.encodeToString(id);
-        addIdentity(peristToDisk, alias, id, keyStoreEntry);
+        addIdentity(persistOnDisk, alias, id, keyStoreEntry);
         try {
             return getIdentityCrypt(alias, id, keyStoreEntry);
         } catch (NoSuchAlgorithmException e) {
@@ -517,7 +538,7 @@ public class BabelSecurity {
         }
     }
 
-    public IdentityCrypt addIdentity(boolean peristToDisk, String alias, PrivateKeyEntry keyStoreEntry) {
+    public IdentityCrypt addIdentity(boolean persistOnDisk, String alias, PrivateKeyEntry keyStoreEntry) {
         byte[] id;
         try {
             id = identityExtractor.extractIdentity(keyStoreEntry.getCertificate());
@@ -525,7 +546,7 @@ public class BabelSecurity {
             throw new RuntimeException(e); // Shouldn't happen
         }
         alias = alias == null ? PeerIdEncoder.encodeToString(id) : alias;
-        addIdentity(peristToDisk, alias, id, keyStoreEntry);
+        addIdentity(persistOnDisk, alias, id, keyStoreEntry);
         try {
             return getIdentityCrypt(alias, id, keyStoreEntry);
         } catch (NoSuchAlgorithmException e) {
@@ -594,8 +615,6 @@ public class BabelSecurity {
         return idAliasMapper.getDefault();
     }
 
-    // TODO add trusted
-
     // ----- Auxiliary methods
 
     private void addIdentity(boolean peristOnDisk, String alias, byte[] id, PrivateKeyEntry entry) {
@@ -616,7 +635,7 @@ public class BabelSecurity {
             // if this operation fails for **some other reason**"...
             throw new RuntimeException(e);
         } catch (NoSuchAlgorithmException | CertificateException | IOException | UnsupportedCallbackException e) {
-            // TODO deal with these
+            // TODO deal with these...
             throw new RuntimeException(e);
         }
     }
@@ -675,40 +694,87 @@ public class BabelSecurity {
         boolean test(KeyStore keyStore) throws KeyStoreException;
     }
 
+    /* ------------------- Trust ------------------- */
+
+    public void addTrustedCertificate(boolean peristOnDisk, Certificate certificate) throws KeyStoreException {
+        try {
+            addTrustedCertificate(peristOnDisk, certificate,
+                    Instant.now() + "_identity:"
+                            + Base64.getEncoder().encodeToString(identityExtractor.extractIdentity(certificate)));
+        } catch (CertificateException e) {
+            addTrustedCertificate(peristOnDisk, certificate,
+                    Instant.now() + "_pubkey:"
+                            + Base64.getEncoder().encodeToString(certificate.getPublicKey().getEncoded()));
+        }
+    }
+
+    public void addTrustedCertificate(boolean peristOnDisk, Certificate certificate, String alias)
+            throws KeyStoreException {
+        KeyStore trustStore = peristOnDisk ? getTrustStore() : getEphemeralTrustStore();
+        trustStore.setCertificateEntry(alias, certificate);
+
+        if (peristOnDisk && trustStoreWritePath != null) {
+            try {
+                trustStore.store(new FileOutputStream(trustStoreWritePath),
+                        getPassword(trustStoreProtection, trustStoreWritePath));
+            } catch (KeyStoreException | NoSuchAlgorithmException | CertificateException | IOException
+                    | UnsupportedCallbackException e) {
+                logger.error("Couldn't persist trust store to {} after adding trusted certificate {}. Cause: {}",
+                        trustStoreWritePath, alias, e);
+            }
+        }
+    }
+
+    /**
+     * Sets trust manager policy to {@code newPolicy} if it's an instance of
+     * {@link X509BabelTrustManager}. Else, does nothing.
+     * 
+     * @param newPolicy The new policy to set for the trust manager.
+     * @return {@code true} this method had any effects.
+     */
+    public boolean setTrustManagerPolicy(X509BabelTrustManager.TrustPolicy newPolicy) {
+        if (getTrustManager() instanceof X509BabelTrustManager trustMan) {
+            trustMan.setTrustPolicy(newPolicy);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     /* ------------------- Secrets ------------------- */
 
     // ------ Public methods
 
     // TODO Make a way to facilitate secret agreement? Might be terrible
 
-    public SecretCrypt generateSecretFromPasswordWithAliasPrefix(boolean peristToDisk, String aliasPrefix,
-                String password) {
-        return addSecretWithAliasPrefix(peristToDisk, aliasPrefix, applyPBKDF(password.toCharArray(), pbkdfSalt));
+    public SecretCrypt generateSecretFromPasswordWithAliasPrefix(boolean persistOnDisk, String aliasPrefix,
+            String password) {
+        return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, applyPBKDF(password.toCharArray(), pbkdfSalt));
     }
 
-    public SecretCrypt generateSecretFromPasswordWithAliasPrefix(boolean peristToDisk, String aliasPrefix,
-                String password, byte[] salt) {
-        return addSecretWithAliasPrefix(peristToDisk, aliasPrefix, applyPBKDF(password.toCharArray(), salt));
+    public SecretCrypt generateSecretFromPasswordWithAliasPrefix(boolean persistOnDisk, String aliasPrefix,
+            String password, byte[] salt) {
+        return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, applyPBKDF(password.toCharArray(), salt));
     }
 
-    public SecretCrypt generateSecretFromPassword(boolean peristToDisk, String alias, String password) {
-        return addSecret(peristToDisk, alias, applyPBKDF(password.toCharArray(), pbkdfSalt));
+    public SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String alias, String password) {
+        return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), pbkdfSalt));
     }
 
-    public SecretCrypt generateSecretFromPassword(boolean peristToDisk, String alias, String password, byte[] salt) {
-        return addSecret(peristToDisk, alias, applyPBKDF(password.toCharArray(), salt));
+    public SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String alias, String password, byte[] salt) {
+        return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), salt));
     }
 
-    public SecretCrypt generateSecret(boolean peristToDisk) {
-        return addSecret(peristToDisk, generateSecretKey());
+    public SecretCrypt generateSecret(boolean persistOnDisk) {
+        return addSecret(persistOnDisk, generateSecretKey());
     }
 
-    public SecretCrypt generateSecretWithAliasPrefix(boolean peristToDisk, String aliasPrefix) {
-        return addSecretWithAliasPrefix(peristToDisk, aliasPrefix, generateSecretKey());
+    public SecretCrypt generateSecretWithAliasPrefix(boolean persistOnDisk, String aliasPrefix) {
+        return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, generateSecretKey());
     }
 
-    public SecretCrypt generateSecret(boolean peristToDisk, String alias) {
-        return addSecret(peristToDisk, alias, generateSecretKey());
+    public SecretCrypt generateSecret(boolean persistOnDisk, String alias) {
+        return addSecret(persistOnDisk, alias, generateSecretKey());
     }
 
     public SecretCrypt addSecretWithAliasPrefix(boolean peristOnDisk, String aliasPrefix, SecretKey secretKey) {
@@ -821,7 +887,7 @@ public class BabelSecurity {
                     new PBEKeySpec(password, salt, pbkdfIterations, pbkdfKeyLength));
             return new SecretKeySpec(pbkdfKey.getEncoded(), secretKeyAlgorithm);
         } catch (InvalidKeySpecException e) {
-            throw new AssertionError(e); // Shouldn't happen // TODO verify that it's valid when loading config 
+            throw new AssertionError(e); // Shouldn't happen // TODO verify that it's valid when loading config
         }
     }
 

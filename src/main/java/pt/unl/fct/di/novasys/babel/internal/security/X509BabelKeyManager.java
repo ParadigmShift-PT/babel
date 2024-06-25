@@ -29,21 +29,15 @@ public class X509BabelKeyManager extends X509IKeyManager {
     private final List<KeyStore> keyStores;
     private final ProtectionParameter protParam;
 
-    // TODO multiKeyManager(Set<String> aliases)
-
     /**
      * @throws KeyStoreException if the keystore has not been initialized (loaded).
      */
     public X509BabelKeyManager(ProtectionParameter protParam, IdFromCertExtractor idExtractor, KeyStore... keyStores)
             throws KeyStoreException {
-        for (KeyStore ks : keyStores)
-            ks.size(); // Trigger KeyStoreException early if keyStore was not initialized.
+        this(protParam, new IdAliasMapper(), keyStores);
 
-        this.keyStores = List.of(keyStores);
-        this.protParam = protParam;
-        this.idAliasMapper = new IdAliasMapper();
-        for (KeyStore ks : keyStores)
-            idAliasMapper.populateFromPrivateKeyStore(ks, protParam, idExtractor);
+        for (KeyStore store : keyStores)
+            idAliasMapper.populateFromPrivateKeyStore(store, protParam, idExtractor);
     }
 
     /**
@@ -51,8 +45,9 @@ public class X509BabelKeyManager extends X509IKeyManager {
      */
     public X509BabelKeyManager(ProtectionParameter protParam, IdAliasMapper idAliasMapper, KeyStore... keyStores)
             throws KeyStoreException {
+        // Trigger KeyStoreException early if keyStore was not initialized.
         for (KeyStore ks : keyStores)
-            ks.size(); // Trigger KeyStoreException early if keyStore was not initialized.
+            ks.size();
 
         this.keyStores = List.of(keyStores);
         this.protParam = protParam;

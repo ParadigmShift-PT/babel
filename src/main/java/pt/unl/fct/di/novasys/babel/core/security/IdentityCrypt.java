@@ -9,6 +9,7 @@ import java.security.Security;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.security.cert.Certificate;
+import java.util.Arrays;
 
 import pt.unl.fct.di.novasys.babel.core.BabelSecurity;
 
@@ -93,9 +94,10 @@ public class IdentityCrypt {
 
     /* ------------------------ SIGNING --------------------- */
 
-    public byte[] sign(byte[] data) throws InvalidKeyException, SignatureException {
+    public byte[] sign(byte[]... data) throws InvalidKeyException, SignatureException {
         var sig = initSignature();
-        sig.update(data);
+        for (byte[] part : data)
+            sig.update(part);
         return sig.sign();
     }
 
@@ -105,13 +107,16 @@ public class IdentityCrypt {
         return sig.sign();
     }
 
-    public byte[] sign(byte[] data, String algorithm) throws InvalidKeyException, NoSuchAlgorithmException, SignatureException {
+    public byte[] sign(String algorithm, byte[]... data)
+            throws InvalidKeyException, NoSuchAlgorithmException, SignatureException {
         var sig = initSignature(algorithm);
-        sig.update(data);
+        for (byte[] part : data)
+            sig.update(part);
         return sig.sign();
     }
 
-    public byte[] sign(ByteBuffer data, String algorithm) throws InvalidKeyException, NoSuchAlgorithmException, SignatureException {
+    public byte[] sign(String algorithm, ByteBuffer data)
+            throws InvalidKeyException, NoSuchAlgorithmException, SignatureException {
         var sig = initSignature(algorithm);
         sig.update(data);
         return sig.sign();
@@ -125,7 +130,8 @@ public class IdentityCrypt {
         }
     }
 
-    public Signature initSignature(String algorithm) throws InvalidKeyException, NoSuchAlgorithmException {
+    public Signature initSignature(String algorithm)
+            throws InvalidKeyException, NoSuchAlgorithmException {
         Signature sig;
         try {
             sig = Signature.getInstance(algorithm, babelSecurity.PROVIDER);

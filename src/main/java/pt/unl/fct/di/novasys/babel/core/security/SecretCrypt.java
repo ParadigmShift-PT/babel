@@ -9,6 +9,7 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.Security;
 import java.security.spec.AlgorithmParameterSpec;
+import java.util.Arrays;
 import java.util.function.Supplier;
 
 import javax.crypto.BadPaddingException;
@@ -93,8 +94,10 @@ public class SecretCrypt {
 
     /* ------------------------ MAC --------------------- */
 
-    public byte[] mac(byte[] data) throws InvalidKeyException {
-        return initMac().doFinal(data);
+    public byte[] mac(byte[]... data) throws InvalidKeyException {
+        Mac mac = initMac();
+        Arrays.stream(data).forEach(mac::update);
+        return initMac().doFinal();
     }
 
     public byte[] mac(ByteBuffer data) throws InvalidKeyException {
@@ -106,11 +109,13 @@ public class SecretCrypt {
     // Mac with default secret
     // throws InvalidKeyException if the internal key is innapropriate for
     // initializing the mac with the given algorithm
-    public byte[] mac(byte[] data, String algorithm) throws NoSuchAlgorithmException, InvalidKeyException {
-        return initMac(algorithm).doFinal(data);
+    public byte[] mac(String algorithm, byte[]... data) throws NoSuchAlgorithmException, InvalidKeyException {
+        Mac mac = initMac(algorithm);
+        Arrays.stream(data).forEach(mac::update);
+        return initMac(algorithm).doFinal();
     }
 
-    public byte[] mac(ByteBuffer data, String algorithm) throws NoSuchAlgorithmException, InvalidKeyException {
+    public byte[] mac(String algorithm, ByteBuffer data) throws NoSuchAlgorithmException, InvalidKeyException {
         var mac = initMac(algorithm);
         mac.update(data);
         return mac.doFinal();
@@ -119,12 +124,14 @@ public class SecretCrypt {
     // Mac with default secret
     // throws InvalidKeyException if the internal key is innapropriate for
     // initializing the mac with the given algorithm
-    public byte[] mac(byte[] data, String algorithm, AlgorithmParameterSpec params)
+    public byte[] mac(String algorithm, AlgorithmParameterSpec params, byte[]... data)
             throws NoSuchAlgorithmException, InvalidKeyException, InvalidAlgorithmParameterException {
-        return initMac(algorithm, params).doFinal(data);
+        Mac mac = initMac(algorithm, params);
+        Arrays.stream(data).forEach(mac::update);
+        return mac.doFinal();
     }
 
-    public byte[] mac(ByteBuffer data, String algorithm, AlgorithmParameterSpec params)
+    public byte[] mac(String algorithm, AlgorithmParameterSpec params, ByteBuffer data)
             throws NoSuchAlgorithmException, InvalidKeyException, InvalidAlgorithmParameterException {
         var mac = initMac(algorithm, params);
         mac.update(data);

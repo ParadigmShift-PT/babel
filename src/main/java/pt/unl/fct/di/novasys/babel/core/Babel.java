@@ -404,12 +404,12 @@ public class Babel {
      * @param channelName  the name of the channel to create
      * @param protoId      the protocol numeric identifier
      * @param props        the properties required by the channel
-     * @param idAlias      the alias of the identity to be used during communication.
+     * @param idAliases    the aliases of the identities to be used during communication.
      *                     If {@code null}, any available identity can be used.
      * @return the channel Id
      * @throws IOException if channel creation fails
      */
-    int createSecureChannel(String channelName, short protoId, Properties props, String idAlias)
+    int createSecureChannel(String channelName, short protoId, Properties props, Collection<String> idAliases, Collection<byte[]> ids)
             throws IOException {
         SecureChannelInitializer<?> initializer = secureChannelInitializers.get(channelName);
         if (initializer == null)
@@ -422,8 +422,12 @@ public class Babel {
         BabelMessageSerializer serializer = new BabelMessageSerializer(new ConcurrentHashMap<>());
         SecureChannelToProtoForwarder forwarder = new SecureChannelToProtoForwarder(channelId);
 
-        var keyManager = idAlias != null ? security.getKeyManager().singleKeyManager(idAlias)
-                                         : security.getKeyManager();
+        var keyManager = security.getKeyManager();
+        keyManager = idAliases != null
+                ? keyManager.subKeyManagerWithAliases(idAliases)
+                : ids != null
+                        ? keyManager.subKeyManagerWithIds(ids)
+                        : keyManager;
         var trustManager = security.getTrustManager();
         SecureIChannel<BabelMessage> newChannel = initializer.initialize(serializer, forwarder,
                                                       keyManager, trustManager, props, protoId);

@@ -30,6 +30,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Signature;
 import java.security.UnrecoverableEntryException;
 import java.security.KeyStore.SecretKeyEntry;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -38,6 +40,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.stream.Collectors;
 
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
@@ -680,21 +683,77 @@ public abstract class GenericProtocol {
      * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
      */
     protected final int createSecureChannel(String channelName, Properties props) throws IOException {
-        return createSecureChannel(channelName, props, (String) null);
+        int channelId = babel.createSecureChannel(channelName, this.protoId, props, null, null);
+        registerSharedChannel(channelId);
+        return channelId;
     }
 
     /**
      * Creates a new secure channel that will only use the identity specified by the given alias.
      *
-     * @param channelName  the name of the channel
-     * @param props        channel-specific properties. See the documentation for each channel.
-     * @param identity     the single identity to be used during communication.
+     * @param channelName the name of the channel
+     * @param props       channel-specific properties. See the documentation for each channel.
+     * @param identities  the identities allowed to be used during communication.
      *
      * @return the id of the newly created channel
      * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
      */
-    protected final int createSecureChannel(String channelName, Properties props, byte[] identity) throws IOException {
-        return createSecureChannel(channelName, props, babelSecurity.getIdentityAlias(identity));
+    protected final int createSecureChannelWithIdentities(String channelName, Properties props, byte[]... identities)
+            throws IOException {
+        return createSecureChannelWithIdentities(channelName, props, Arrays.asList(identities));
+    }
+
+    /**
+     * Creates a new secure channel that will only use the identity specified by the given alias.
+     *
+     * @param channelName the name of the channel
+     * @param props       channel-specific properties. See the documentation for each channel.
+     * @param identities  the identities allowed to be used during communication.
+     *
+     * @return the id of the newly created channel
+     * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
+     */
+    protected final int createSecureChannelWithIdentities(String channelName, Properties props,
+            Collection<byte[]> identities) throws IOException {
+        int channelId = babel.createSecureChannel(channelName, this.protoId, props, null, identities);
+        registerSharedChannel(channelId);
+        return channelId;
+    }
+
+    /**
+     * Creates a new secure channel that will only use the identities with aliases
+     * starting with {@code protoName} (this includes any identity added with the
+     * {@link GenericProtocol} methods for adding identities without explicit
+     * aliases).
+     *
+     * @param channelName the name of the channel
+     * @param props       channel-specific properties. See the documentation for each channel.
+     *
+     * @return the id of the newly created channel
+     * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
+     */
+    protected final int createSecureChannelWithProtoIdentities(String channelName, Properties props)
+            throws IOException {
+        return createSecureChannelWithAliases(channelName,
+                props,
+                babelSecurity.getAllIdentitiesWithPrefix(protoName).stream()
+                        .map(id -> id.alias())
+                        .collect(Collectors.toList()));
+    }
+
+    /**
+     * Creates a new secure channel that will only use the identity specified by the given alias.
+     *
+     * @param channelName     the name of the channel
+     * @param props           channel-specific properties. See the documentation for each channel.
+     * @param identityAliases the aliases of the identities allowed to be used during communication.
+     *
+     * @return the id of the newly created channel
+     * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
+     */
+    protected final int createSecureChannelWithAliases(String channelName, Properties props, String... identityAliases)
+            throws IOException {
+        return createSecureChannelWithAliases(channelName, props, Arrays.asList(identityAliases));
     }
 
     /**
@@ -702,13 +761,14 @@ public abstract class GenericProtocol {
      *
      * @param channelName   the name of the channel
      * @param props         channel-specific properties. See the documentation for each channel.
-     * @param identityAlias the alias of the single identity to be used during communication.
+     * @param identityAliases the aliases of the identities to be used during communication.
      *
      * @return the id of the newly created channel
      * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
      */
-    protected final int createSecureChannel(String channelName, Properties props, String identityAlias) throws IOException {
-        int channelId = babel.createSecureChannel(channelName, this.protoId, props, identityAlias);
+    protected final int createSecureChannelWithAliases(String channelName, Properties props, Collection<String> identityAliases)
+            throws IOException {
+        int channelId = babel.createSecureChannel(channelName, this.protoId, props, identityAliases, null);
         registerSharedChannel(channelId);
         return channelId;
     }
@@ -954,9 +1014,10 @@ public abstract class GenericProtocol {
      * Open a connection to the given peer with the specified id using the default secure channel.
      * Depending on the channel, this method may be unnecessary/forbidden. <p>
      *
-     * <i>Note:</i> If choosing your own identity for this connection is desired, consider
-     * creating a new secure channel with a {@link X509IKeyManager#singleKeyManager(byte[])}
-     * or {@link X509IKeyManager#singleKeyManager(String)}.
+     * <i>Note:</i> If choosing your own identity for this connection is desired,
+     * consider creating a new secure channel with
+     * {@link #createSecureChannelWithAliases(String, Properties, Collection)}
+     * or {@link #createSecureChannelWithIdentities(String, Properties, Collection)}.
      *
      * @param peer      the ip/port to create the connection to.
      * @param peerId    the id of the peer expected to connect to. If the connected
@@ -970,9 +1031,10 @@ public abstract class GenericProtocol {
      * Open a connection to the given peer with the specified id using the given secure channel.
      * Depending on the channel, this method may be unnecessary/forbidden. <p>
      *
-     * <i>Note:</i> If choosing your own identity for this connection is desired, consider
-     * creating a new secure channel with a {@link X509IKeyManager#singleKeyManager(byte[])}
-     * or {@link X509IKeyManager#singleKeyManager(String)}.
+     * <i>Note:</i> If choosing your own identity for this connection is desired,
+     * consider creating a new secure channel with
+     * {@link #createSecureChannelWithAliases(String, Properties, Collection)}
+     * or {@link #createSecureChannelWithIdentities(String, Properties, Collection)}.
      *
      * @param peer      the ip/port to create the connection to.
      * @param peerId    the id of the peer expected to connect to. If the connected

@@ -8,6 +8,7 @@ import java.net.InetSocketAddress;
 import java.net.MulticastSocket;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.net.StandardSocketOptions;
 import java.util.Enumeration;
 import java.util.Properties;
 
@@ -58,10 +59,16 @@ public class MulticastDiscoveryProtocol extends LocalDiscoveryProtocol {
 			targetPort = Integer.parseInt(props.getProperty(PAR_DISCOVERY_MULTICAST_PORT));
 		}
 
-		multicastSocketAddress = addInetSocketAddres(props.getProperty(PAR_DISCOVERY_MULTICAST_ADDRESS, MULTICAST_ADDRESS), targetPort);
+		multicastSocketAddress = addInetSocketAddress(props.getProperty(PAR_DISCOVERY_MULTICAST_ADDRESS, MULTICAST_ADDRESS), targetPort);
 
 		NetworkInterface networkInterface;
 		if (!props.containsKey(PAR_DISCOVERY_MULTICAST_INTERFACE)) {
+			if(props.containsKey(PAR_DISCOVERY_UNICAST_INTERFACE)) {
+				networkInterface = NetworkInterface.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_INTERFACE));
+			} else if(props.containsKey(PAR_DISCOVERY_UNICAST_ADDRESS)) {
+				networkInterface = NetworkInterface.getByInetAddress(InetAddress.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_ADDRESS)));
+			} else {
+			// LAST RESORT :)
 			// Bind to all?? interface that supports multicast
 			networkInterface = NetworkInterface.networkInterfaces().filter(i -> {
 				try {
@@ -78,12 +85,14 @@ public class MulticastDiscoveryProtocol extends LocalDiscoveryProtocol {
 					return false;
 				}
 			}).findAny().orElseThrow(() -> new RuntimeException("No network interface supports multicast"));
+			}
 		} else {
 			networkInterface = NetworkInterface.getByName(props.getProperty(PAR_DISCOVERY_MULTICAST_INTERFACE));
 		}
 
 		multicastSocket = new MulticastSocket(targetPort);
 		logger.debug("Multicast is going to use interface: " + networkInterface.getDisplayName());
+		logger.debug("Selected interface supports multicast: " + networkInterface.supportsMulticast());
 		multicastSocket.joinGroup(multicastSocketAddress, networkInterface);
 
 		logger.info("DiscoveryProtocol set up");
@@ -95,7 +104,8 @@ public class MulticastDiscoveryProtocol extends LocalDiscoveryProtocol {
 			unicastPort = Integer.parseInt(props.getProperty(PAR_DISCOVERY_UNICAST_PORT));
 
 		DatagramSocket unicastSocket = setSocket(address, unicastPort, false);
-
+		unicastSocket.setOption(StandardSocketOptions.IP_MULTICAST_IF, networkInterface);
+		
 		listeningMulticastThread = new Thread(() -> listen(multicastSocket));
 		listeningUnicastThread = new Thread(() -> listen(unicastSocket));
 		listeningMulticastThread.start();

@@ -91,7 +91,7 @@ public class ServiceMessage {
     public static List<byte[]> convertToMessage(Collection<ServiceMessage> ms, boolean asProbe) throws IOException {
     	ByteBuf buffer = wrappedBuffer(new byte[DATAGRAM_SIZE]);
     	buffer.clear();
-    	List<byte[]> messages = new ArrayList<byte[]>();
+    	List<byte[]> messages = new ArrayList<byte[]>(ms.size());
     	for(ServiceMessage m: ms) {
     		byte[] bm = ServiceMessage.convertToMessage(m, asProbe);
     		if(! (buffer.capacity() - buffer.writerIndex() >= Short.SIZE + bm.length) ) {
@@ -118,7 +118,6 @@ public class ServiceMessage {
     		try {
 				messages.add(ServiceMessage.fromDatagram(msg));
 			} catch (Exception e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
     	}

@@ -4,9 +4,9 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
-    <groupId>pt.unl.fct.di.novasys.babel</groupId>
-    <artifactId>babel-core-crypt</artifactId>
-    <version>1.1.4</version>
+	<groupId>pt.unl.fct.di.novasys.babel</groupId>
+	<artifactId>babel-sc-core</artifactId>
+	<version>0.4.0</version>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

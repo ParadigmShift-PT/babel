@@ -10,6 +10,9 @@ import pt.unl.fct.di.novasys.babel.internal.InternalEvent;
 
 public abstract class DiscoveryProtocol extends GenericProtocol {
 
+	static {
+		System.setProperty("java.net.preferIPv4Stack" , "true");
+	}
 	public static final String PAR_DISCOVERY_UNICAST_INTERFACE = "babel.discovery.unicast.interface";
 	public static final String PAR_DISCOVERY_UNICAST_ADDRESS = "babel.discovery.unicast.address";
 	public static final String PAR_DISCOVERY_UNICAST_PORT = "babel.discovery.unicast.port";
@@ -34,8 +37,19 @@ public abstract class DiscoveryProtocol extends GenericProtocol {
 		System.setProperty("java.net.preferIPv4Stack", "true");
 	}
 
+	/**
+	 * Registers a protocol that hasn't started for discovery
+	 * 
+	 * @param dcProto the protocol to receive a contact
+	 */
 	public abstract void registerProtocol(DiscoverableProtocol dcProto);
 
+	/**
+	 * Registers a running protocol for discovery
+	 * 
+	 * @param request
+	 * @param sourceProtocol the protocol to receive a contact
+	 */
 	public abstract void uponRequestDiscovery(RequestDiscovery request, short sourceProtocol);
 
 }

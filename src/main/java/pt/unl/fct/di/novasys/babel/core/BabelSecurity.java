@@ -228,7 +228,8 @@ public class BabelSecurity {
         if (keyManager == null) {
             try {
                 // TODO get joined key store method and class (to use persistent and ephemeral stores simultaneously)
-                keyManager = new X509BabelKeyManager(getKeyStore(), keyStoreProtection, idAliasMapper);
+                keyManager = new X509BabelKeyManager(keyStoreProtection, idAliasMapper,
+                        getKeyStore(), getEphemeralKeyStore());
             } catch (KeyStoreException e) {
                 throw new AssertionError(e); // Shouldn't happen
             }
@@ -266,7 +267,8 @@ public class BabelSecurity {
         if (trustManager == null) {
             try {
                 // TODO get joined trust store method and class (to use persistent and ephemeral stores simultaneously)
-                trustManager = new X509BabelTrustManager(getTrustStore(), trustStoreProtection, identityExtractor);
+                trustManager = new X509BabelTrustManager(trustStoreProtection, identityExtractor,
+                        getTrustStore(), getEphemeralTrustStore());
             } catch (KeyStoreException e) {
                 throw new AssertionError(e); // Shouldn't happen
             }

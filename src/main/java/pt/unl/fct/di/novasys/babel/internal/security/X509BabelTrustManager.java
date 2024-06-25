@@ -6,6 +6,7 @@ import java.security.KeyStoreException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
@@ -25,7 +26,7 @@ public class X509BabelTrustManager extends X509ITrustManager {
     // trustStore (like a regular trust manager), instead of all valid peer ids.
 
     // TODO does nothing for now
-    private KeyStore trustStore;
+    private List<KeyStore> trustStores;
     private ProtectionParameter protParam;
 
     private IdFromCertExtractor idExtractor;
@@ -33,14 +34,15 @@ public class X509BabelTrustManager extends X509ITrustManager {
     public X509BabelTrustManager() {
     }
 
-    public X509BabelTrustManager(KeyStore trustStore, ProtectionParameter protParam) throws KeyStoreException {
-        this(trustStore, protParam, new BabelCredentialHandler());
+    public X509BabelTrustManager(ProtectionParameter protParam, KeyStore... trustStores) throws KeyStoreException {
+        this(protParam, new BabelCredentialHandler(), trustStores);
     }
 
-    public X509BabelTrustManager(KeyStore trustStore, ProtectionParameter protParam, IdFromCertExtractor idExtractor) throws KeyStoreException {
-        trustStore.size(); // Trigger KeyStoreException early if keyStore was not initialized.
+    public X509BabelTrustManager(ProtectionParameter protParam, IdFromCertExtractor idExtractor, KeyStore... trustStores) throws KeyStoreException {
+        for (var ts : trustStores)
+            ts.size(); // Trigger KeyStoreException early if keyStore was not initialized.
 
-        this.trustStore = trustStore;
+        this.trustStores = List.of(trustStores);
         this.protParam = protParam;
         this.idExtractor = idExtractor;
     }

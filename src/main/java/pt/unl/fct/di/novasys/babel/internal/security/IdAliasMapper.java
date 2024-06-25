@@ -7,6 +7,7 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableEntryException;
 import java.security.cert.CertificateException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -128,6 +129,14 @@ public class IdAliasMapper {
 
     public Set<Entry<String, byte[]>> entrySet() {
         return aliasToId.entrySet();
+    }
+
+    public Set<String> aliasSet() {
+        return aliasToId.keySet();
+    }
+
+    public Set<Bytes> idSet() {
+        return idToAlias.keySet();
     }
 
 }

@@ -9,8 +9,10 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Principal;
 import java.security.PrivateKey;
 import java.security.UnrecoverableEntryException;
+import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,7 +26,7 @@ public class X509BabelKeyManager extends X509IKeyManager {
 
     private final IdAliasMapper idAliasMapper;
 
-    private final KeyStore keyStore;
+    private final List<KeyStore> keyStores;
     private final ProtectionParameter protParam;
 
     // TODO multiKeyManager(Set<String> aliases)
@@ -32,36 +34,36 @@ public class X509BabelKeyManager extends X509IKeyManager {
     /**
      * @throws KeyStoreException if the keystore has not been initialized (loaded).
      */
-    public X509BabelKeyManager(KeyStore keyStore, ProtectionParameter protParam, IdFromCertExtractor idExtractor) throws KeyStoreException {
-        keyStore.size(); // Trigger KeyStoreException early if keyStore was not initialized.
+    public X509BabelKeyManager(ProtectionParameter protParam, IdFromCertExtractor idExtractor, KeyStore... keyStores)
+            throws KeyStoreException {
+        for (KeyStore ks : keyStores)
+            ks.size(); // Trigger KeyStoreException early if keyStore was not initialized.
 
-        this.keyStore = keyStore;
+        this.keyStores = List.of(keyStores);
         this.protParam = protParam;
         this.idAliasMapper = new IdAliasMapper();
-        idAliasMapper.populateFromPrivateKeyStore(keyStore, protParam, idExtractor);
+        for (KeyStore ks : keyStores)
+            idAliasMapper.populateFromPrivateKeyStore(ks, protParam, idExtractor);
     }
 
     /**
      * @throws KeyStoreException if the keystore has not been initialized (loaded).
      */
-    public X509BabelKeyManager(KeyStore keyStore, ProtectionParameter protParam, IdAliasMapper idAliasMapper) throws KeyStoreException {
-        keyStore.size(); // Trigger KeyStoreException early if keyStore was not initialized.
+    public X509BabelKeyManager(ProtectionParameter protParam, IdAliasMapper idAliasMapper, KeyStore... keyStores)
+            throws KeyStoreException {
+        for (KeyStore ks : keyStores)
+            ks.size(); // Trigger KeyStoreException early if keyStore was not initialized.
 
-        this.keyStore = keyStore;
+        this.keyStores = List.of(keyStores);
         this.protParam = protParam;
         this.idAliasMapper = idAliasMapper;
     }
 
     @Override
     public String[] getServerAliases(String keyType, Principal[] issuers) {
-        try {
-            ArrayList<String> aliases;
-            aliases = new ArrayList<>(keyStore.size());
-            keyStore.aliases().asIterator().forEachRemaining(aliases::add);
-            return aliases.toArray(new String[aliases.size()]);
-        } catch (KeyStoreException e) {
-            throw new RuntimeException(e); // Won't happen
-        }
+        // This assumes idAliasMapper was correctly initialized and updated
+        Set<String> aliases = idAliasMapper.aliasSet();
+        return aliases.toArray(new String[aliases.size()]);
     }
 
     @Override
@@ -82,7 +84,7 @@ public class X509BabelKeyManager extends X509IKeyManager {
     @Override
     public X509Certificate[] getCertificateChain(String alias) {
         try {
-            var chain = keyStore.getCertificateChain(alias);
+            Certificate[] chain = keyStoreWithAlias(alias).getCertificateChain(alias);
 
             var x509Chain = new X509Certificate[chain.length];
             for (int i = 0; i < chain.length; i++)
@@ -92,6 +94,8 @@ public class X509BabelKeyManager extends X509IKeyManager {
         } catch (ClassCastException e) {
             logger.error("getCertificateChain(%s): Couldn't cast Certificate[] to X509Certificate[]", alias);
             return null;
+        } catch (NullPointerException e) {
+            return null;
         } catch (KeyStoreException e) {
             throw new RuntimeException(e); // Won't happen
         }
@@ -100,12 +104,14 @@ public class X509BabelKeyManager extends X509IKeyManager {
     @Override
     public PrivateKey getPrivateKey(String alias) {
         try {
-            return ((PrivateKeyEntry) keyStore.getEntry(alias, protParam)).getPrivateKey();
+            return ((PrivateKeyEntry) keyStoreWithAlias(alias).getEntry(alias, protParam)).getPrivateKey();
         } catch (ClassCastException e) {
             logger.error("getPrivateKey({}) failed because the alias didn't refer to a private key entry", alias);
             return null;
         } catch (UnrecoverableEntryException | NoSuchAlgorithmException e) {
             logger.error("getPrivateKey({}) failed with exception: {}", alias, e);
+            return null;
+        } catch (NullPointerException e) {
             return null;
         } catch (KeyStoreException never) {
             throw new AssertionError(never); // Won't happen
@@ -130,6 +136,18 @@ public class X509BabelKeyManager extends X509IKeyManager {
     @Override
     public byte[] getAliasId(String alias) {
         return idAliasMapper.getId(alias);
+    }
+
+    private KeyStore keyStoreWithAlias(String alias) {
+        try {
+            for (var ks : keyStores) {
+                if (ks.containsAlias(alias))
+                    return ks;
+            }
+            return null;
+        } catch (KeyStoreException e) {
+            throw new AssertionError(e); // Shouldn't happen
+        }
     }
 
 }

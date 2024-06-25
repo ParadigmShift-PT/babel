@@ -10,7 +10,6 @@ import pt.unl.fct.di.novasys.network.data.Host;
 
 public abstract class SelfConfigurationProtocol extends GenericProtocol {
 
-
     public SelfConfigurationProtocol(String protoName, short protoId) {
         super(protoName, protoId);
     }
@@ -42,8 +41,6 @@ public abstract class SelfConfigurationProtocol extends GenericProtocol {
             SelfConfigurableProtocol proto);
 
     /**
-     * Returns the host that represents the protocol
-     * 
      * @return the host that represents the protocol
      */
     public abstract Host getMyself();

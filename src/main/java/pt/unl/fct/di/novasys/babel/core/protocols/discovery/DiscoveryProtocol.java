@@ -37,8 +37,19 @@ public abstract class DiscoveryProtocol extends GenericProtocol {
 		System.setProperty("java.net.preferIPv4Stack", "true");
 	}
 
+	/**
+	 * Registers a protocol that hasn't started for discovery
+	 * 
+	 * @param dcProto the protocol to receive a contact
+	 */
 	public abstract void registerProtocol(DiscoverableProtocol dcProto);
 
+	/**
+	 * Registers a running protocol for discovery
+	 * 
+	 * @param request
+	 * @param sourceProtocol the protocol to receive a contact
+	 */
 	public abstract void uponRequestDiscovery(RequestDiscovery request, short sourceProtocol);
 
 }

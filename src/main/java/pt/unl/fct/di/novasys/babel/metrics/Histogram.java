@@ -28,7 +28,7 @@ public class Histogram extends LabeledMetric<SimpleHistogram> {
         this.buckets[this.buckets.length - 1] = Double.MAX_VALUE;
 
         this.buckets_labels = new String[this.buckets.length];
-        for(int i = 0; i < buckets.length - 1; i++){
+        for(int i = 0; i < buckets.length; i++){
             this.buckets_labels[i] = String.valueOf(buckets[i]);
         }
         this.buckets_labels[buckets_labels.length - 1] = "+Inf";

@@ -18,7 +18,7 @@ public class MetricsManager {
 
     private static final String CURRENT_WORKING_DIR = System.getProperty("user.dir");
 
-    private static final short OS_METRIC_PROTOCOL_ID = -1;
+    public static final short OS_METRIC_PROTOCOL_ID = -1;
     private static final Logger logger = LogManager.getLogger(MetricsManager.class);
 
 
@@ -121,10 +121,8 @@ public class MetricsManager {
             for(short protoId : ex.getExporterCollectOptions().getProtocolsToCollect()){
                 this.protocolExporters.put(protoId, ex);
             }
-
             new Thread(ex, ex.getExporterName()).start();
         }
-
         started = true;
     }
 

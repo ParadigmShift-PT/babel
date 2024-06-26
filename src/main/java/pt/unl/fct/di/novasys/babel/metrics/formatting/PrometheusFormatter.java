@@ -3,6 +3,8 @@ package pt.unl.fct.di.novasys.babel.metrics.formatting;
 import pt.unl.fct.di.novasys.babel.metrics.*;
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.NoSuchProtocolRegistry;
 
+import static pt.unl.fct.di.novasys.babel.metrics.MetricsManager.OS_METRIC_PROTOCOL_ID;
+
 public class PrometheusFormatter implements Formatter {
 
     private static final int SUM = 1;
@@ -11,20 +13,32 @@ public class PrometheusFormatter implements Formatter {
     public PrometheusFormatter() {}
 
 
+
     private StringBuilder formatSample(String metricName, String[] labelNames, long timestamp, Sample sample){
         StringBuilder sb = new StringBuilder();
-        for(int i = 0; i < labelNames.length; i++){
-            sb.append(metricName);
-            sb.append("{");
-            sb.append(labelNames[i]);
-            sb.append("=");
-            sb.append("\"");
-            sb.append(sample.getLabelValues()[i]);
-            sb.append("\"");
-            sb.append(",");
+
+        //If the metric has labels, we need to append each of the labels to the metric name
+        if(labelNames.length > 0){
+            for (int i = 0; i < labelNames.length; i++) {
+                sb.append(metricName);
+                sb.append("{");
+                sb.append(labelNames[i]);
+                sb.append("=");
+                sb.append("\"");
+                sb.append(sample.getLabelValues()[i]);
+                sb.append("\"");
+                sb.append(",");
+            }
+
+            sb.deleteCharAt(sb.length() - 1);
+            sb.append("}");
         }
-        sb.deleteCharAt(sb.length()-1);
-        sb.append("} ");
+        else{
+            //If not labels, only the name
+            sb.append(metricName);
+        }
+
+        sb.append(" ");
         sb.append(sample.getValueSample());
         if(timestamp != -1){
             sb.append(" ");
@@ -39,17 +53,17 @@ public class PrometheusFormatter implements Formatter {
         //Prometheus doesn't support multiple registries, so we need to append the registryId to the metric name,
         // also units are to be added to the end of the metric name
         StringBuilder nameSb = new StringBuilder();
-//
-//        nameSb.append(registryId);
-//        nameSb.append("_");
 
-
+        //Prefix depends if it is a protocol metric or OS metric
+        if(registryId == OS_METRIC_PROTOCOL_ID){
+            nameSb.append("OS_");
+        }else{
+            nameSb.append("Protocol_");
+            nameSb.append(registryId);
+            nameSb.append("_");
+        }
 
         nameSb.append(metricSample.getMetricName());
-        nameSb.append("_");
-        nameSb.append(registryId);
-
-
 
 
         if(!metricSample.getMetricUnit().equals(Metric.Unit.NONE)){

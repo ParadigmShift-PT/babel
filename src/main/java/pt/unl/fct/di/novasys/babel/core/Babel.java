@@ -712,15 +712,18 @@ public class Babel {
 	 */
 
 	public static Properties loadConfig(String[] args, String defaultConfigFile)
-			throws IOException, InvalidParameterException {
+	throws IOException, InvalidParameterException {
+		if (props == null)
+			props = new Properties(args.length);
+		else
+			logger.debug("Extending config...");
 
-		props = new Properties(args.length);
 		List<String> argsList = new ArrayList<String>(Arrays.asList(args));
 		String configFile = extractConfigFileFromArguments(argsList, defaultConfigFile);
 
-		logger.debug("config file being loaded: " + configFile);
-
 		if (configFile != null) {
+			logger.debug("Config file being loaded: " + configFile);
+
 			InputStream in = null;
 			try {
 				in = new FileInputStream(configFile);
@@ -745,7 +748,7 @@ public class Babel {
 		}
 		// Override with launch parameter props
 		for (String arg : argsList) {
-			String[] property = arg.split("=");
+			String[] property = arg.split("=", 1);
 			if (property.length == 2)
 				props.setProperty(property[0], property[1]);
 			else

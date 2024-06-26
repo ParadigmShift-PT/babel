@@ -117,10 +117,10 @@ public class BabelSecurity {
     private String trustStoreWritePath = null;
 
     private static final String PAR_TRUST_MANAGER_POLICY = PREFIX + ".trustmanager.policy";
-    private X509BabelTrustManager.TrustPolicy trustManagerPolicy = X509BabelTrustManager.TrustPolicy.UNKOWN;
-    private static final String PAR_TRUST_MANAGER_UNKNOWN_CERT_CALLBACK = PREFIX
-            + ".trustmanager.unknown_cert_callback";
-    private X509CertificateChainPredicate trustManagerUknownCertCallback = (certChain, id) -> false;
+    private X509BabelTrustManager.TrustPolicy trustManagerPolicy = X509BabelTrustManager.TrustPolicy.UNKNOWN;
+    private static final String PAR_TRUST_MANAGER_UNKNOWN_PEER_CALLBACK = PREFIX
+            + ".trustmanager.unknown_peer_callback";
+    private X509CertificateChainPredicate trustManagerUknownPeerCallback = (certChain, id) -> false;
 
     private static final String PAR_SECRET_STORE_TYPE = PREFIX + ".secretstore.type";
     private String secretStoreType = "PKCS12";
@@ -303,7 +303,7 @@ public class BabelSecurity {
             try {
                 trustManager = new X509BabelTrustManager(identityExtractor,
                         List.of(getTrustStore(), getEphemeralTrustStore()),
-                        trustManagerPolicy, trustManagerUknownCertCallback);
+                        trustManagerPolicy, trustManagerUknownPeerCallback);
             } catch (KeyStoreException e) {
                 throw new AssertionError(e); // Shouldn't happen
             }

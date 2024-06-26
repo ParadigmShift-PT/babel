@@ -1,7 +1,10 @@
 package pt.unl.fct.di.novasys.babel.internal.security;
 
+import java.security.InvalidKeyException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.SignatureException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -13,6 +16,7 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import pt.unl.fct.di.novasys.babel.core.BabelSecurity;
 import pt.unl.fct.di.novasys.babel.core.security.IdFromCertExtractor;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
@@ -21,7 +25,7 @@ public class X509BabelTrustManager extends X509ITrustManager {
     private static final Logger logger = LogManager.getLogger(X509BabelTrustManager.class);
 
     public enum TrustPolicy {
-        UNKOWN, KNOWN; // TODO CERTIFICATE_AUTHORITY?
+        UNKNOWN, KNOWN_ID, KNOWN_CERT; // TODO CERTIFICATE_AUTHORITY?
     }
 
     private TrustPolicy trustPolicy;
@@ -46,12 +50,12 @@ public class X509BabelTrustManager extends X509ITrustManager {
      * to accept it, return {@code true} and add it to the trust store via
      * {@code BabelSecurity.getInstance().addTrustedCertificate(cert)}.
      */
-    private X509CertificateChainPredicate trustUnknownCertCallback;
+    private X509CertificateChainPredicate trustUnknownPeerCallback;
 
     private final IdFromCertExtractor idExtractor;
 
     public X509BabelTrustManager(IdFromCertExtractor idExtractor, Collection<KeyStore> trustStores,
-            TrustPolicy trustPolicy, X509CertificateChainPredicate trustUnknownCertCallback)
+            TrustPolicy trustPolicy, X509CertificateChainPredicate trustUnknownPeerCallback)
             throws KeyStoreException {
         // Trigger KeyStoreException early if KeyStore was not initialized.
         for (KeyStore store : trustStores)
@@ -59,7 +63,7 @@ public class X509BabelTrustManager extends X509ITrustManager {
 
         this.trustStores = trustStores;
         this.idExtractor = idExtractor;
-        this.trustUnknownCertCallback = trustUnknownCertCallback;
+        this.trustUnknownPeerCallback = trustUnknownPeerCallback;
     }
 
     @Override
@@ -72,6 +76,7 @@ public class X509BabelTrustManager extends X509ITrustManager {
         if (chain == null || chain.length == 0)
             throw new CertificateException("No certificate.");
 
+        verifySelfSignedCertificate(chain[0]);
         byte[] identity = checkConsistentId(chain[0]);
 
         if (!trustConsistentCertificate.test(chain, identity)) {
@@ -94,6 +99,7 @@ public class X509BabelTrustManager extends X509ITrustManager {
         if (chain == null || chain.length == 0)
             throw new CertificateException("No certificate.");
 
+        verifySelfSignedCertificate(chain[0]);
         byte[] identity = checkConsistentId(chain[0], expectedId);
 
         if (!trustConsistentCertificate.test(chain, identity)) {
@@ -137,16 +143,39 @@ public class X509BabelTrustManager extends X509ITrustManager {
         trustPolicy = newPolicy;
 
         trustConsistentCertificate = switch (trustPolicy) {
-            case UNKOWN -> (chain, id) -> true;
-            case KNOWN -> this::knownPolicyTrustConsistentCertificate;
+            case UNKNOWN -> (chain, id) -> true;
+            case KNOWN_CERT -> this::knownCertPolicyTrustConsistentCertificate;
+            case KNOWN_ID -> this::knownIdPolicyTrustConsistentCertificate;
         };
     }
 
-    public void setTrustUnknownCertificateCallback(X509CertificateChainPredicate trustUnknownCertCallback) {
-        this.trustUnknownCertCallback = trustUnknownCertCallback;
+    public void setTrustUnknownPeerCallback(X509CertificateChainPredicate trustUnknownCertCallback) {
+        this.trustUnknownPeerCallback = trustUnknownCertCallback;
     }
 
-    private boolean knownPolicyTrustConsistentCertificate(X509Certificate[] certificateChain, byte[] idInRootCert)
+    private boolean knownIdPolicyTrustConsistentCertificate(X509Certificate[] certificateChain, byte[] idInRootCert)
+            throws CertificateException {
+        for (KeyStore store : trustStores) {
+            try {
+                Enumeration<String> aliases = store.aliases();
+                while (aliases.hasMoreElements()) {
+                    String alias = aliases.nextElement();
+                    X509Certificate entry = (X509Certificate) store.getCertificate(alias);
+                    byte[] trustedId = extractIdFromCertificate(entry);
+                    if (Arrays.equals(idInRootCert, trustedId))
+                        return true;
+                }
+            } catch (NullPointerException | ClassCastException ignore) {
+                // Continue loop
+            } catch (KeyStoreException e) {
+                throw new AssertionError(e); // Shouldn't happen
+            }
+        }
+        logger.debug("Unknown identity received. Calling \"trust unkown\" callback handler.");
+        return trustUnknownPeerCallback.test(certificateChain, idInRootCert);
+    }
+
+    private boolean knownCertPolicyTrustConsistentCertificate(X509Certificate[] certificateChain, byte[] idInRootCert)
             throws CertificateException {
         for (KeyStore store : trustStores) {
             try {
@@ -162,7 +191,7 @@ public class X509BabelTrustManager extends X509ITrustManager {
             }
         }
         logger.debug("Unknown certificate received. Calling \"trust unkown certificate\" callback handler.");
-        return trustUnknownCertCallback.test(certificateChain, idInRootCert);
+        return trustUnknownPeerCallback.test(certificateChain, idInRootCert);
     }
 
     private byte[] checkConsistentId(X509Certificate cert, byte[] expectedId) throws CertificateException {
@@ -175,6 +204,14 @@ public class X509BabelTrustManager extends X509ITrustManager {
 
     private byte[] checkConsistentId(X509Certificate cert) throws CertificateException {
         return extractIdFromCertificate(cert);
+    }
+
+    private void verifySelfSignedCertificate(X509Certificate cert) throws CertificateException {
+        try {
+            cert.verify(cert.getPublicKey(), BabelSecurity.getInstance().PROVIDER);
+        } catch (NoSuchAlgorithmException | InvalidKeyException | SignatureException e) {
+            throw new CertificateException(e);
+        }
     }
 
 }

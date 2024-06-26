@@ -748,11 +748,12 @@ public class Babel {
 		}
 		// Override with launch parameter props
 		for (String arg : argsList) {
-			String[] property = arg.split("=", 1);
+			String[] property = arg.split("=", 2);
 			if (property.length == 2)
 				props.setProperty(property[0], property[1]);
 			else
-				throw new InvalidParameterException("Unknown parameter: " + arg);
+				throw new InvalidParameterException("Unknown parameter: " + arg
+													+ ". Property after spliting: " + Arrays.toString(property));
 		}
 
 		BabelSecurity.getInstance().loadConfig(props);

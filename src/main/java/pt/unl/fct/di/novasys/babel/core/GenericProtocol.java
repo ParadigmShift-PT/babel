@@ -781,15 +781,15 @@ public abstract class GenericProtocol {
 
 
         public ProtocolMetricsBabelMetrics(short protoId) {
-            this.totalEventsCount =  new Counter("events_total", Metric.Unit.NONE);
-            this.messagesInCount = new Counter("messages_in_total", Metric.Unit.NONE);
-            this.messagesFailedCount = new Counter("messages_failed_total", Metric.Unit.NONE);
-            this.messagesSentCount = new Counter("messages_sent_total", Metric.Unit.NONE);
-            this.timersCount = new Counter("timers_total", Metric.Unit.NONE);
-            this.notificationsCount = new Counter("notifications_total", Metric.Unit.NONE);
-            this.requestsCount = new Counter("requests_total", Metric.Unit.NONE);
-            this.repliesCount = new Counter("replies_total", Metric.Unit.NONE);
-            this.customChannelEventsCount = new Counter("custom_channel_events_total", Metric.Unit.NONE);
+            this.totalEventsCount =  new Counter("babel_events_total", Metric.Unit.NONE);
+            this.messagesInCount = new Counter("babel_messages_in_total", Metric.Unit.NONE);
+            this.messagesFailedCount = new Counter("babel_messages_failed_total", Metric.Unit.NONE);
+            this.messagesSentCount = new Counter("babel_messages_sent_total", Metric.Unit.NONE);
+            this.timersCount = new Counter("babel_timers_total", Metric.Unit.NONE);
+            this.notificationsCount = new Counter("babel_notifications_total", Metric.Unit.NONE);
+            this.requestsCount = new Counter("babel_requests_total", Metric.Unit.NONE);
+            this.repliesCount = new Counter("babel_replies_total", Metric.Unit.NONE);
+            this.customChannelEventsCount = new Counter("babel_custom_channel_events_total", Metric.Unit.NONE);
 
             MetricsManager.getInstance().registerMetric(totalEventsCount, protoId);
             MetricsManager.getInstance().registerMetric(messagesInCount, protoId);

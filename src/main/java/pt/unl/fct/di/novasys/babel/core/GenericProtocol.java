@@ -95,6 +95,8 @@ public abstract class GenericProtocol {
     
     private int defaultChannel;
 
+    // TODO if some other protocol removes this identity/secret, this variable
+    // will not be updated. Should it?
     private IdentityCrypt defaultIdentity;
     private SecretCrypt defaultSecret;
 
@@ -1249,6 +1251,7 @@ public abstract class GenericProtocol {
             var identityCrypt = babelSecurity.getIdentityCrypt(alias);
             if (identityCrypt == null)
                 throw new NoSuchElementException("Couldn't get retreive identity with alias " + alias);
+            defaultIdentity = identityCrypt;
             return defaultIdentity;
         } catch (NoSuchAlgorithmException | UnrecoverableEntryException e) {
             throw new NoSuchElementException("Couldn't get retreive identity with alias " + alias, e);
@@ -1260,6 +1263,7 @@ public abstract class GenericProtocol {
             var identityCrypt = babelSecurity.getIdentityCrypt(id);
             if (identityCrypt == null)
                 throw new NoSuchElementException("Couldn't get retreive identity with id " + PeerIdEncoder.encodeToString(id));
+            defaultIdentity = identityCrypt;
             return defaultIdentity;
         } catch (NoSuchAlgorithmException | UnrecoverableEntryException e) {
             throw new NoSuchElementException(
@@ -1267,8 +1271,8 @@ public abstract class GenericProtocol {
         }
     }
 
-    protected final IdentityCrypt getDefaultProtoIdentity() {
-        return defaultIdentity;
+    protected final IdentityCrypt getDefaultProtoIdentity() throws NoSuchAlgorithmException, UnrecoverableEntryException {
+        return defaultIdentity != null ? defaultIdentity : babelSecurity.getDefaultIdentityCrypt();
     }
 
     /* -------------------------- SECRET MANAGEMENT ----------------------- */

@@ -70,11 +70,11 @@ public class SecretCrypt {
         // Some cipher algorithms (stream ciphers) don't use the default algorithm
         // naming format, and have the same name as the key algorithm, so this checks
         // if this might be the case.
-        this.cipherTransform = algorithms.contains(cipherTransform)
+        this.cipherTransform = algorithms.contains(cipherTransform.toUpperCase())
                 ? cipherTransform
                 : key.getAlgorithm();
 
-        if (!algorithms.contains(cipherTransform))
+        if (!algorithms.contains(cipherTransform.toUpperCase()))
             throw new NoSuchAlgorithmException("Cipher algorithm not available: " + cipherTransform);
     }
 

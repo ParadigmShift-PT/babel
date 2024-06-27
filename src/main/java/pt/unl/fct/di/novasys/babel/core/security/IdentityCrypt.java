@@ -9,7 +9,6 @@ import java.security.Security;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.security.cert.Certificate;
-import java.util.Arrays;
 
 import pt.unl.fct.di.novasys.babel.core.BabelSecurity;
 
@@ -41,11 +40,11 @@ public class IdentityCrypt {
         this.certChain = certChain;
 
         var algorithms = Security.getAlgorithms("Signature");
-        this.signatureAlgorithm = algorithms.contains(signatureHashOrAlgorithm)
+        this.signatureAlgorithm = algorithms.contains(signatureHashOrAlgorithm.toUpperCase())
                 ? signatureHashOrAlgorithm
-                : signatureHashOrAlgorithm + "with" + privKey.getAlgorithm();
+                : signatureHashOrAlgorithm + "WITH" + privKey.getAlgorithm();
 
-        if (!algorithms.contains(this.signatureAlgorithm))
+        if (!algorithms.contains(this.signatureAlgorithm.toUpperCase()))
             throw new NoSuchAlgorithmException("Signature hash or algorithm not available: " + signatureHashOrAlgorithm);
     }
 

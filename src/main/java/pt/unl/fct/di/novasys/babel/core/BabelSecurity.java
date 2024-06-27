@@ -498,35 +498,49 @@ public class BabelSecurity {
     }
 
     public IdentityCrypt generateIdentity(boolean persistOnDisk) {
-        return addIdentity(persistOnDisk, identityGenerator.generateRandomCredentials());
+        try {
+            return addIdentity(persistOnDisk, identityGenerator.generateRandomCredentials());
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Generated key pair algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+        }
     }
 
     public IdentityCrypt generateIdentityWithAliasPrefix(boolean persistOnDisk, String aliasPrefix) {
-        return addIdentityWithAliasPrefix(persistOnDisk, aliasPrefix, identityGenerator.generateRandomCredentials());
+        try {
+            return addIdentityWithAliasPrefix(persistOnDisk, aliasPrefix,
+                    identityGenerator.generateRandomCredentials());
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Generated key pair algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+        }
     }
 
     public IdentityCrypt generateIdentity(boolean persistOnDisk, String alias) {
-        return addIdentity(persistOnDisk, alias, identityGenerator.generateRandomCredentials());
+        try {
+            return addIdentity(persistOnDisk, alias, identityGenerator.generateRandomCredentials());
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Generated key pair algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+        }
     }
 
-    public IdentityCrypt generateIdentity(boolean persistOnDisk, KeyPair keyPair) {
+    public IdentityCrypt generateIdentity(boolean persistOnDisk, KeyPair keyPair) throws NoSuchAlgorithmException {
         return addIdentity(persistOnDisk, identityGenerator.generateCredentials(keyPair));
     }
 
-    public IdentityCrypt generateIdentityWithAliasPrefix(boolean persistOnDisk, String aliasPrefix, KeyPair keyPair) {
+    public IdentityCrypt generateIdentityWithAliasPrefix(boolean persistOnDisk, String aliasPrefix, KeyPair keyPair)
+            throws NoSuchAlgorithmException {
         return addIdentityWithAliasPrefix(persistOnDisk, aliasPrefix, identityGenerator.generateCredentials(keyPair));
     }
 
-    public IdentityCrypt generateIdentity(boolean persistOnDisk, String alias, KeyPair keyPair) {
+    public IdentityCrypt generateIdentity(boolean persistOnDisk, String alias, KeyPair keyPair) throws NoSuchAlgorithmException {
         return addIdentity(persistOnDisk, alias, identityGenerator.generateCredentials(keyPair));
     }
 
-    public IdentityCrypt addIdentity(boolean persistOnDisk, PrivateKeyEntry keyStoreEntry) {
+    public IdentityCrypt addIdentity(boolean persistOnDisk, PrivateKeyEntry keyStoreEntry) throws NoSuchAlgorithmException {
         return addIdentity(persistOnDisk, null, keyStoreEntry);
     }
 
     public IdentityCrypt addIdentityWithAliasPrefix(boolean persistOnDisk, String aliasPrefix,
-            PrivateKeyEntry keyStoreEntry) {
+            PrivateKeyEntry keyStoreEntry) throws NoSuchAlgorithmException {
         byte[] id;
         try {
             id = identityExtractor.extractIdentity(keyStoreEntry.getCertificate());
@@ -535,15 +549,10 @@ public class BabelSecurity {
         }
         String alias = aliasPrefix + "." + PeerIdEncoder.encodeToString(id);
         addIdentity(persistOnDisk, alias, id, keyStoreEntry);
-        try {
-            return getIdentityCrypt(alias, id, keyStoreEntry);
-        } catch (NoSuchAlgorithmException e) {
-            logger.error("Coludn't create IdentityCrypt from newly added id: " + e);
-            return null;
-        }
+        return getIdentityCrypt(alias, id, keyStoreEntry);
     }
 
-    public IdentityCrypt addIdentity(boolean persistOnDisk, String alias, PrivateKeyEntry keyStoreEntry) {
+    public IdentityCrypt addIdentity(boolean persistOnDisk, String alias, PrivateKeyEntry keyStoreEntry) throws NoSuchAlgorithmException {
         byte[] id;
         try {
             id = identityExtractor.extractIdentity(keyStoreEntry.getCertificate());
@@ -552,12 +561,7 @@ public class BabelSecurity {
         }
         alias = alias == null ? PeerIdEncoder.encodeToString(id) : alias;
         addIdentity(persistOnDisk, alias, id, keyStoreEntry);
-        try {
-            return getIdentityCrypt(alias, id, keyStoreEntry);
-        } catch (NoSuchAlgorithmException e) {
-            logger.error("Coludn't create IdentityCrypt from newly added id: " + e);
-            return null;
-        }
+        return getIdentityCrypt(alias, id, keyStoreEntry);
     }
 
     public IdentityCrypt getDefaultIdentityCrypt()
@@ -582,10 +586,10 @@ public class BabelSecurity {
 
     public Set<IdentityPair> getAllIdentities() {
         try {
-            Set<IdentityPair> ids = new HashSet<>(keyStore.size() + ephKeyStore.size());
-            keyStore.aliases().asIterator()
+            Set<IdentityPair> ids = new HashSet<>(getKeyStore().size() + getEphemeralKeyStore().size());
+            getKeyStore().aliases().asIterator()
                     .forEachRemaining(alias -> ids.add(new IdentityPair(alias, idAliasMapper.getId(alias))));
-            ephKeyStore.aliases().asIterator()
+            getEphemeralKeyStore().aliases().asIterator()
                     .forEachRemaining(alias -> ids.add(new IdentityPair(alias, idAliasMapper.getId(alias))));
             return ids;
         } catch (KeyStoreException e) {
@@ -595,9 +599,9 @@ public class BabelSecurity {
 
     public Set<IdentityPair> getAllIdentitiesWithPrefix(String aliasPrefix) {
         try {
-            Set<IdentityPair> ids = new HashSet<>(keyStore.size() + ephKeyStore.size());
+            Set<IdentityPair> ids = new HashSet<>(getKeyStore().size() + getEphemeralKeyStore().size());
 
-            for (var enumeration : List.of(keyStore.aliases(), ephKeyStore.aliases())) {
+            for (var enumeration : List.of(getKeyStore().aliases(), getEphemeralKeyStore().aliases())) {
                 while (enumeration.hasMoreElements()) {
                     String alias = enumeration.nextElement();
                     if (alias.startsWith(aliasPrefix + "."))
@@ -629,13 +633,13 @@ public class BabelSecurity {
         synchronized (idAliasMapper) {
             try {
                 var chosenPair = chooseKeyStore(__ -> peristOnDisk);
-                KeyStore keyStore = chosenPair.getLeft();
+                KeyStore store = chosenPair.getLeft();
                 ProtectionParameter protection = chosenPair.getRight();
                 idAliasMapper.put(alias, id);
-                keyStore.setEntry(alias, entry, protection);
+                store.setEntry(alias, entry, protection);
 
                 if (peristOnDisk && keyStoreWritePath != null)
-                    keyStore.store(new FileOutputStream(keyStoreWritePath),
+                    store.store(new FileOutputStream(keyStoreWritePath),
                             getPassword(keyStoreProtection, keyStoreWritePath));
 
             } catch (NoSuchAlgorithmException | CertificateException | IOException | UnsupportedCallbackException e) {
@@ -688,9 +692,9 @@ public class BabelSecurity {
     private String getSignatureAlgorithmFor(String keyAlgorithm) throws NoSuchAlgorithmException {
         if (keyAlgorithm.equals("EdDSA"))
             return "EdDSA";
-        String sigAlg = hashAlgorithm + "with" + keyAlgorithm;
+        String sigAlg = hashAlgorithm + "WITH" + keyAlgorithm;
 
-        if (Security.getAlgorithms("Signature").contains(sigAlg))
+        if (Security.getAlgorithms("Signature").contains(sigAlg.toUpperCase()))
             return sigAlg;
         else
             throw new NoSuchAlgorithmException("No such Signature algorithm: " + sigAlg);
@@ -767,43 +771,71 @@ public class BabelSecurity {
 
     public SecretCrypt generateSecretFromPasswordWithAliasPrefix(boolean persistOnDisk, String aliasPrefix,
             String password) {
-        return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, applyPBKDF(password.toCharArray(), pbkdfSalt));
+        try {
+            return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, applyPBKDF(password.toCharArray(), pbkdfSalt));
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("PBKDF algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+        }
     }
 
     public SecretCrypt generateSecretFromPasswordWithAliasPrefix(boolean persistOnDisk, String aliasPrefix,
             String password, byte[] salt) {
-        return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, applyPBKDF(password.toCharArray(), salt));
+        try {
+            return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, applyPBKDF(password.toCharArray(), salt));
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("PBKDF algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+        }
     }
 
     public SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String alias, String password) {
-        return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), pbkdfSalt));
+        try {
+            return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), pbkdfSalt));
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("PBKDF algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+        }
     }
 
     public SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String alias, String password, byte[] salt) {
-        return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), salt));
+        try {
+            return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), salt));
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("PBKDF algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+        }
     }
 
     public SecretCrypt generateSecret(boolean persistOnDisk) {
-        return addSecret(persistOnDisk, generateSecretKey());
+        try {
+            return addSecret(persistOnDisk, generateSecretKey());
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Generated secret key algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+        }
     }
 
     public SecretCrypt generateSecretWithAliasPrefix(boolean persistOnDisk, String aliasPrefix) {
-        return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, generateSecretKey());
+        try {
+            return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, generateSecretKey());
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Generated secret key algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+        }
     }
 
     public SecretCrypt generateSecret(boolean persistOnDisk, String alias) {
-        return addSecret(persistOnDisk, alias, generateSecretKey());
+        try {
+            return addSecret(persistOnDisk, alias, generateSecretKey());
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Generated secret key algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+        }
     }
 
-    public SecretCrypt addSecretWithAliasPrefix(boolean peristOnDisk, String aliasPrefix, SecretKey secretKey) {
+    public SecretCrypt addSecretWithAliasPrefix(boolean peristOnDisk, String aliasPrefix, SecretKey secretKey) throws NoSuchAlgorithmException {
         return addSecret(peristOnDisk, aliasPrefix + "." + generateSecretAlias(secretKey), secretKey);
     }
 
-    public SecretCrypt addSecret(boolean peristOnDisk, SecretKey secretKey) {
+    public SecretCrypt addSecret(boolean peristOnDisk, SecretKey secretKey) throws NoSuchAlgorithmException {
         return addSecret(peristOnDisk, generateSecretAlias(secretKey), secretKey);
     }
 
-    public SecretCrypt addSecret(boolean peristOnDisk, String alias, SecretKey secretKey) {
+    public SecretCrypt addSecret(boolean peristOnDisk, String alias, SecretKey secretKey) throws NoSuchAlgorithmException {
         try {
             var chosenPair = chooseSecretStore(__ -> peristOnDisk);
             var store = chosenPair.getLeft();
@@ -825,12 +857,7 @@ public class BabelSecurity {
             throw new RuntimeException(e);
         }
 
-        try {
-            return getSecretCrypt(alias, secretKey);
-        } catch (NoSuchAlgorithmException e) {
-            logger.error("Coludn't create SecretCrypt from newly added secret: " + e);
-            return null;
-        }
+        return getSecretCrypt(alias, secretKey);
     }
 
     public SecretCrypt getSecretCrypt(String alias) throws NoSuchAlgorithmException, UnrecoverableEntryException {

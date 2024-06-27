@@ -689,7 +689,37 @@ public abstract class GenericProtocol {
     }
 
     /**
+     * Creates a new secure channel that will only use the specified identity.
+     *
+     * @param channelName the name of the channel
+     * @param props       channel-specific properties. See the documentation for each channel.
+     * @param identity    the identity allowed to be used during communication.
+     *
+     * @return the id of the newly created channel
+     * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
+     */
+    protected final int createSecureChannel(String channelName, Properties props, byte[] identity)
+            throws IOException {
+        return createSecureChannelWithIdentities(channelName, props, Arrays.asList(identity));
+    }
+
+    /**
      * Creates a new secure channel that will only use the identity specified by the given alias.
+     *
+     * @param channelName   the name of the channel
+     * @param props         channel-specific properties. See the documentation for each channel.
+     * @param identityAlias the alias of the identity allowed to be used during communication.
+     *
+     * @return the id of the newly created channel
+     * @throws IllegalArgumentException      if there's no secure channel with {@code channelName}.
+     */
+    protected final int createSecureChannel(String channelName, Properties props, String identityAlias)
+            throws IOException {
+        return createSecureChannelWithAliases(channelName, props, Arrays.asList(identityAlias));
+    }
+
+    /**
+     * Creates a new secure channel that will only use the specified identities.
      *
      * @param channelName the name of the channel
      * @param props       channel-specific properties. See the documentation for each channel.
@@ -704,7 +734,7 @@ public abstract class GenericProtocol {
     }
 
     /**
-     * Creates a new secure channel that will only use the identity specified by the given alias.
+     * Creates a new secure channel that will only use the specified identities.
      *
      * @param channelName the name of the channel
      * @param props       channel-specific properties. See the documentation for each channel.
@@ -742,7 +772,7 @@ public abstract class GenericProtocol {
     }
 
     /**
-     * Creates a new secure channel that will only use the identity specified by the given alias.
+     * Creates a new secure channel that will only use the identities specified by the given aliases.
      *
      * @param channelName     the name of the channel
      * @param props           channel-specific properties. See the documentation for each channel.
@@ -757,10 +787,10 @@ public abstract class GenericProtocol {
     }
 
     /**
-     * Creates a new secure channel that will only use the identity specified by the given alias.
+     * Creates a new secure channel that will only use the identities specified by the given aliases.
      *
-     * @param channelName   the name of the channel
-     * @param props         channel-specific properties. See the documentation for each channel.
+     * @param channelName     the name of the channel
+     * @param props           channel-specific properties. See the documentation for each channel.
      * @param identityAliases the aliases of the identities to be used during communication.
      *
      * @return the id of the newly created channel
@@ -1213,7 +1243,7 @@ public abstract class GenericProtocol {
 
     protected final IdentityCrypt generateIdentity(boolean persistOnDisk) {
         var idCrypt = babelSecurity.generateIdentityWithAliasPrefix(persistOnDisk, protoName);
-        if (defaultIdentity == null && idCrypt != null) {
+        if (defaultIdentity == null) {
             defaultIdentity = new IdentityPair(idCrypt);
             defaultIdentityCrypt = idCrypt;
         }
@@ -1233,11 +1263,11 @@ public abstract class GenericProtocol {
         return idCrypt;
     }
 
-    protected final IdentityCrypt generateIdentity(KeyPair keyPair) {
+    protected final IdentityCrypt generateIdentity(KeyPair keyPair) throws NoSuchAlgorithmException {
         return generateIdentity(true, keyPair);
     }
 
-    protected final IdentityCrypt generateIdentity(boolean persistOnDisk, KeyPair keyPair) {
+    protected final IdentityCrypt generateIdentity(boolean persistOnDisk, KeyPair keyPair) throws NoSuchAlgorithmException {
         var idCrypt = babelSecurity.generateIdentityWithAliasPrefix(persistOnDisk, protoName, keyPair);
         if (defaultIdentity == null && idCrypt != null) {
             defaultIdentity = new IdentityPair(idCrypt);
@@ -1246,9 +1276,9 @@ public abstract class GenericProtocol {
         return idCrypt;
     }
 
-    protected final IdentityCrypt generateIdentity(boolean persistOnDisk, String alias, KeyPair keyPair) {
+    protected final IdentityCrypt generateIdentity(boolean persistOnDisk, String alias, KeyPair keyPair) throws NoSuchAlgorithmException {
         var idCrypt = babelSecurity.generateIdentity(persistOnDisk, alias, keyPair);
-        if (defaultIdentity == null && idCrypt != null) {
+        if (defaultIdentity == null) {
             defaultIdentity = new IdentityPair(idCrypt);
             defaultIdentityCrypt = idCrypt;
         }
@@ -1277,17 +1307,30 @@ public abstract class GenericProtocol {
         return defaultIdentity;
     }
 
-    protected final IdentityCrypt getDefaultProtoIdentityCrypt() throws NoSuchAlgorithmException, UnrecoverableEntryException {
+    protected final IdentityPair getOrGenerateDefaultProtoIdentity() {
+        try {
+            return getDefaultProtoIdentity();
+        } catch (NoSuchElementException e) {
+            defaultIdentityCrypt = generateIdentity();
+            defaultIdentity = new IdentityPair(defaultIdentityCrypt);
+
+            return defaultIdentity;
+        }
+    }
+
+    protected final IdentityCrypt getDefaultProtoIdentityCrypt()
+            throws NoSuchAlgorithmException, UnrecoverableEntryException, NoSuchElementException {
         if (defaultIdentityCrypt == null)
             defaultIdentityCrypt = babelSecurity.getIdentityCrypt(getDefaultProtoIdentity().alias());
 
         return defaultIdentityCrypt;
     }
 
-    protected final IdentityPair getDefaultProtoIdentity() {
+    protected final IdentityPair getDefaultProtoIdentity() throws NoSuchElementException {
         if (defaultIdentity == null) {
-            defaultIdentity = babelSecurity.getDefaultIdentity();
-            defaultIdentityCrypt = null;
+            defaultIdentity = babelSecurity.getAllIdentitiesWithPrefix(protoName).stream()
+                    .findAny()
+                    .orElseThrow(() -> new NoSuchElementException("No protocol identity set. You must choose or create one."));
         }
 
         return defaultIdentity;
@@ -1336,22 +1379,23 @@ public abstract class GenericProtocol {
         return secret;
     }
 
-    protected final SecretCrypt addSecret(SecretKey secretKey) {
+    protected final SecretCrypt addSecret(SecretKey secretKey) throws NoSuchAlgorithmException {
         return addSecret(true, secretKey);
     }
 
-    protected final SecretCrypt addSecret(boolean persistOnDisk, SecretKey secretKey) {
+    protected final SecretCrypt addSecret(boolean persistOnDisk, SecretKey secretKey) throws NoSuchAlgorithmException {
         var secret = babelSecurity.addSecretWithAliasPrefix(persistOnDisk, protoName, secretKey);
         if (defaultSecret == null)
             defaultSecret = secret;
         return secret;
     }
 
-    protected final SecretCrypt addSecret(String alias, SecretKey secretKey) {
+    protected final SecretCrypt addSecret(String alias, SecretKey secretKey) throws NoSuchAlgorithmException {
         return addSecret(true, alias, secretKey);
     }
 
-    protected final SecretCrypt addSecret(boolean persistOnDisk, String alias, SecretKey secretKey) {
+    protected final SecretCrypt addSecret(boolean persistOnDisk, String alias, SecretKey secretKey)
+            throws NoSuchAlgorithmException {
         var secret = babelSecurity.addSecret(persistOnDisk, alias, secretKey);
         if (defaultSecret == null)
             defaultSecret = secret;
@@ -1371,7 +1415,9 @@ public abstract class GenericProtocol {
         }
     }
 
-    protected final SecretCrypt getDefaultProtoSecret() {
+    protected final SecretCrypt getDefaultProtoSecret() throws NoSuchElementException {
+        if (defaultSecret == null)
+            throw new NoSuchElementException("Protocol %s has no default secret".formatted(protoName));
         return defaultSecret;
     }
 

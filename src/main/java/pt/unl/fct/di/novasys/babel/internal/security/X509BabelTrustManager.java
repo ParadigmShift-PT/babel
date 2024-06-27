@@ -66,13 +66,14 @@ public class X509BabelTrustManager extends X509ITrustManager {
         for (KeyStore store : trustStores)
             store.size();
 
-        this.trustStores = trustStores;
-        this.idExtractor = idExtractor;
-        this.trustUnknownPeerCallback = trustUnknownPeerCallback;
-
         ReadWriteLock policyLock = new ReentrantReadWriteLock();
         this.policyReadLock = policyLock.readLock();
         this.policyWriteLock = policyLock.writeLock();
+
+        this.trustStores = trustStores;
+        this.idExtractor = idExtractor;
+        this.trustUnknownPeerCallback = trustUnknownPeerCallback;
+        setTrustPolicy(trustPolicy);
     }
 
     @Override

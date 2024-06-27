@@ -7,7 +7,6 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableEntryException;
 import java.security.cert.CertificateException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -44,7 +43,7 @@ public class IdAliasMapper {
         putDefault(defaultAlias, defaultId);
     }
 
-    public IdAliasMapper populateFromPrivateKeyStore(KeyStore keyStore, ProtectionParameter protParam,
+    public synchronized IdAliasMapper populateFromPrivateKeyStore(KeyStore keyStore, ProtectionParameter protParam,
             IdFromCertExtractor idExtractor) throws KeyStoreException {
         var it = keyStore.aliases().asIterator();
         while (it.hasNext()) {

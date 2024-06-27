@@ -12,6 +12,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.Set;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,10 +28,12 @@ public class X509BabelTrustManager extends X509ITrustManager {
     private static final Logger logger = LogManager.getLogger(X509BabelTrustManager.class);
 
     public enum TrustPolicy {
-        UNKNOWN, KNOWN_ID, KNOWN_CERT; // TODO CERTIFICATE_AUTHORITY?
+        UNKNOWN, KNOWN_ID, KNOWN_CERT; // TODO CERTIFICATE_AUTHORITIES?
     }
 
     private TrustPolicy trustPolicy;
+    private final Lock policyWriteLock;
+    private final Lock policyReadLock;
 
     // TODO store and make getter for all previously accepted (and refused)
     // identities and their certificates? Make parameter to set how many
@@ -64,6 +69,10 @@ public class X509BabelTrustManager extends X509ITrustManager {
         this.trustStores = trustStores;
         this.idExtractor = idExtractor;
         this.trustUnknownPeerCallback = trustUnknownPeerCallback;
+
+        ReadWriteLock policyLock = new ReentrantReadWriteLock();
+        this.policyReadLock = policyLock.readLock();
+        this.policyWriteLock = policyLock.writeLock();
     }
 
     @Override
@@ -79,11 +88,16 @@ public class X509BabelTrustManager extends X509ITrustManager {
         verifySelfSignedCertificate(chain[0]);
         byte[] identity = checkConsistentId(chain[0]);
 
-        if (!trustConsistentCertificate.test(chain, identity)) {
-            String msg = "Didn't trust certificate with identity %s. Trust manager policy was %s."
-                    .formatted(PeerIdEncoder.encodeToString(identity), trustPolicy);
-            logger.info(msg);
-            throw new CertificateException(msg);
+        policyReadLock.lock();
+        try {
+            if (!trustConsistentCertificate.test(chain, identity)) {
+                String msg = "Didn't trust certificate with identity %s. Trust manager policy was %s."
+                        .formatted(PeerIdEncoder.encodeToString(identity), trustPolicy);
+                logger.info(msg);
+                throw new CertificateException(msg);
+            }
+        } finally {
+            policyReadLock.unlock();
         }
     }
 
@@ -102,11 +116,16 @@ public class X509BabelTrustManager extends X509ITrustManager {
         verifySelfSignedCertificate(chain[0]);
         byte[] identity = checkConsistentId(chain[0], expectedId);
 
-        if (!trustConsistentCertificate.test(chain, identity)) {
-            String msg = "Didn't trust certificate with identity %s. Trust manager policy was %s."
-                    .formatted(PeerIdEncoder.encodeToString(identity), trustPolicy);
-            logger.info(msg);
-            throw new CertificateException(msg);
+        policyReadLock.lock();
+        try {
+            if (!trustConsistentCertificate.test(chain, identity)) {
+                String msg = "Didn't trust certificate with identity %s. Trust manager policy was %s."
+                        .formatted(PeerIdEncoder.encodeToString(identity), trustPolicy);
+                logger.info(msg);
+                throw new CertificateException(msg);
+            }
+        } finally {
+            policyReadLock.unlock();
         }
     }
 
@@ -140,30 +159,42 @@ public class X509BabelTrustManager extends X509ITrustManager {
     }
 
     public void setTrustPolicy(TrustPolicy newPolicy) {
-        trustPolicy = newPolicy;
+        policyWriteLock.lock();
+        try {
+            trustPolicy = newPolicy;
 
-        trustConsistentCertificate = switch (trustPolicy) {
-            case UNKNOWN -> (chain, id) -> true;
-            case KNOWN_CERT -> this::knownCertPolicyTrustConsistentCertificate;
-            case KNOWN_ID -> this::knownIdPolicyTrustConsistentCertificate;
-        };
+            trustConsistentCertificate = switch (trustPolicy) {
+                case UNKNOWN -> (chain, id) -> true;
+                case KNOWN_CERT -> this::knownCertPolicyTrustConsistentCertificate;
+                case KNOWN_ID -> this::knownIdPolicyTrustConsistentCertificate;
+            };
+        } finally {
+            policyWriteLock.unlock();
+        }
     }
 
     public void setTrustUnknownPeerCallback(X509CertificateChainPredicate trustUnknownCertCallback) {
-        this.trustUnknownPeerCallback = trustUnknownCertCallback;
+        policyWriteLock.lock();
+        try {
+            this.trustUnknownPeerCallback = trustUnknownCertCallback;
+        } finally {
+            policyWriteLock.unlock();
+        }
     }
 
     private boolean knownIdPolicyTrustConsistentCertificate(X509Certificate[] certificateChain, byte[] idInRootCert)
             throws CertificateException {
         for (KeyStore store : trustStores) {
             try {
-                Enumeration<String> aliases = store.aliases();
-                while (aliases.hasMoreElements()) {
-                    String alias = aliases.nextElement();
-                    X509Certificate entry = (X509Certificate) store.getCertificate(alias);
-                    byte[] trustedId = extractIdFromCertificate(entry);
-                    if (Arrays.equals(idInRootCert, trustedId))
-                        return true;
+                synchronized (store) {
+                    Enumeration<String> aliases = store.aliases();
+                    while (aliases.hasMoreElements()) {
+                        String alias = aliases.nextElement();
+                        X509Certificate entry = (X509Certificate) store.getCertificate(alias);
+                        byte[] trustedId = extractIdFromCertificate(entry);
+                        if (Arrays.equals(idInRootCert, trustedId))
+                            return true;
+                    }
                 }
             } catch (NullPointerException | ClassCastException ignore) {
                 // Continue loop
@@ -179,12 +210,14 @@ public class X509BabelTrustManager extends X509ITrustManager {
             throws CertificateException {
         for (KeyStore store : trustStores) {
             try {
-                Enumeration<String> aliases = store.aliases();
-                while (aliases.hasMoreElements()) {
-                    String alias = aliases.nextElement();
-                    Certificate entry = store.getCertificate(alias);
-                    if (Arrays.equals(entry.getEncoded(), certificateChain[0].getEncoded()))
-                        return true;
+                synchronized (store) {
+                    Enumeration<String> aliases = store.aliases();
+                    while (aliases.hasMoreElements()) {
+                        String alias = aliases.nextElement();
+                        Certificate entry = store.getCertificate(alias);
+                        if (Arrays.equals(entry.getEncoded(), certificateChain[0].getEncoded()))
+                            return true;
+                    }
                 }
             } catch (KeyStoreException e) {
                 throw new AssertionError(e); // Shouldn't happen

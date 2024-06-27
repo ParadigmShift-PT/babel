@@ -2,7 +2,6 @@ package pt.unl.fct.di.novasys.babel.internal.security;
 
 import java.security.KeyPair;
 import java.security.KeyStore.PrivateKeyEntry;
-import java.security.PublicKey;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -24,20 +23,9 @@ public class BabelCredentialHandler implements SimpleIdentityGenerator, IdFromCe
     @Override
     public byte[] extractIdentity(Certificate certificate) throws CertificateException {
         if (certificate instanceof X509Certificate cert) {
-
-            PublicKey pubKey = cert.getPublicKey();
-            /*
-            TODO this shouldn't be the job of this class
-            try {
-                cert.verify(pubKey, new BouncyCastleProvider());
-            } catch (NoSuchAlgorithmException | InvalidKeyException | SignatureException e) {
-                throw new CertificateException(e);
-            }
-            */
-
             String certIdString = CryptUtils.getInstance().getX509CertificatePeerId(cert);
             certIdString = PeerIdEncoder.withoutEscapeBackslashes(certIdString);
-            byte[] pubKeyId = PeerIdEncoder.fromPublicKey(pubKey);
+            byte[] pubKeyId = PeerIdEncoder.fromPublicKey(cert.getPublicKey());
             String pubKeyIdString = PeerIdEncoder.encodeToString(pubKeyId);
 
             if (!certIdString.equals(pubKeyIdString))

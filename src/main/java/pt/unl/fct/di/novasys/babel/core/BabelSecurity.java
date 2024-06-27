@@ -563,7 +563,9 @@ public class BabelSecurity {
     public IdentityCrypt getDefaultIdentityCrypt()
             throws NoSuchAlgorithmException, UnrecoverableEntryException {
         IdentityPair idPair = idAliasMapper.getDefault();
-        return idPair == null ? null : getIdentityCrypt(idPair.alias(), idPair.id());
+        return idPair != null
+                ? getIdentityCrypt(idPair.alias(), idPair.id())
+                : generateIdentity(false);
     }
 
     public IdentityCrypt getIdentityCrypt(String alias)
@@ -617,6 +619,7 @@ public class BabelSecurity {
     }
 
     public IdentityPair getDefaultIdentity() {
+        getKeyStore(); // ensure keystore was initialized
         return idAliasMapper.getDefault();
     }
 

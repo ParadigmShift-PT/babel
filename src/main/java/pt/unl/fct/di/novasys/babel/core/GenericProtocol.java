@@ -97,7 +97,8 @@ public abstract class GenericProtocol {
 
     // TODO if some other protocol removes this identity/secret, this variable
     // will not be updated. Should it?
-    private IdentityCrypt defaultIdentity;
+    private IdentityCrypt defaultIdentityCrypt;
+    private IdentityPair defaultIdentity;
     private SecretCrypt defaultSecret;
 
     private final Map<Integer, ChannelHandlers> channels;
@@ -1211,10 +1212,12 @@ public abstract class GenericProtocol {
     }
 
     protected final IdentityCrypt generateIdentity(boolean persistOnDisk) {
-        var id = babelSecurity.generateIdentityWithAliasPrefix(persistOnDisk, protoName);
-        if (defaultIdentity == null)
-            defaultIdentity = id;
-        return id;
+        var idCrypt = babelSecurity.generateIdentityWithAliasPrefix(persistOnDisk, protoName);
+        if (defaultIdentity == null && idCrypt != null) {
+            defaultIdentity = new IdentityPair(idCrypt);
+            defaultIdentityCrypt = idCrypt;
+        }
+        return idCrypt;
     }
 
     protected final IdentityCrypt generateIdentity(String alias) {
@@ -1222,10 +1225,12 @@ public abstract class GenericProtocol {
     }
 
     protected final IdentityCrypt generateIdentity(boolean persistOnDisk, String alias) {
-        var id = babelSecurity.generateIdentity(persistOnDisk, alias);
-        if (defaultIdentity == null)
-            defaultIdentity = id;
-        return id;
+        var idCrypt = babelSecurity.generateIdentity(persistOnDisk, alias);
+        if (defaultIdentity == null && idCrypt != null) {
+            defaultIdentity = new IdentityPair(idCrypt);
+            defaultIdentityCrypt = idCrypt;
+        }
+        return idCrypt;
     }
 
     protected final IdentityCrypt generateIdentity(KeyPair keyPair) {
@@ -1233,46 +1238,59 @@ public abstract class GenericProtocol {
     }
 
     protected final IdentityCrypt generateIdentity(boolean persistOnDisk, KeyPair keyPair) {
-        var id = babelSecurity.generateIdentityWithAliasPrefix(persistOnDisk, protoName, keyPair);
-        if (defaultIdentity == null)
-            defaultIdentity = id;
-        return id;
+        var idCrypt = babelSecurity.generateIdentityWithAliasPrefix(persistOnDisk, protoName, keyPair);
+        if (defaultIdentity == null && idCrypt != null) {
+            defaultIdentity = new IdentityPair(idCrypt);
+            defaultIdentityCrypt = idCrypt;
+        }
+        return idCrypt;
     }
 
     protected final IdentityCrypt generateIdentity(boolean persistOnDisk, String alias, KeyPair keyPair) {
-        var id = babelSecurity.generateIdentity(persistOnDisk, alias, keyPair);
-        if (defaultIdentity == null)
-            defaultIdentity = id;
-        return id;
-    }
-
-    protected final IdentityCrypt setDefaultProtoIdentity(String alias) throws NoSuchElementException {
-        try {
-            var identityCrypt = babelSecurity.getIdentityCrypt(alias);
-            if (identityCrypt == null)
-                throw new NoSuchElementException("Couldn't get retreive identity with alias " + alias);
-            defaultIdentity = identityCrypt;
-            return defaultIdentity;
-        } catch (NoSuchAlgorithmException | UnrecoverableEntryException e) {
-            throw new NoSuchElementException("Couldn't get retreive identity with alias " + alias, e);
+        var idCrypt = babelSecurity.generateIdentity(persistOnDisk, alias, keyPair);
+        if (defaultIdentity == null && idCrypt != null) {
+            defaultIdentity = new IdentityPair(idCrypt);
+            defaultIdentityCrypt = idCrypt;
         }
+        return idCrypt;
     }
 
-    protected final IdentityCrypt setDefaultProtoIdentity(byte[] id) throws NoSuchElementException {
-        try {
-            var identityCrypt = babelSecurity.getIdentityCrypt(id);
-            if (identityCrypt == null)
-                throw new NoSuchElementException("Couldn't get retreive identity with id " + PeerIdEncoder.encodeToString(id));
-            defaultIdentity = identityCrypt;
-            return defaultIdentity;
-        } catch (NoSuchAlgorithmException | UnrecoverableEntryException e) {
-            throw new NoSuchElementException(
-                    "Couldn't get retreive identity with id " + PeerIdEncoder.encodeToString(id), e);
+    protected final IdentityPair setDefaultProtoIdentity(String alias) throws NoSuchElementException {
+        var id = babelSecurity.getAliasIdentity(alias);
+        if (id == null)
+            throw new NoSuchElementException("Couldn't get retreive identity with alias " + alias);
+
+        defaultIdentity = new IdentityPair(alias, id);
+        defaultIdentityCrypt = null;
+
+        return defaultIdentity;
+    }
+
+    protected final IdentityPair setDefaultProtoIdentity(byte[] identity) throws NoSuchElementException {
+        var alias = babelSecurity.getIdentityAlias(identity);
+        if (alias == null)
+            throw new NoSuchElementException("Couldn't get retreive identity with id " + PeerIdEncoder.encodeToString(identity));
+
+        defaultIdentity = new IdentityPair(alias, identity);
+        defaultIdentityCrypt = null;
+
+        return defaultIdentity;
+    }
+
+    protected final IdentityCrypt getDefaultProtoIdentityCrypt() throws NoSuchAlgorithmException, UnrecoverableEntryException {
+        if (defaultIdentityCrypt == null)
+            defaultIdentityCrypt = babelSecurity.getIdentityCrypt(getDefaultProtoIdentity().alias());
+
+        return defaultIdentityCrypt;
+    }
+
+    protected final IdentityPair getDefaultProtoIdentity() {
+        if (defaultIdentity == null) {
+            defaultIdentity = babelSecurity.getDefaultIdentity();
+            defaultIdentityCrypt = null;
         }
-    }
 
-    protected final IdentityCrypt getDefaultProtoIdentity() throws NoSuchAlgorithmException, UnrecoverableEntryException {
-        return defaultIdentity != null ? defaultIdentity : babelSecurity.getDefaultIdentityCrypt();
+        return defaultIdentity;
     }
 
     /* -------------------------- SECRET MANAGEMENT ----------------------- */

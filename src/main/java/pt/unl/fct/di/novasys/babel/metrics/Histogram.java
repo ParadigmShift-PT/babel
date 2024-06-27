@@ -4,6 +4,7 @@ package pt.unl.fct.di.novasys.babel.metrics;
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.LabeledMetricException;
 import pt.unl.fct.di.novasys.babel.metrics.exporters.CollectOptions;
 import pt.unl.fct.di.novasys.babel.metrics.simplemetrics.SimpleHistogram;
+import pt.unl.fct.di.novasys.babel.metrics.simplemetrics.SimpleHistogram.SimpleHistogramSample;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -164,9 +165,10 @@ public class Histogram extends LabeledMetric<SimpleHistogram> {
      * @return an array of samples, one for each bucket, one for the sum and one for the count
      */
     private Sample[] sampleFromSimpleHistogram(SimpleHistogram simpleHistogram, String... labelValues) {
-        double[] observations = simpleHistogram.getObservations();
-        double sum = simpleHistogram.getSum();
-        double count = simpleHistogram.getCount();
+        SimpleHistogramSample simpleHistogramSample = simpleHistogram.getSample();
+        double[] observations = simpleHistogramSample.observations;
+        double sum = simpleHistogramSample.sum;
+        double count = simpleHistogramSample.count;
 
         Sample[] samples = new Sample[observations.length + 2];
 

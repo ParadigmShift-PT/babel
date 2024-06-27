@@ -89,33 +89,26 @@ public class SimpleHistogram {
 
 
     /**
-     * Get the number of observations for each bucket
-     * @return an array with the number of observations for each bucket
+     * Get the number of observations for each bucket, the sum of all observations and the number of observations
+     * @return a SimpleHistogramSample object with the observations, sum and count
      */
-    public double[] getObservations(){
+    public SimpleHistogramSample getSample(){
         synchronized (lock) {
-            return Arrays.copyOf(this.observations_per_bucket, this.buckets.length);
+            return new SimpleHistogramSample(this.buckets, Arrays.copyOf(this.observations_per_bucket, this.observations_per_bucket.length), this.sum, this.count);
         }
     }
 
 
-    /**
-     * Get the sum of all observations
-     * @return the sum of all observations
-     */
-    public double getSum() {
-        synchronized (lock) {
-            return sum;
+    public static class SimpleHistogramSample{
+        public double[] observations;
+        public double sum;
+        public  double count;
+
+        public SimpleHistogramSample(double[] buckets, double[] observations, double sum, double count){
+            this.observations = observations;
+            this.sum = sum;
+            this.count = count;
         }
     }
 
-    /**
-     * Get the number of observations
-     * @return the number of observations
-     */
-    public double getCount() {
-        synchronized (lock) {
-            return count;
-        }
-    }
 }

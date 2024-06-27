@@ -190,6 +190,7 @@ public class BabelSecurity {
      */
 
     // Lazy loaded fields
+    // TODO are keystores thread safe like ConcurrentHashMap?
     private KeyStore keyStore;
     private KeyStore ephKeyStore;
     private X509IKeyManager keyManager;
@@ -204,6 +205,7 @@ public class BabelSecurity {
     // Fields to be instantiated at construction
     public final Provider PROVIDER = new BouncyCastleProvider();
 
+    // This is also used as a lock (with synchronized blocks) for both keyStores
     private final IdAliasMapper idAliasMapper;
 
     private final SecureRandom keyRng;
@@ -222,9 +224,9 @@ public class BabelSecurity {
         idAliasMapper = new IdAliasMapper();
     }
 
-    // -------- Lazy loaders
+    /* -------------- Lazy key store loaders -------------- */
 
-    public KeyStore getKeyStore() {
+    public synchronized KeyStore getKeyStore() {
         if (keyStore == null) {
             try {
                 keyStore = loadOrCreateStore(keyStoreLoadPath, keyStoreType, keyStoreProtection);
@@ -245,7 +247,7 @@ public class BabelSecurity {
         return keyStore;
     }
 
-    public KeyStore getEphemeralKeyStore() {
+    public synchronized KeyStore getEphemeralKeyStore() {
         if (ephKeyStore == null) {
             try {
                 logger.debug("Creating new ephemeral key store with an auto-generated identity.");
@@ -259,7 +261,7 @@ public class BabelSecurity {
         return ephKeyStore;
     }
 
-    public X509IKeyManager getKeyManager() {
+    public synchronized X509IKeyManager getKeyManager() {
         if (keyManager == null) {
             try {
                 keyManager = new X509BabelKeyManager(keyStoreProtection, idAliasMapper,
@@ -272,7 +274,7 @@ public class BabelSecurity {
         return keyManager;
     }
 
-    public KeyStore getTrustStore() {
+    public synchronized KeyStore getTrustStore() {
         if (trustStore == null) {
             try {
                 trustStore = loadOrCreateStore(trustStoreLoadPath, trustStoreType, trustStoreProtection);
@@ -285,7 +287,7 @@ public class BabelSecurity {
         return trustStore;
     }
 
-    public KeyStore getEphemeralTrustStore() {
+    public synchronized KeyStore getEphemeralTrustStore() {
         if (ephTrustStore == null) {
             try {
                 logger.debug("Creating new ephemeral trust store");
@@ -298,7 +300,7 @@ public class BabelSecurity {
         return ephTrustStore;
     }
 
-    public X509ITrustManager getTrustManager() {
+    public synchronized X509ITrustManager getTrustManager() {
         if (trustManager == null) {
             try {
                 trustManager = new X509BabelTrustManager(identityExtractor,
@@ -312,7 +314,7 @@ public class BabelSecurity {
         return trustManager;
     }
 
-    public KeyStore getSecretStore() {
+    public synchronized KeyStore getSecretStore() {
         if (secretStore == null) {
             try {
                 secretStore = loadOrCreateStore(secretStoreLoadPath, secretStoreType, secretStoreProtection);
@@ -325,7 +327,7 @@ public class BabelSecurity {
         return secretStore;
     }
 
-    public KeyStore getEphemeralSecretStore() {
+    public synchronized KeyStore getEphemeralSecretStore() {
         if (ephSecretStore == null) {
             try {
                 logger.debug("Creating new ephemeral trust store");
@@ -338,6 +340,8 @@ public class BabelSecurity {
 
         return ephSecretStore;
     }
+
+    // ------ Auxiliary
 
     private static KeyStore loadOrCreateStore(String loadPath, String storeType, ProtectionParameter protection)
             throws KeyStoreException {
@@ -455,37 +459,41 @@ public class BabelSecurity {
     // ------ Public methods
 
     public Pair<PrivateKeyEntry, String> deleteIdentity(byte[] identity) throws UnrecoverableEntryException {
-        String alias = idAliasMapper.getAlias(identity);
+        synchronized (idAliasMapper) {
+            String alias = idAliasMapper.getAlias(identity);
 
-        var result = deleteIdentity(alias);
-        assert Arrays.equals(result.getRight(), identity);
+            var result = deleteIdentity(alias);
+            assert Arrays.equals(result.getRight(), identity);
 
-        return Pair.of(result.getLeft(), alias);
+            return Pair.of(result.getLeft(), alias);
+        }
     }
 
     public Pair<PrivateKeyEntry, byte[]> deleteIdentity(String alias) throws UnrecoverableEntryException {
-        try {
-            var chosenPair = chooseKeyStore(store -> store.containsAlias(alias));
-            KeyStore keyStore = chosenPair.getLeft();
-            ProtectionParameter protection = chosenPair.getRight();
+        synchronized (idAliasMapper) {
             try {
-                KeyStore.Entry entry = keyStore.getEntry(alias, protection);
-                if (entry instanceof PrivateKeyEntry deleted) {
-                    keyStore.deleteEntry(alias);
+                var chosenPair = chooseKeyStore(store -> store.containsAlias(alias));
+                KeyStore keyStore = chosenPair.getLeft();
+                ProtectionParameter protection = chosenPair.getRight();
+                try {
+                    KeyStore.Entry entry = keyStore.getEntry(alias, protection);
+                    if (entry instanceof PrivateKeyEntry deleted) {
+                        keyStore.deleteEntry(alias);
 
+                        byte[] removedId = idAliasMapper.removeAlias(alias);
+                        return Pair.of(deleted, removedId);
+                    } else {
+                        return null;
+                    }
+                } catch (NoSuchAlgorithmException e) {
+                    // Delete anyways
+                    keyStore.deleteEntry(alias);
                     byte[] removedId = idAliasMapper.removeAlias(alias);
-                    return Pair.of(deleted, removedId);
-                } else {
-                    return null;
+                    return Pair.of(null, removedId);
                 }
-            } catch (NoSuchAlgorithmException e) {
-                // Delete anyways
-                keyStore.deleteEntry(alias);
-                byte[] removedId = idAliasMapper.removeAlias(alias);
-                return Pair.of(null, removedId);
+            } catch (KeyStoreException e) {
+                throw new AssertionError(e); // Shouldn't happen
             }
-        } catch (KeyStoreException e) {
-            throw new AssertionError(e); // Shouldn't happen
         }
     }
 
@@ -615,25 +623,27 @@ public class BabelSecurity {
     // ----- Auxiliary methods
 
     private void addIdentity(boolean peristOnDisk, String alias, byte[] id, PrivateKeyEntry entry) {
-        try {
-            var chosenPair = chooseKeyStore(__ -> peristOnDisk);
-            KeyStore keyStore = chosenPair.getLeft();
-            ProtectionParameter protection = chosenPair.getRight();
-            idAliasMapper.put(alias, id);
-            keyStore.setEntry(alias, entry, protection);
+        synchronized (idAliasMapper) {
+            try {
+                var chosenPair = chooseKeyStore(__ -> peristOnDisk);
+                KeyStore keyStore = chosenPair.getLeft();
+                ProtectionParameter protection = chosenPair.getRight();
+                idAliasMapper.put(alias, id);
+                keyStore.setEntry(alias, entry, protection);
 
-            if (peristOnDisk && keyStoreWritePath != null)
-                keyStore.store(new FileOutputStream(keyStoreWritePath),
-                        getPassword(keyStoreProtection, keyStoreWritePath));
+                if (peristOnDisk && keyStoreWritePath != null)
+                    keyStore.store(new FileOutputStream(keyStoreWritePath),
+                            getPassword(keyStoreProtection, keyStoreWritePath));
 
-        } catch (NoSuchAlgorithmException | CertificateException | IOException | UnsupportedCallbackException e) {
-            logger.error("Couldn't persist key store to {} after adding identity {}. Cause: {}",
-                    keyStoreWritePath, alias, e);
-        } catch (KeyStoreException e) {
-            // From KeyStore.setEntry():
-            // "KeyStoreException if the keystore has not been initialized (loaded), or
-            // if this operation fails for **some other reason**"...
-            throw new RuntimeException(e);
+            } catch (NoSuchAlgorithmException | CertificateException | IOException | UnsupportedCallbackException e) {
+                logger.error("Couldn't persist key store to {} after adding identity {}. Cause: {}",
+                        keyStoreWritePath, alias, e);
+            } catch (KeyStoreException e) {
+                // From KeyStore.setEntry():
+                // "KeyStoreException if the keystore has not been initialized (loaded), or
+                // if this operation fails for **some other reason**"...
+                throw new RuntimeException(e);
+            }
         }
     }
 
@@ -672,10 +682,15 @@ public class BabelSecurity {
         return new IdentityCrypt(alias, id, privKey, pubKey, certChain, sigHashOrAlg);
     }
 
-    private String getSignatureAlgorithmFor(String keyAlgorithm) {
+    private String getSignatureAlgorithmFor(String keyAlgorithm) throws NoSuchAlgorithmException {
         if (keyAlgorithm.equals("EdDSA"))
             return "EdDSA";
-        return hashAlgorithm + "with" + keyAlgorithm;
+        String sigAlg = hashAlgorithm + "with" + keyAlgorithm;
+
+        if (Security.getAlgorithms("Signature").contains(sigAlg))
+            return sigAlg;
+        else
+            throw new NoSuchAlgorithmException("No such Signature algorithm: " + sigAlg);
     }
 
     private Pair<KeyStore, ProtectionParameter> chooseKeyStore(KeyStorePredicate shouldBePersistent)
@@ -708,16 +723,19 @@ public class BabelSecurity {
     public void addTrustedCertificate(boolean peristOnDisk, Certificate certificate, String alias)
             throws KeyStoreException {
         KeyStore trustStore = peristOnDisk ? getTrustStore() : getEphemeralTrustStore();
-        trustStore.setCertificateEntry(alias, certificate);
 
-        if (peristOnDisk && trustStoreWritePath != null) {
-            try {
-                trustStore.store(new FileOutputStream(trustStoreWritePath),
-                        getPassword(trustStoreProtection, trustStoreWritePath));
-            } catch (KeyStoreException | NoSuchAlgorithmException | CertificateException | IOException
-                    | UnsupportedCallbackException e) {
-                logger.error("Couldn't persist trust store to {} after adding trusted certificate {}. Cause: {}",
-                        trustStoreWritePath, alias, e);
+        synchronized (trustStore) {
+            trustStore.setCertificateEntry(alias, certificate);
+
+            if (peristOnDisk && trustStoreWritePath != null) {
+                try {
+                    trustStore.store(new FileOutputStream(trustStoreWritePath),
+                            getPassword(trustStoreProtection, trustStoreWritePath));
+                } catch (KeyStoreException | NoSuchAlgorithmException | CertificateException | IOException
+                        | UnsupportedCallbackException e) {
+                    logger.error("Couldn't persist trust store to {} after adding trusted certificate {}. Cause: {}",
+                            trustStoreWritePath, alias, e);
+                }
             }
         }
     }
@@ -785,14 +803,15 @@ public class BabelSecurity {
     public SecretCrypt addSecret(boolean peristOnDisk, String alias, SecretKey secretKey) {
         try {
             var chosenPair = chooseSecretStore(__ -> peristOnDisk);
-            KeyStore store = chosenPair.getLeft();
-            ProtectionParameter protection = chosenPair.getRight();
+            var store = chosenPair.getLeft();
 
-            store.setEntry(alias, new KeyStore.SecretKeyEntry(secretKey), protection);
+            synchronized (store) {
+                store.setEntry(alias, new KeyStore.SecretKeyEntry(secretKey), chosenPair.getRight());
 
-            if (peristOnDisk && keyStoreWritePath != null)
-                store.store(new FileOutputStream(secretStoreWritePath),
-                        getPassword(secretStoreProtection, secretStoreWritePath));
+                if (peristOnDisk && keyStoreWritePath != null)
+                    store.store(new FileOutputStream(secretStoreWritePath),
+                            getPassword(secretStoreProtection, secretStoreWritePath));
+            }
         } catch (IOException | NoSuchAlgorithmException | CertificateException | UnsupportedCallbackException e) {
             logger.error("Couldn't persist secret store to {} after adding secret {}. Cause: {}",
                     secretStoreWritePath, alias, e);
@@ -887,8 +906,17 @@ public class BabelSecurity {
 
     /**
      * Called by Babel's load config.
+     * <p>
+     * <b>Can lead to unexpected behaviour if called after one of the many key
+     * stores is loaded for the first time.</b>
      */
-    void loadConfig(Properties config) {
+    synchronized void loadConfig(Properties config) {
+        if (keyStore != null || ephKeyStore != null || trustStore != null || ephTrustStore != null
+                || secretStore != null || ephSecretStore != null) {
+            logger.warn(
+                    "Loading configuration after one of the key stores was already loaded. This might lead to unexpected behaviour.");
+        }
+
         keyStoreType = config.getProperty(PAR_KEY_STORE_TYPE, keyStoreType);
         keyStoreLoadPath = config.getProperty(PAR_KEY_STORE_PATH, keyStoreLoadPath);
 

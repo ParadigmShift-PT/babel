@@ -28,6 +28,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
@@ -115,6 +116,8 @@ public class BabelSecurity {
      */
     private static final String PAR_TRUST_STORE_WRITABLE = PREFIX + ".truststore.writable";
     private String trustStoreWritePath = null;
+    private static final String PAR_TRUST_STORE_SAVE_ALL_ENCOUNTERED = PREFIX + ".truststore.save_all_encountered";
+    private boolean trustStoreSaveAll = true;
 
     private static final String PAR_TRUST_MANAGER_POLICY = PREFIX + ".trustmanager.policy";
     private X509BabelTrustManager.TrustPolicy trustManagerPolicy = X509BabelTrustManager.TrustPolicy.UNKNOWN;
@@ -305,7 +308,8 @@ public class BabelSecurity {
             try {
                 trustManager = new X509BabelTrustManager(identityExtractor,
                         List.of(getTrustStore(), getEphemeralTrustStore()),
-                        trustManagerPolicy, trustManagerUknownPeerCallback);
+                        trustManagerPolicy, trustManagerUknownPeerCallback,
+                        getEphemeralKeyStore());
             } catch (KeyStoreException e) {
                 throw new AssertionError(e); // Shouldn't happen
             }
@@ -715,21 +719,11 @@ public class BabelSecurity {
 
     /* ------------------- Trust ------------------- */
 
-    public void addTrustedCertificate(boolean peristOnDisk, Certificate certificate) throws KeyStoreException {
-        try {
-            addTrustedCertificate(peristOnDisk, certificate,
-                    Instant.now() + "_identity:"
-                            + Base64.getEncoder().encodeToString(identityExtractor.extractIdentity(certificate)));
-        } catch (CertificateException e) {
-            addTrustedCertificate(peristOnDisk, certificate,
-                    Instant.now() + "_pubkey:"
-                            + Base64.getEncoder().encodeToString(certificate.getPublicKey().getEncoded()));
-        }
-    }
-
-    public void addTrustedCertificate(boolean peristOnDisk, Certificate certificate, String alias)
-            throws KeyStoreException {
+    public void addTrustedCertificate(boolean peristOnDisk, Certificate certificate)
+            throws KeyStoreException, CertificateException {
         KeyStore trustStore = peristOnDisk ? getTrustStore() : getEphemeralTrustStore();
+
+        String alias = PeerIdEncoder.encodeToString(identityExtractor.extractIdentity(certificate));
 
         synchronized (trustStore) {
             trustStore.setCertificateEntry(alias, certificate);
@@ -747,12 +741,25 @@ public class BabelSecurity {
         }
     }
 
+    public void addTrustedPeerIdentity(byte[] peerId) {
+        getTrustManager().addTrustedId(peerId);
+    }
+
+    public void removeTrustedPeerIdentity(byte[] peerId) {
+        getTrustManager().removeTrustedId(peerId);
+    }
+
+    public Certificate getTrustedCertificate(byte[] peerId) {
+        Certificate persistent = getTrustedCertificateFrom(getTrustStore(), peerId);
+        return persistent != null ? persistent : getTrustedCertificateFrom(getEphemeralTrustStore(), peerId);
+    }
+
     /**
-     * Sets trust manager policy to {@code newPolicy} if it's an instance of
-     * {@link X509BabelTrustManager}. Else, does nothing.
-     * 
+     * Sets trust manager policy to {@code newPolicy} if the trust manager is an
+     * instance of {@link X509BabelTrustManager}. Else, does nothing.
+     *
      * @param newPolicy The new policy to set for the trust manager.
-     * @return {@code true} this method had any effects.
+     * @return {@code true} if this method had any effects.
      */
     public boolean setTrustManagerPolicy(X509BabelTrustManager.TrustPolicy newPolicy) {
         if (getTrustManager() instanceof X509BabelTrustManager trustMan) {
@@ -763,11 +770,29 @@ public class BabelSecurity {
         }
     }
 
+    // ----- Auxiliary
+
+    private Certificate getTrustedCertificateFrom(KeyStore trustStore, byte[] peerId) {
+        try {
+            String alias = PeerIdEncoder.encodeToString(peerId);
+            Certificate cert = trustStore.getCertificate(alias);
+            if (cert != null) {
+                byte[] trustedId;
+                trustedId = identityExtractor.extractIdentity(cert);
+                if (Arrays.equals(trustedId, peerId))
+                return cert;
+            }
+        } catch (CertificateException | KeyStoreException e) {
+            // ignore
+        }
+        return null;
+    }
+
     /* ------------------- Secrets ------------------- */
 
     // ------ Public methods
 
-    // TODO Make a way to facilitate secret agreement? Might be terrible
+    // TODO Make a way to facilitate secret agreement? Might be terrible to make it generalized
 
     public SecretCrypt generateSecretFromPasswordWithAliasPrefix(boolean persistOnDisk, String aliasPrefix,
             String password) {

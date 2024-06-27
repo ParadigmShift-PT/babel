@@ -4,13 +4,16 @@ import java.security.InvalidKeyException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.SignatureException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -21,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 
 import pt.unl.fct.di.novasys.babel.core.BabelSecurity;
 import pt.unl.fct.di.novasys.babel.core.security.IdFromCertExtractor;
+import pt.unl.fct.di.novasys.network.data.Bytes;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
 public class X509BabelTrustManager extends X509ITrustManager {
@@ -40,6 +44,8 @@ public class X509BabelTrustManager extends X509ITrustManager {
     // certificates are saved?
 
     private final Collection<KeyStore> trustStores;
+    private final KeyStore targetTrustStore;
+    private final Set<Bytes> expectedIds;
 
     /**
      * Checks if the certificate (already verified to be consistent in id) should be
@@ -60,17 +66,21 @@ public class X509BabelTrustManager extends X509ITrustManager {
     private final IdFromCertExtractor idExtractor;
 
     public X509BabelTrustManager(IdFromCertExtractor idExtractor, Collection<KeyStore> trustStores,
-            TrustPolicy trustPolicy, X509CertificateChainPredicate trustUnknownPeerCallback)
+            TrustPolicy trustPolicy, X509CertificateChainPredicate trustUnknownPeerCallback,
+            KeyStore targetTrustStore)
             throws KeyStoreException {
         // Trigger KeyStoreException early if KeyStore was not initialized.
         for (KeyStore store : trustStores)
             store.size();
+        targetTrustStore.size();
 
         ReadWriteLock policyLock = new ReentrantReadWriteLock();
         this.policyReadLock = policyLock.readLock();
         this.policyWriteLock = policyLock.writeLock();
 
         this.trustStores = trustStores;
+        this.targetTrustStore = targetTrustStore;
+        this.expectedIds = Collections.synchronizedSet(new HashSet<>());
         this.idExtractor = idExtractor;
         this.trustUnknownPeerCallback = trustUnknownPeerCallback;
         setTrustPolicy(trustPolicy);
@@ -83,23 +93,7 @@ public class X509BabelTrustManager extends X509ITrustManager {
 
     @Override
     public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
-        if (chain == null || chain.length == 0)
-            throw new CertificateException("No certificate.");
-
-        verifySelfSignedCertificate(chain[0]);
-        byte[] identity = checkConsistentId(chain[0]);
-
-        policyReadLock.lock();
-        try {
-            if (!trustConsistentCertificate.test(chain, identity)) {
-                String msg = "Didn't trust certificate with identity %s. Trust manager policy was %s."
-                        .formatted(PeerIdEncoder.encodeToString(identity), trustPolicy);
-                logger.info(msg);
-                throw new CertificateException(msg);
-            }
-        } finally {
-            policyReadLock.unlock();
-        }
+        checkServerTrusted(chain, null, authType);
     }
 
     @Override
@@ -114,15 +108,32 @@ public class X509BabelTrustManager extends X509ITrustManager {
         if (chain == null || chain.length == 0)
             throw new CertificateException("No certificate.");
 
-        verifySelfSignedCertificate(chain[0]);
-        byte[] identity = checkConsistentId(chain[0], expectedId);
+        try {
+            chain[0].verify(chain[0].getPublicKey());
+        } catch (InvalidKeyException | CertificateException | NoSuchAlgorithmException
+                | NoSuchProviderException | SignatureException e) {
+            throw new CertificateException("Failed self-signed certificate verification.", e);
+        }
+
+        byte[] idInCert = idExtractor.extractIdentity(chain[0]);
+        if (expectedId != null && !Arrays.equals(idInCert, expectedId))
+            throw new CertificateException("Expected id: %s Got: %s"
+                    .formatted(PeerIdEncoder.encodeToString(expectedId), PeerIdEncoder.encodeToString(idInCert)));
+
+        boolean expected = expectedIds.remove(Bytes.of(idInCert));
 
         policyReadLock.lock();
         try {
-            if (!trustConsistentCertificate.test(chain, identity)) {
+            if (expected || trustConsistentCertificate.test(chain, idInCert)) {
+                try {
+                    targetTrustStore.setCertificateEntry(PeerIdEncoder.encodeToString(idInCert), chain[0]);
+                } catch (KeyStoreException e) {
+                    // Shouldn't happen
+                }
+            } else {
                 String msg = "Didn't trust certificate with identity %s. Trust manager policy was %s."
-                        .formatted(PeerIdEncoder.encodeToString(identity), trustPolicy);
-                logger.info(msg);
+                        .formatted(PeerIdEncoder.encodeToString(idInCert), trustPolicy);
+                logger.debug(msg);
                 throw new CertificateException(msg);
             }
         } finally {
@@ -136,18 +147,45 @@ public class X509BabelTrustManager extends X509ITrustManager {
     }
 
     @Override
-    public Set<byte[]> getTrustedIds() {
-        return Set.of();
+    public Set<Bytes> getTrustedIds() {
+        HashSet<Bytes> ids = new HashSet<>(expectedIds);
+        for (KeyStore store : trustStores) {
+            try {
+                synchronized (store) {
+                    Enumeration<String> aliases = store.aliases();
+                    while (aliases.hasMoreElements()) {
+                        String alias = aliases.nextElement();
+                        Certificate entry = store.getCertificate(alias);
+                        byte[] trustedId = idExtractor.extractIdentity(entry);
+                        ids.add(Bytes.of(trustedId));
+                    }
+                }
+            } catch (KeyStoreException | CertificateException e) {
+                // ignored. Continue
+            }
+        }
+        return ids;
     }
 
     @Override
-    public boolean addTrustedId(byte[] id) {
-        return false;
+    public void addTrustedId(byte[] id) {
+        expectedIds.add(Bytes.of(id));
     }
 
     @Override
-    public boolean removeTrustedId(byte[] id) {
-        return false;
+    public void removeTrustedId(byte[] id) {
+        expectedIds.remove(Bytes.of(id));
+        for (KeyStore store : trustStores) {
+            try {
+                String alias = PeerIdEncoder.encodeToString(id);
+                Certificate entry = store.getCertificate(alias);
+                byte[] trustedId = idExtractor.extractIdentity(entry);
+                if (Arrays.equals(trustedId, id))
+                    store.deleteEntry(alias);
+            } catch (KeyStoreException | CertificateException e) {
+                // ignored. Continue
+            }
+        }
     }
 
     @Override
@@ -185,67 +223,37 @@ public class X509BabelTrustManager extends X509ITrustManager {
 
     private boolean knownIdPolicyTrustConsistentCertificate(X509Certificate[] certificateChain, byte[] idInRootCert)
             throws CertificateException {
-        for (KeyStore store : trustStores) {
-            try {
-                synchronized (store) {
-                    Enumeration<String> aliases = store.aliases();
-                    while (aliases.hasMoreElements()) {
-                        String alias = aliases.nextElement();
-                        X509Certificate entry = (X509Certificate) store.getCertificate(alias);
-                        byte[] trustedId = extractIdFromCertificate(entry);
-                        if (Arrays.equals(idInRootCert, trustedId))
-                            return true;
-                    }
-                }
-            } catch (NullPointerException | ClassCastException ignore) {
-                // Continue loop
-            } catch (KeyStoreException e) {
-                throw new AssertionError(e); // Shouldn't happen
-            }
+        if (getPeerCertificate(idInRootCert) != null) {
+            return true;
+        } else {
+            logger.debug("Unknown identity received. Calling \"trust unkown\" callback handler.");
+            return trustUnknownPeerCallback.test(certificateChain, idInRootCert);
         }
-        logger.debug("Unknown identity received. Calling \"trust unkown\" callback handler.");
-        return trustUnknownPeerCallback.test(certificateChain, idInRootCert);
     }
 
     private boolean knownCertPolicyTrustConsistentCertificate(X509Certificate[] certificateChain, byte[] idInRootCert)
             throws CertificateException {
-        for (KeyStore store : trustStores) {
+        Certificate knownCertificate = getPeerCertificate(idInRootCert);
+        if (knownCertificate != null && Arrays.equals(knownCertificate.getEncoded(), certificateChain[0].getEncoded())) {
+            return true;
+        } else {
+            logger.debug("Unknown certificate received. Calling \"trust unkown certificate\" callback handler.");
+            return trustUnknownPeerCallback.test(certificateChain, idInRootCert);
+        }
+    }
+
+    private Certificate getPeerCertificate(byte[] peerId) {
+        for (KeyStore trustStore : trustStores) {
             try {
-                synchronized (store) {
-                    Enumeration<String> aliases = store.aliases();
-                    while (aliases.hasMoreElements()) {
-                        String alias = aliases.nextElement();
-                        Certificate entry = store.getCertificate(alias);
-                        if (Arrays.equals(entry.getEncoded(), certificateChain[0].getEncoded()))
-                            return true;
-                    }
-                }
-            } catch (KeyStoreException e) {
-                throw new AssertionError(e); // Shouldn't happen
+                Certificate cert = trustStore.getCertificate(PeerIdEncoder.encodeToString(peerId));
+                byte[] certIdentity = idExtractor.extractIdentity(cert);
+                if (Arrays.equals(peerId, certIdentity))
+                    return cert;
+            } catch (KeyStoreException | CertificateException e) {
+                // ignore
             }
         }
-        logger.debug("Unknown certificate received. Calling \"trust unkown certificate\" callback handler.");
-        return trustUnknownPeerCallback.test(certificateChain, idInRootCert);
-    }
-
-    private byte[] checkConsistentId(X509Certificate cert, byte[] expectedId) throws CertificateException {
-        byte[] id = extractIdFromCertificate(cert);
-        if (!Arrays.equals(id, expectedId))
-            throw new CertificateException("Expected id: %s Got: %s"
-                    .formatted(PeerIdEncoder.encodeToString(expectedId), PeerIdEncoder.encodeToString(id)));
-        return id;
-    }
-
-    private byte[] checkConsistentId(X509Certificate cert) throws CertificateException {
-        return extractIdFromCertificate(cert);
-    }
-
-    private void verifySelfSignedCertificate(X509Certificate cert) throws CertificateException {
-        try {
-            cert.verify(cert.getPublicKey(), BabelSecurity.getInstance().PROVIDER);
-        } catch (NoSuchAlgorithmException | InvalidKeyException | SignatureException e) {
-            throw new CertificateException(e);
-        }
+        return null;
     }
 
 }

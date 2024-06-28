@@ -37,7 +37,7 @@ public abstract class Metric {
     //private Consumer<Metric> onChangeHandler;
 
     public Metric(String name, String unit, MetricType metricType) {
-        this.name = name;
+        this.name = name.replace(" ", "_");
         this.unit = unit;
         this.type = metricType;
     }

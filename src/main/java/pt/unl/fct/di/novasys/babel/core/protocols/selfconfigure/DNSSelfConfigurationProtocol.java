@@ -81,28 +81,29 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
      * AutoConfigure anotation named nMessages, the txt record should be in host
      * babel with the value pingpong.nmessages=5.
      * 
-     * @return a list of all the protocols that attempted to find a suitable configuration
+     * @return a list of all the protocols that attempted to find a suitable
+     *         configuration
      */
     public List<SelfConfigurableProtocol> search() {
         try {
-            DnsResponse results = resolver.query(new DefaultDnsQuestion(
-                    "babel." + nameserver, DnsRecordType.TXT)).get().content();
-            int answerCount = results.count(DnsSection.ANSWER);
-
-            for (int i = 0; i < answerCount; i++) {
-                if (results.recordAt(DnsSection.ANSWER, i) instanceof DefaultDnsRawRecord record) {
-                    var foundConfig = DefaultDnsRecordDecoder.decodeName(record.content()).split("=");
-                    var protoNameAndParamName = foundConfig[0].split("\\.");
-                    var protoName = protoNameAndParamName[0];
-                    var paramName = protoNameAndParamName[1];
-                    var valueFound = foundConfig[1].split("\\.")[0];
-                    var protoParam = protocolToParameterToConfigure.get(protoName);
-                    var paramToConfigure = protoParam.remove(paramName);
-                    paramToConfigure.setter().invoke(paramToConfigure.proto(), valueFound);
-                }
-            }
-
             for (var proto : protocolList) {
+                DnsResponse results = resolver.query(new DefaultDnsQuestion(
+                        proto.getHost() + "." + nameserver, DnsRecordType.TXT)).get().content();
+                int answerCount = results.count(DnsSection.ANSWER);
+
+                for (int i = 0; i < answerCount; i++) {
+                    if (results.recordAt(DnsSection.ANSWER, i) instanceof DefaultDnsRawRecord record) {
+                        var foundConfig = DefaultDnsRecordDecoder.decodeName(record.content()).split("=");
+                        var protoNameAndParamName = foundConfig[0].split("\\.");
+                        var protoName = protoNameAndParamName[0];
+                        var paramName = protoNameAndParamName[1];
+                        var valueFound = foundConfig[1].split("\\.")[0];
+                        var protoParam = protocolToParameterToConfigure.get(protoName);
+                        var paramToConfigure = protoParam.remove(paramName);
+                        paramToConfigure.setter().invoke(paramToConfigure.proto(), valueFound);
+                    }
+                }
+
                 if (babel.checkAndStartDcProto(proto)) {
                     protocolToParameterToConfigure.remove(StringUtils.lowerCase(proto.getProtoName()));
                 }

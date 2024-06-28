@@ -11,8 +11,9 @@ import pt.unl.fct.di.novasys.babel.internal.InternalEvent;
 public abstract class DiscoveryProtocol extends GenericProtocol {
 
 	static {
-		System.setProperty("java.net.preferIPv4Stack" , "true");
+		System.setProperty("java.net.preferIPv4Stack", "true");
 	}
+
 	public static final String PAR_DISCOVERY_UNICAST_INTERFACE = "babel.discovery.unicast.interface";
 	public static final String PAR_DISCOVERY_UNICAST_ADDRESS = "babel.discovery.unicast.address";
 	public static final String PAR_DISCOVERY_UNICAST_PORT = "babel.discovery.unicast.port";
@@ -24,7 +25,6 @@ public abstract class DiscoveryProtocol extends GenericProtocol {
 		} catch (HandlerRegistrationException e) {
 			throw new RuntimeException(e);
 		}
-		System.setProperty("java.net.preferIPv4Stack", "true");
 	}
 
 	public DiscoveryProtocol(String protoName, short protoId, BlockingQueue<InternalEvent> policy) {
@@ -34,11 +34,12 @@ public abstract class DiscoveryProtocol extends GenericProtocol {
 		} catch (HandlerRegistrationException e) {
 			throw new RuntimeException(e);
 		}
-		System.setProperty("java.net.preferIPv4Stack", "true");
 	}
 
 	/**
-	 * Registers a protocol that hasn't started for discovery
+	 * Registers a protocol that hasn't started for discovery. Babel expects that
+	 * the protocols that extend this class start the protocolo if it has everything
+	 * to start.
 	 * 
 	 * @param dcProto the protocol to receive a contact
 	 */

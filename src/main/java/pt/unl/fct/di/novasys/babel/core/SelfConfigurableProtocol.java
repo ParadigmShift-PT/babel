@@ -22,4 +22,11 @@ public abstract class SelfConfigurableProtocol extends DiscoverableProtocol {
     public SelfConfigurableProtocol(String protoName, short protoId, Host myself, BlockingQueue<InternalEvent> policy) {
         super(protoName, protoId, myself, policy);
     }
+
+    /**
+     * Should return the host that this protocol expects the DNS TXT records
+     * 
+     * @return the String representation of the host
+     */
+    public abstract String getHost();
 }

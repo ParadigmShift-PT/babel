@@ -2,6 +2,7 @@ package pt.unl.fct.di.novasys.babel.metrics;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.*;
 import pt.unl.fct.di.novasys.babel.metrics.exporters.Exporter;
 import pt.unl.fct.di.novasys.babel.metrics.exporters.ExporterCollectOptions;
@@ -169,7 +170,7 @@ public class MetricsManager {
 
         MultiRegistryEpochSample mres = new MultiRegistryEpochSample();
         for (Short protocolId : registries.keySet()) {
-            mres.addRegistrySample(protocolId, collectMetricForProtocol(protocolId, exporterCollectOptions, false));
+            mres.addRegistrySample(protocolId, collectMetricForProtocol(protocolId, exporterCollectOptions, true));
         }
         return mres;
     }
@@ -229,5 +230,14 @@ public class MetricsManager {
 //            if (m.isResetOnLog()) m.reset();
 //        }
 //    }
+
+
+    public String getProtoNameById(short registryId){
+        if(registryId == OS_METRIC_PROTOCOL_ID){
+            return "OS";
+        }
+
+        return Babel.getInstance().getProtoNameById(registryId);
+    }
 
 }

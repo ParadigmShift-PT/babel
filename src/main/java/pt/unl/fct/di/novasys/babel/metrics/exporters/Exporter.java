@@ -32,6 +32,12 @@ public abstract class Exporter implements Runnable {
         this.exporterCollectOptions = this.jsonLoadCollectOptions();
     }
 
+    public Exporter(String exporterName, Properties properties) {
+        this.exporterName = exporterName;
+        this.exporterConfigs = this.loadConfigFromProperties(properties);
+        this.exporterCollectOptions = this.jsonLoadCollectOptions();
+    }
+
 
     public Exporter(String exporterName, String configPath) {
         this.configPath = configPath.endsWith("/") ? configPath : configPath + "/";

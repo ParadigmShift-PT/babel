@@ -89,6 +89,8 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
                 if (proto.getHost() == null)
                     continue;
 
+                logger.debug("Looking for config at " + proto.getHost());
+
                 DnsResponse results = resolver.query(new DefaultDnsQuestion(
                         proto.getHost(), DnsRecordType.TXT)).get().content();
                 int answerCount = results.count(DnsSection.ANSWER);
@@ -100,6 +102,7 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
                         var protoName = StringUtils.lowerCase(protoNameAndParamName[0]);
                         var paramName = StringUtils.lowerCase(protoNameAndParamName[1]);
                         var valueFound = foundConfig[1].split("\\.")[0];
+                        logger.debug("Got " + protoName + "." + paramName + "=" + valueFound);
                         var protoParam = protocolToParameterToConfigure.get(protoName);
                         var paramToConfigure = protoParam.remove(paramName);
                        paramToConfigure.setter().invoke(paramToConfigure.proto(), valueFound);

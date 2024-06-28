@@ -6,7 +6,7 @@
 
 	<groupId>pt.unl.fct.di.novasys.babel</groupId>
 	<artifactId>babel-sc-core</artifactId>
-	<version>0.4.5</version>
+	<version>0.4.6</version>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

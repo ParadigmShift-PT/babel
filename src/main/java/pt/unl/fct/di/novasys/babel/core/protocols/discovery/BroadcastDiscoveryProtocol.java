@@ -72,7 +72,7 @@ public class BroadcastDiscoveryProtocol extends LocalDiscoveryProtocol {
 		if (!this.hasSocketAddresses())
 			throw new RuntimeException("No available broadcast address in network interface");
 
-		InetAddress address = getAddressForSocket(props);
+		InetAddress address = Inet4Address.getByName("0.0.0.0");
 
 		DatagramSocket socket = setSocket(address, bcastPort, true);
 

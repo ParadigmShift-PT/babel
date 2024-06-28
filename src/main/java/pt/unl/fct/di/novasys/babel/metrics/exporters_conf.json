@@ -1,0 +1,15 @@
+{
+	"config_type": "exporters",
+	"exporters":[
+		{
+			"type": "TimedLogExporter",
+			"params":{
+
+				"path": "./logs",
+				"interval": 1000,
+				"metricFormat": "Prometheus"
+			}
+		}
+
+	]
+}

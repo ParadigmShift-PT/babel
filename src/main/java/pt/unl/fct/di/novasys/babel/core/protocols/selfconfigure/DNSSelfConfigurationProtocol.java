@@ -87,6 +87,8 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
     public List<SelfConfigurableProtocol> search() {
         try {
             for (var proto : protocolList) {
+                if (proto.getHost() == null) continue;
+
                 DnsResponse results = resolver.query(new DefaultDnsQuestion(
                         proto.getHost() + "." + nameserver, DnsRecordType.TXT)).get().content();
                 int answerCount = results.count(DnsSection.ANSWER);

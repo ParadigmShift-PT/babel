@@ -3,15 +3,15 @@ package pt.unl.fct.di.novasys.babel.metrics;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import pt.unl.fct.di.novasys.babel.core.Babel;
-import pt.unl.fct.di.novasys.babel.metrics.exceptions.*;
+import pt.unl.fct.di.novasys.babel.metrics.exceptions.DuplicatedProtocolMetric;
+import pt.unl.fct.di.novasys.babel.metrics.exceptions.NoProcfsException;
+import pt.unl.fct.di.novasys.babel.metrics.exceptions.NoSuchProtocolRegistry;
+import pt.unl.fct.di.novasys.babel.metrics.exceptions.OSMetricsConfigException;
 import pt.unl.fct.di.novasys.babel.metrics.exporters.Exporter;
 import pt.unl.fct.di.novasys.babel.metrics.exporters.ExporterCollectOptions;
 import pt.unl.fct.di.novasys.babel.metrics.exporters.RegistryCollectOptions;
 import pt.unl.fct.di.novasys.babel.metrics.generic.os.OSMetrics;
 
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.Reader;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -29,7 +29,7 @@ public class MetricsManager {
     /**
      * A set of exporters, responsible for exporting samples of metrics
      */
-    List<Exporter> exporters;
+    List<Exporter> exporters = new ArrayList<>();
 
 
 
@@ -72,10 +72,6 @@ public class MetricsManager {
             }
         }
 
-
-        if (this.exporters == null) {
-            this.exporters = new ArrayList<>(exporters.length);
-        }
 
         this.exporters.addAll(Arrays.asList(exporters));
 

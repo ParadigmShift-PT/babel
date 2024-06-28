@@ -1,0 +1,19 @@
+{
+    "configType": "perProtocolCollectOptions",
+    "protocolsToCollect": [1,23,654],
+    "configs":[
+        {
+            "protocolId": 122,
+            "metrics":[
+                {
+                     "name": "CounterA",
+                    "options": {
+                        "resetOnCollect": true,
+                        "reduce": "SUM"
+                    }
+                }
+            ]
+
+        }
+    ]
+}

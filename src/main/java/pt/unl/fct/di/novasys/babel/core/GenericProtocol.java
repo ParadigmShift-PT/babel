@@ -65,6 +65,7 @@ import pt.unl.fct.di.novasys.babel.internal.MessageInEvent;
 import pt.unl.fct.di.novasys.babel.internal.MessageSentEvent;
 import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
 import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
+import pt.unl.fct.di.novasys.babel.metrics.Counter;
 import pt.unl.fct.di.novasys.babel.metrics.Metric;
 import pt.unl.fct.di.novasys.babel.metrics.MetricsManager;
 import pt.unl.fct.di.novasys.channel.ChannelEvent;
@@ -106,8 +107,9 @@ public abstract class GenericProtocol {
     public static final Babel babel = Babel.getInstance();
     public static final BabelSecurity babelSecurity = BabelSecurity.getInstance();
 
+    ProtocolMetricsBabelMetrics metrics_babel;
+
     //Debug
-    ProtocolMetrics metrics = new ProtocolMetrics();
     //protected ThreadMXBean tmx = ManagementFactory.getThreadMXBean();
 
     /**
@@ -140,6 +142,9 @@ public abstract class GenericProtocol {
         this.requestHandlers = new HashMap<>();
         this.replyHandlers = new HashMap<>();
         this.notificationHandlers = new HashMap<>();
+
+        //Initialize generic protocol metrics, but don't register them by default
+        this.metrics_babel = new ProtocolMetricsBabelMetrics(protoId);
 
         //tmx.setThreadContentionMonitoringEnabled(true);
     }
@@ -202,19 +207,11 @@ public abstract class GenericProtocol {
      */
     public abstract void init(Properties props) throws HandlerRegistrationException, IOException;
 
-    public ProtocolMetrics getMetrics() {
-        return metrics;
-    }
-
     protected long getMillisSinceBabelStart(){
         return babel.getMillisSinceStart();
     }
 
     /* ------------------ PROTOCOL REGISTERS -------------------------------------------------*/
-
-    protected void registerMetric(Metric m){
-        MetricsManager.getInstance().registerMetric(m);
-    }
 
     private <V> void registerHandler(short id, V handler, Map<Short, V> handlerMap)
             throws HandlerRegistrationException {
@@ -1371,47 +1368,47 @@ public abstract class GenericProtocol {
         while (true) {
             try {
                 InternalEvent pe = this.queue.take();
-                metrics.totalEventsCount++;
+                metrics_babel.totalEventsCount.inc();
                 if (logger.isDebugEnabled()) {
                     logger.debug("Handling event: " + pe);
                 }
                 switch (pe) {
                     case MessageInEvent castPe -> {
-                        metrics.messagesInCount++;
+                        metrics_babel.messagesInCount.inc();
                         this.handleMessageIn(castPe);
                     }
                     case MessageFailedEvent castPe -> {
-                        metrics.messagesFailedCount++;
+                        metrics_babel.messagesFailedCount.inc();
                         this.handleMessageFailed(castPe);
                     }
                     case MessageSentEvent castPe -> {
-                        metrics.messagesSentCount++;
+                        metrics_babel.messagesSentCount.inc();
                         this.handleMessageSent(castPe);
                     }
                     case TimerEvent castPe -> {
-                        metrics.timersCount++;
+                        metrics_babel.timersCount.inc();
                         this.handleTimer(castPe);
                     }
                     case NotificationEvent castPe -> {
-                        metrics.notificationsCount++;
+                        metrics_babel.notificationsCount.inc();
                         this.handleNotification(castPe);
                     }
                     case IPCEvent castPe -> {
                         IPCEvent i = castPe;
                         switch (i.getIpc().getType()) {
                             case REPLY -> {
-                                metrics.repliesCount++;
+                                metrics_babel.repliesCount.inc();
                                 handleReply((ProtoReply) i.getIpc(), i.getSenderID());
                             }
                             case REQUEST -> {
-                                metrics.requestsCount++;
+                                metrics_babel.requestsCount.inc();
                                 handleRequest((ProtoRequest) i.getIpc(), i.getSenderID());
                             }
                             default -> throw new AssertionError("Ups");
                         }
                     }
                     case CustomChannelEvent castPe -> {
-                        metrics.customChannelEventsCount++;
+                        metrics_babel.customChannelEventsCount.inc();
                         this.handleChannelEvent(castPe);
                     }
                     default -> throw new AssertionError("Unexpected event received by babel. protocol "
@@ -1504,64 +1501,74 @@ public abstract class GenericProtocol {
         }
     }
 
-    public static class ProtocolMetrics {
-        private long totalEventsCount, messagesInCount, messagesFailedCount, messagesSentCount, timersCount,
+    // ------------------ PROTOCOL METRICS -------------------------------------------------
+
+    /**
+     * Register a metric for this protocol
+     * @param m metric to register
+     * @return the registered metric
+     * @param <T> type of the metric
+     */
+    protected <T extends Metric> T registerMetric(T m)  {
+        MetricsManager.getInstance().registerMetric(m, protoId);
+        return m;
+    }
+
+    /**
+     * Enables the generic metrics for this Babel protocol
+     */
+    protected void enableGenericMetrics() {
+        metrics_babel.registerMetrics();
+    }
+
+    /**
+     * Set of generic metrics for Babel protocols
+     */
+    public static class ProtocolMetricsBabelMetrics {
+        private final Counter totalEventsCount, messagesInCount, messagesFailedCount, messagesSentCount, timersCount,
                 notificationsCount, requestsCount, repliesCount, customChannelEventsCount;
 
-        @Override
-        public String toString() {
-            return "ProtocolMetrics{" +
-                    "totalEvents=" + totalEventsCount +
-                    ", messagesIn=" + messagesInCount +
-                    ", messagesFailed=" + messagesFailedCount +
-                    ", messagesSent=" + messagesSentCount +
-                    ", timers=" + timersCount +
-                    ", notifications=" + notificationsCount +
-                    ", requests=" + requestsCount +
-                    ", replies=" + repliesCount +
-                    ", customChannelEvents=" + customChannelEventsCount +
-                    '}';
+        private final short protoId;
+
+        public ProtocolMetricsBabelMetrics(short protoId) {
+            this.protoId = protoId;
+            this.totalEventsCount =  new Counter("babel_events_total", Metric.Unit.NONE);
+            this.messagesInCount = new Counter("babel_messages_in_total", Metric.Unit.NONE);
+            this.messagesFailedCount = new Counter("babel_messages_failed_total", Metric.Unit.NONE);
+            this.messagesSentCount = new Counter("babel_messages_sent_total", Metric.Unit.NONE);
+            this.timersCount = new Counter("babel_timers_total", Metric.Unit.NONE);
+            this.notificationsCount = new Counter("babel_notifications_total", Metric.Unit.NONE);
+            this.requestsCount = new Counter("babel_requests_total", Metric.Unit.NONE);
+            this.repliesCount = new Counter("babel_replies_total", Metric.Unit.NONE);
+            this.customChannelEventsCount = new Counter("babel_custom_channel_events_total", Metric.Unit.NONE);
+
         }
 
         public void reset() {
-            totalEventsCount = messagesFailedCount = messagesInCount = messagesSentCount = timersCount =
-                    notificationsCount = repliesCount = requestsCount = customChannelEventsCount = 0;
+            totalEventsCount.reset();
+            messagesFailedCount.reset();
+            messagesInCount.reset();
+            messagesSentCount.reset();
+            timersCount.reset();
+            notificationsCount.reset();
+            repliesCount.reset();
+            requestsCount.reset();
+            customChannelEventsCount.reset();
         }
 
-        public long getCustomChannelEventsCount() {
-            return customChannelEventsCount;
-        }
 
-        public long getMessagesFailedCount() {
-            return messagesFailedCount;
-        }
-
-        public long getMessagesInCount() {
-            return messagesInCount;
-        }
-
-        public long getMessagesSentCount() {
-            return messagesSentCount;
-        }
-
-        public long getNotificationsCount() {
-            return notificationsCount;
-        }
-
-        public long getRepliesCount() {
-            return repliesCount;
-        }
-
-        public long getRequestsCount() {
-            return requestsCount;
-        }
-
-        public long getTimersCount() {
-            return timersCount;
-        }
-
-        public long getTotalEventsCount() {
-            return totalEventsCount;
+        //Metrics are not registered by default
+        public void registerMetrics(){
+            MetricsManager.getInstance().registerMetric(totalEventsCount, protoId);
+            MetricsManager.getInstance().registerMetric(messagesInCount, protoId);
+            MetricsManager.getInstance().registerMetric(messagesFailedCount, protoId);
+            MetricsManager.getInstance().registerMetric(messagesSentCount, protoId);
+            MetricsManager.getInstance().registerMetric(timersCount, protoId);
+            MetricsManager.getInstance().registerMetric(notificationsCount, protoId);
+            MetricsManager.getInstance().registerMetric(requestsCount, protoId);
+            MetricsManager.getInstance().registerMetric(repliesCount, protoId);
+            MetricsManager.getInstance().registerMetric(customChannelEventsCount, protoId);
         }
     }
+
 }

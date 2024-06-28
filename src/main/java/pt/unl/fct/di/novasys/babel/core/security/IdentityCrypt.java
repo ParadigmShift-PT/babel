@@ -58,7 +58,7 @@ public class IdentityCrypt {
     /**
      * @return The id.
      */
-    public byte[] getId() {
+    public byte[] getIdentity() {
         return id;
     }
 

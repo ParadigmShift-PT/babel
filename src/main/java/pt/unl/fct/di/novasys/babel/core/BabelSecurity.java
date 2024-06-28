@@ -612,7 +612,7 @@ public class BabelSecurity {
             throws NoSuchAlgorithmException, UnrecoverableEntryException {
         IdentityPair idPair = idAliasMapper.getDefault();
         return idPair != null
-                ? getIdentityCrypt(idPair.alias(), idPair.id())
+                ? getIdentityCrypt(idPair.alias(), idPair.identity())
                 : generateIdentity(false);
     }
 

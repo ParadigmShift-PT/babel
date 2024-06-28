@@ -4,8 +4,11 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.security.AlgorithmParameters;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.KeyStore.CallbackHandlerProtection;
 import java.security.KeyStore.PasswordProtection;
@@ -13,7 +16,7 @@ import java.security.KeyStore.PrivateKeyEntry;
 import java.security.KeyStore.ProtectionParameter;
 import java.security.spec.AlgorithmParameterSpec;
 import java.security.spec.InvalidKeySpecException;
-import java.time.Instant;
+import java.security.spec.RSAKeyGenParameterSpec;
 import java.security.KeyStoreException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -28,7 +31,6 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
@@ -97,6 +99,20 @@ public class BabelSecurity {
     private ProtectionParameter keyStoreProtection = EMPTY_PWD;
     private static final String PAR_DEFAULT_ID = PREFIX + ".keystore.default_identity";
     // TODO support LoadStorePrameter (or at least DomainLoadStorePrameter)?
+    private static final String PAR_ASYM_KEY_ALG = PREFIX + ".asym_key_algorithm";
+    private String asymKeyAlgorithm = "RSA";
+    private static final String PAR_ASYM_KEY_LEN = PREFIX + ".asym_key_length";
+    /**
+     * Will be ignored if {@value #PAR_ASYM_KEY_PARAMS} is set.
+     */
+    private int asymKeyLength = 2048;
+    /**
+     * The classpath of a supplier for the asymmetric key pair parameters.
+     * <p>
+     * If set, {@value #PAR_ASYM_KEY_LEN} will be ignored.
+     */
+    private static final String PAR_ASYM_KEY_PARAMS = PREFIX + ".asym_key_parameter_supplier";
+    private AlgorithmParameterSpec asymKeyParameters = new RSAKeyGenParameterSpec(asymKeyLength, RSAKeyGenParameterSpec.F4);
 
     private static final String PAR_ID_EXTRACTOR = PREFIX + ".identity_extractor";
     private IdFromCertExtractor identityExtractor = new BabelCredentialHandler();
@@ -139,10 +155,10 @@ public class BabelSecurity {
      */
     private static final String PAR_SECRET_STORE_WRITABLE = PREFIX + ".secretstore.writable";
     private String secretStoreWritePath = null;
-    private static final String PAR_SECRET_ALG = PREFIX + ".secretkey_algorithm";
-    private String secretKeyAlgorithm = "AES";
-    private static final String PAR_SECRET_LEN = PREFIX + ".secretkey_length";
-    private int secretKeyLength = 128;
+    private static final String PAR_SYM_KEY_ALG = PREFIX + ".sym_key_algorithm";
+    private String symKeyAlgorithm = "AES";
+    private static final String PAR_SYM_KEY_LEN = PREFIX + ".secretkey_length";
+    private int symKeyLength = 128;
 
     /** Algorithm for password based key derivation function */
     private static final String PAR_PBKDF_ALG = PREFIX + ".pbkdf.algorithm";
@@ -372,6 +388,30 @@ public class BabelSecurity {
         return keyRng;
     }
 
+    public KeyPair generateKeyPair() {
+        KeyPairGenerator keyPairGen;
+        try {
+            keyPairGen = KeyPairGenerator.getInstance(asymKeyAlgorithm, PROVIDER);
+        } catch (NoSuchAlgorithmException e) {
+            try {
+                keyPairGen = KeyPairGenerator.getInstance(asymKeyAlgorithm);
+            } catch (NoSuchAlgorithmException e1) {
+                throw new AssertionError(e1); // Shouldn't happen
+            }
+        }
+
+        try {
+            if (asymKeyParameters != null)
+                keyPairGen.initialize(asymKeyParameters, keyRng);
+            else
+                keyPairGen.initialize(asymKeyLength, keyRng);
+        } catch (InvalidAlgorithmParameterException e) {
+            // TODO Catch this early in load config
+            throw new AssertionError(e); // Shouldn't happen
+        }
+        return keyPairGen.generateKeyPair();
+    }
+
     // ------ Private
 
     private char[] getPassword(ProtectionParameter protParam, String storeName)
@@ -505,7 +545,7 @@ public class BabelSecurity {
         try {
             return addIdentity(persistOnDisk, identityGenerator.generateRandomCredentials());
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("Generated key pair algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+            throw new AssertionError(e); // Shouldn't happen
         }
     }
 
@@ -514,7 +554,7 @@ public class BabelSecurity {
             return addIdentityWithAliasPrefix(persistOnDisk, aliasPrefix,
                     identityGenerator.generateRandomCredentials());
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("Generated key pair algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+            throw new AssertionError(e); // Shouldn't happen
         }
     }
 
@@ -522,7 +562,7 @@ public class BabelSecurity {
         try {
             return addIdentity(persistOnDisk, alias, identityGenerator.generateRandomCredentials());
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("Generated key pair algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+            throw new AssertionError(e); // Shouldn't happen
         }
     }
 
@@ -693,7 +733,7 @@ public class BabelSecurity {
         return new IdentityCrypt(alias, id, privKey, pubKey, certChain, sigHashOrAlg);
     }
 
-    private String getSignatureAlgorithmFor(String keyAlgorithm) throws NoSuchAlgorithmException {
+    public String getSignatureAlgorithmFor(String keyAlgorithm) throws NoSuchAlgorithmException {
         if (keyAlgorithm.equals("EdDSA"))
             return "EdDSA";
         String sigAlg = hashAlgorithm + "WITH" + keyAlgorithm;
@@ -910,8 +950,8 @@ public class BabelSecurity {
 
     private SecretKey generateSecretKey() {
         try {
-            var gen = KeyGenerator.getInstance(secretKeyAlgorithm);
-            gen.init(secretKeyLength, keyRng);
+            var gen = KeyGenerator.getInstance(symKeyAlgorithm);
+            gen.init(symKeyLength, keyRng);
             return gen.generateKey();
         } catch (NoSuchAlgorithmException e) {
             throw new AssertionError(e); // Shouldn't happen
@@ -951,7 +991,7 @@ public class BabelSecurity {
         try {
             SecretKey pbkdfKey = fac.generateSecret(
                     new PBEKeySpec(password, salt, pbkdfIterations, pbkdfKeyLength));
-            return new SecretKeySpec(pbkdfKey.getEncoded(), secretKeyAlgorithm);
+            return new SecretKeySpec(pbkdfKey.getEncoded(), symKeyAlgorithm);
         } catch (InvalidKeySpecException e) {
             throw new AssertionError(e); // Shouldn't happen // TODO verify that it's valid when loading config
         }
@@ -1013,4 +1053,5 @@ public class BabelSecurity {
             return defaultValue;
         }
     }
+
 }

@@ -5,6 +5,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.util.Base64;
 
+import pt.unl.fct.di.novasys.babel.core.BabelSecurity;
+
 public class PeerIdEncoder {
     private static final Base64.Encoder encoder = Base64.getEncoder();
     private static final Base64.Decoder decoder = Base64.getDecoder();
@@ -24,7 +26,7 @@ public class PeerIdEncoder {
     }
 
     public static byte[] fromEncodedPublicKey(byte[] publicKey, String hashAlgorithm) throws NoSuchAlgorithmException {
-        MessageDigest digest = MessageDigest.getInstance(hashAlgorithm, CryptUtils.PROVIDER);
+        MessageDigest digest = MessageDigest.getInstance(hashAlgorithm, BabelSecurity.getInstance().PROVIDER);
         digest.update(publicKey);
         return digest.digest();
     }

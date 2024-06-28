@@ -4,6 +4,7 @@ import pt.unl.fct.di.novasys.babel.metrics.MultiRegistryEpochSample;
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.NoSuchProtocolRegistry;
 import pt.unl.fct.di.novasys.babel.metrics.formatting.Formatter;
 import pt.unl.fct.di.novasys.babel.metrics.formatting.PrometheusFormatter;
+import pt.unl.fct.di.novasys.babel.metrics.formatting.SimpleFormatter;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -23,6 +24,10 @@ public class TimedLogExporter extends Exporter{
 
     public TimedLogExporter(String exporterName){
         super(exporterName);
+    }
+
+    public TimedLogExporter(String exporterName, Properties properties) {
+        super(exporterName, properties);
     }
 
     public TimedLogExporter(String exporterName, String configPath) {
@@ -45,7 +50,7 @@ public class TimedLogExporter extends Exporter{
     @Override
     public Properties loadDefaults() {
         Properties defaultProperties = new Properties();
-        defaultProperties.setProperty("INTERVAL", "60");
+        defaultProperties.setProperty("INTERVAL", "20");
         defaultProperties.setProperty("LOG_PATH", "./");
         return defaultProperties;
     }
@@ -53,9 +58,9 @@ public class TimedLogExporter extends Exporter{
     @Override
     public void run() {
         long sleep_ms = Long.parseLong(this.getProperty("INTERVAL")) * S_TO_MS;
-        Formatter formatter = new PrometheusFormatter();
+        Formatter formatter = new SimpleFormatter();
 
-        FileWriter writer = null;
+        FileWriter writer;
         try {
             writer = new FileWriter(this.getProperty("LOG_PATH") + this.getExporterName() + ".log", true);
         } catch (IOException e) {
@@ -68,18 +73,22 @@ public class TimedLogExporter extends Exporter{
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            System.out.println("Collecting metrics");
             try {
                 MultiRegistryEpochSample sample = collectAllMetrics();
 
                 String formattedSample = formatter.format(sample);
                 // Write to file
 
-                writer.write(System.currentTimeMillis() + "\n");
-                writer.write(formattedSample);
-                writer.write("--------------------\n");
-                writer.flush();
-
+                if(formatter instanceof SimpleFormatter){
+                        writer.write(formattedSample);
+                        writer.write("\n");
+                        writer.flush();
+                }else{
+                    writer.write(System.currentTimeMillis() + "\n");
+                    writer.write(formattedSample);
+                    writer.write("--------------------\n");
+                    writer.flush();
+                }
 
             } catch (NoSuchProtocolRegistry noSuchProtocolRegistry) {
                 noSuchProtocolRegistry.printStackTrace();

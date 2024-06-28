@@ -97,12 +97,12 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
                     if (results.recordAt(DnsSection.ANSWER, i) instanceof DefaultDnsRawRecord record) {
                         var foundConfig = DefaultDnsRecordDecoder.decodeName(record.content()).split("=");
                         var protoNameAndParamName = foundConfig[0].split("\\.");
-                        var protoName = protoNameAndParamName[0];
-                        var paramName = protoNameAndParamName[1];
+                        var protoName = StringUtils.lowerCase(protoNameAndParamName[0]);
+                        var paramName = StringUtils.lowerCase(protoNameAndParamName[1]);
                         var valueFound = foundConfig[1].split("\\.")[0];
                         var protoParam = protocolToParameterToConfigure.get(protoName);
                         var paramToConfigure = protoParam.remove(paramName);
-                        paramToConfigure.setter().invoke(paramToConfigure.proto(), valueFound);
+                       paramToConfigure.setter().invoke(paramToConfigure.proto(), valueFound);
                     }
                 }
 

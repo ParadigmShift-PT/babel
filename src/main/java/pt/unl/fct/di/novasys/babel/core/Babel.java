@@ -284,7 +284,6 @@ public class Babel {
 			askRunningDiscovery(selfConfiguration, selfConfiguration.getMyself(), false);
 		}
 
-		MetricsManager.getInstance().start();
 		timersThread.start();
 		for (GenericProtocol proto : protocolMap.values()) {
 			logger.info("Starting " + proto.getProtoName());
@@ -605,6 +604,13 @@ public class Babel {
 
 	public long getMillisSinceStart() {
 		return started ? System.currentTimeMillis() - startTime : 0;
+	}
+
+	// ---------------------------- MISC -----------------------------------------------------------
+
+	public String getProtoNameById(short protoId) {
+		GenericProtocol proto = protocolMap.get(protoId);
+		return proto != null ? proto.getProtoName() : "Unknown";
 	}
 
 	// ---------------------------- METRICS -----------------------------------------------------------

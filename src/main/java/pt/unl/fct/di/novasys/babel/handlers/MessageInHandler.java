@@ -19,4 +19,13 @@ public interface MessageInHandler<T extends ProtoMessage> {
      */
     void receive(T msg, Host from, short sourceProto, int channelId);
 
+    /**
+     * Performs this operation on the ProtocolMessage.
+     *
+     * @param msg the received message
+     */
+    default void receive(T msg, Host from, byte[] peerId, short sourceProto, int channelId) {
+        receive(msg, from, sourceProto, channelId);
+    }
+
 }

@@ -12,8 +12,8 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Enumeration;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -62,28 +62,23 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
         if (props.containsKey(PAR_DISCOVERY_UNICAST_ADDRESS)) {
             address = InetAddress.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_ADDRESS));
         } else if (props.containsKey(PAR_DISCOVERY_UNICAST_INTERFACE)) {
-            List<InterfaceAddress> l = NetworkInterface.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_INTERFACE))
-                    .getInterfaceAddresses();
-            for (InterfaceAddress a : l) {
+            var l = NetworkInterface.getByName(props.getProperty(PAR_DISCOVERY_UNICAST_INTERFACE))
+                    .getInterfaceAddresses().iterator();
+            while (l.hasNext() && address == null) {
+                var a = l.next();
                 if (a.getAddress() != null && a.getAddress() instanceof Inet4Address) {
                     address = a.getAddress();
-                    break;
                 }
-                if (address != null)
-                    break;
             }
         } else {
-            Iterator<NetworkInterface> iterator = NetworkInterface.networkInterfaces().distinct().iterator();
-            while (iterator.hasNext()) {
-                NetworkInterface n = iterator.next();
+            Enumeration<NetworkInterface> iterator = NetworkInterface.getNetworkInterfaces();
+            while (iterator.hasMoreElements() && address == null) {
+                NetworkInterface n = iterator.nextElement();
                 if (!n.isLoopback() && !n.isVirtual() && n.isUp() && !n.isPointToPoint()) {
                     for (InterfaceAddress a : n.getInterfaceAddresses()) {
                         if (a.getAddress() != null && a.getAddress() instanceof Inet4Address)
                             address = a.getAddress();
-                        break;
                     }
-                    if (address != null)
-                        break;
                 }
             }
         }
@@ -91,13 +86,13 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
         return address;
     }
 
-    protected InetSocketAddress addInetSocketAddres(InetAddress address, int port) {
+    protected InetSocketAddress addInetSocketAddress(InetAddress address, int port) {
         var socketAddress = new InetSocketAddress(address, port);
         socketAddresses.add(socketAddress);
         return socketAddress;
     }
 
-    protected InetSocketAddress addInetSocketAddres(String address, int port) {
+    protected InetSocketAddress addInetSocketAddress(String address, int port) {
         var socketAddress = new InetSocketAddress(address, port);
         socketAddresses.add(socketAddress);
         return socketAddress;
@@ -166,7 +161,9 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
             List<byte[]> announces = ServiceMessage.convertToMessage(pendingServices, true);
             for (byte[] m : announces) {
                 for (var socketAddress : socketAddresses) {
-                    socket.send(new DatagramPacket(m, m.length, socketAddress));
+                    logger.debug("Going to send an announce with " + m.length + " bytes to " + socketAddress);
+                    logger.debug("Sending from socket bounded  (" + socket.isBound() + ") to: " + socket.getLocalAddress() + ":" + socket.getLocalPort());  
+                	socket.send(new DatagramPacket(m, m.length, socketAddress));
                     logger.debug("Sent one message to " + socketAddress.getAddress() + ":"
                             + socketAddress.getPort() + " from " + socket.getLocalAddress() + ":"
                             + socket.getLocalPort());
@@ -263,6 +260,10 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                 e.printStackTrace();
             }
         }
+    }
+
+    protected boolean hasSocketAddresses() {
+        return !socketAddresses.isEmpty();
     }
 
     public void uponRequestDiscovery(RequestDiscovery request, short sourceProtocol) {

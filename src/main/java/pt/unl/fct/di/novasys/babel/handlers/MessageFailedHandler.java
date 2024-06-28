@@ -19,4 +19,13 @@ public interface MessageFailedHandler<T extends ProtoMessage> {
      */
     void onMessageFailed(T msg, Host to, short destProto, Throwable cause, int channelId);
 
+    /**
+     * Performs this operation on the ProtocolMessage.
+     *
+     * @param msg the received message
+     */
+    default void onMessageFailed(T msg, Host to, byte[] toId, short destProto, Throwable cause, int channelId) {
+        onMessageFailed(msg, to, destProto, cause, channelId);
+    }
+
 }

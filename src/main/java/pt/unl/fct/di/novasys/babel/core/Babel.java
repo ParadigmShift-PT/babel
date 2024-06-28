@@ -5,6 +5,7 @@ import pt.unl.fct.di.novasys.babel.internal.BabelMessage;
 import pt.unl.fct.di.novasys.babel.internal.IPCEvent;
 import pt.unl.fct.di.novasys.babel.internal.NotificationEvent;
 import pt.unl.fct.di.novasys.babel.internal.TimerEvent;
+import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.DNSSelfConfigurationProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.SelfConfigurationProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.DiscoveryProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.requests.RequestDiscovery;
@@ -19,6 +20,8 @@ import pt.unl.fct.di.novasys.babel.metrics.exporters.Exporter;
 import pt.unl.fct.di.novasys.babel.metrics.generic.os.OSMetrics;
 import pt.unl.fct.di.novasys.channel.IChannel;
 import pt.unl.fct.di.novasys.channel.accrual.AccrualChannel;
+import pt.unl.fct.di.novasys.channel.secure.SecureIChannel;
+import pt.unl.fct.di.novasys.channel.secure.auth.AuthChannel;
 import pt.unl.fct.di.novasys.channel.simpleclientserver.SimpleClientChannel;
 import pt.unl.fct.di.novasys.channel.simpleclientserver.SimpleServerChannel;
 import pt.unl.fct.di.novasys.channel.tcp.SharedTCPChannel;
@@ -108,9 +111,11 @@ public class Babel {
 	public final static String PAR_DEFAULT_PORT = "babel.port";
 	public final static String PAR_DISCOVERY_PROTOCOL = "babel.discovery";
 	public final static String PAR_SELF_CONFIGURATION_PROTOCOL = "babel.selfconfiguration";
+	public final static String PAR_DNS_CONFIGURATION_PROTOCOL = "babel.dnsconfiguration";
 
 	private final List<DiscoveryProtocol> discoveries;
 	private SelfConfigurationProtocol selfConfiguration;
+	private DNSSelfConfigurationProtocol dnsSelfConfiguration;
 
 	// Timers
 	private final Map<Long, TimerEvent> allTimers;
@@ -120,12 +125,16 @@ public class Babel {
 
 	// Channels
 	private final Map<String, ChannelInitializer<? extends IChannel<BabelMessage>>> initializers;
+    private final Map<String, SecureChannelInitializer<?>> secureChannelInitializers;
 
-	private final Map<Integer, Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer>> channelMap;
-	private final AtomicInteger channelIdGenerator;
+    private final Map<Integer,
+            Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer>> channelMap;
+    private final Map<Integer,
+            Triple<SecureIChannel<BabelMessage>, SecureChannelToProtoForwarder, BabelMessageSerializer>> secureChannelMap;
+    private final AtomicInteger channelIdGenerator;
 
-	private long startTime;
-	private boolean started = false;
+    private long startTime;
+    private boolean started = false;
 
 	private Babel() {
 		// Protocols
@@ -140,10 +149,12 @@ public class Babel {
 		timersCounter = new AtomicLong();
 		timersThread = new Thread(this::timerLoop);
 
-		// Channels
-		channelMap = new ConcurrentHashMap<>();
-		channelIdGenerator = new AtomicInteger(0);
-		this.initializers = new ConcurrentHashMap<>();
+        //Channels
+        channelMap = new ConcurrentHashMap<>();
+        secureChannelMap = new ConcurrentHashMap<>();
+        channelIdGenerator = new AtomicInteger(0);
+        this.initializers = new ConcurrentHashMap<>();
+        this.secureChannelInitializers = new ConcurrentHashMap<>();
 
 		registerChannelInitializer(SimpleClientChannel.NAME, new SimpleClientChannelInitializer());
 		registerChannelInitializer(SimpleServerChannel.NAME, new SimpleServerChannelInitializer());
@@ -151,10 +162,11 @@ public class Babel {
 		registerChannelInitializer(AccrualChannel.NAME, new AccrualChannelInitializer());
 		registerChannelInitializer(SharedTCPChannel.NAME, new SharedTCPChannelInitializer());
 
-		// registerChannelInitializer("Ackos", new AckosChannelInitializer());
-		// registerChannelInitializer(MultithreadedTCPChannel.NAME, new
-		// MultithreadedTCPChannelInitializer());
-	}
+        //registerChannelInitializer("Ackos", new AckosChannelInitializer());
+        //registerChannelInitializer(MultithreadedTCPChannel.NAME, new MultithreadedTCPChannelInitializer());
+
+        registerChannelInitializer(AuthChannel.NAME, new AuthChannelInitializer());
+    }
 
 	private void timerLoop() {
 		while (true) {
@@ -184,7 +196,7 @@ public class Babel {
 		discoveries.forEach((discovery) -> discovery.registerProtocol(dcProto));
 	}
 
-	public void setupSelfConfiguration(SelfConfigurableProtocol scProto) {
+	public void setupSelfConfiguration(SelfConfigurableProtocol scProto, SelfConfigurationProtocol selfConfiguration) {
 		Class<? extends SelfConfigurableProtocol> scProtoClass = scProto.getClass();
 		Field[] fields = scProtoClass.getDeclaredFields();
 
@@ -196,11 +208,11 @@ public class Babel {
 				try {
 					Method getter = scProtoClass.getMethod(getterName);
 					Method setter = scProtoClass.getMethod(setterName, String.class);
-					if (getter.invoke(scProto) == null) {
-						this.selfConfiguration.addProtocolParameterToConfigure(field.getName(), setter, getter,
+					if (selfConfiguration instanceof DNSSelfConfigurationProtocol || getter.invoke(scProto) == null) {
+						selfConfiguration.addProtocolParameterToConfigure(field.getName(), setter, getter,
 								scProto);
 					} else {
-						this.selfConfiguration.addProtocolParameterConfigured(field.getName(), setter, getter, scProto);
+						selfConfiguration.addProtocolParameterConfigured(field.getName(), setter, getter, scProto);
 					}
 				} catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
 					throw new RuntimeException(e);
@@ -209,15 +221,25 @@ public class Babel {
 		}
 	}
 
-	public void askRunningDiscovery(GenericProtocol proto, Host myself, boolean listen) {
+	/**
+	 * Asks all the running discoveries for a contact for proto
+	 * 
+	 * @param proto  the protocol to receive the contact
+	 * @param myself host representing the protocol
+	 * @param listen if it should listen or just register
+	 * @return true if a discovery protocol is running
+	 */
+	public boolean askRunningDiscovery(GenericProtocol proto, Host myself, boolean listen) {
 		for (var discovery : discoveries) {
 			if (discovery.hasProtocolThreadStarted())
 				proto.sendRequest(new RequestDiscovery(proto.getProtoName(), myself, proto.getProtoName(), listen),
-					discovery.getProtoId());
+						discovery.getProtoId());
 			else
-				discovery.uponRequestDiscovery(new RequestDiscovery(proto.getProtoName(), myself, proto.getProtoName(), listen),
-					proto.getProtoId());
+				discovery.uponRequestDiscovery(
+						new RequestDiscovery(proto.getProtoName(), myself, proto.getProtoName(), listen),
+						proto.getProtoId());
 		}
+		return !discoveries.isEmpty();
 	}
 
 	/**
@@ -250,7 +272,8 @@ public class Babel {
 				Class<? extends SelfConfigurationProtocol> selfConfigurationClass = (Class<? extends SelfConfigurationProtocol>) Class
 						.forName(props.getProperty(PAR_SELF_CONFIGURATION_PROTOCOL));
 				this.selfConfiguration = selfConfigurationClass.getDeclaredConstructor().newInstance();
-			} catch (Exception e) {
+			} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | IllegalArgumentException
+					| InvocationTargetException | NoSuchMethodException e) {
 				e.printStackTrace();
 				logger.error("Unable to load SelfConfigurationProtocol: '"
 						+ props.getProperty(PAR_SELF_CONFIGURATION_PROTOCOL) + "'");
@@ -260,11 +283,32 @@ public class Babel {
 			this.selfConfiguration = null;
 		}
 
+		if (props.containsKey(PAR_DNS_CONFIGURATION_PROTOCOL)) {
+			try {
+				logger.debug("Attempting to load DNS Self Configuration Protocol: "
+						+ props.getProperty(PAR_DNS_CONFIGURATION_PROTOCOL));
+				@SuppressWarnings("unchecked")
+				Class<? extends DNSSelfConfigurationProtocol> dnsSelfConfigurationClass = (Class<? extends DNSSelfConfigurationProtocol>) Class
+						.forName(props.getProperty(PAR_DNS_CONFIGURATION_PROTOCOL));
+				this.dnsSelfConfiguration = dnsSelfConfigurationClass.getDeclaredConstructor().newInstance();
+			} catch (ClassNotFoundException | InstantiationException | IllegalAccessException | IllegalArgumentException
+					| InvocationTargetException | NoSuchMethodException e) {
+				e.printStackTrace();
+				logger.error("Unable to load DNSSelfConfigurationProtocol: '"
+						+ props.getProperty(PAR_DNS_CONFIGURATION_PROTOCOL) + "'");
+			}
+		} else {
+			logger.debug("No DNS Self Configuration Protocol was requested to be loaded");
+			this.dnsSelfConfiguration = null;
+		}
+
 		try {
 			for (var discovery : discoveries)
 				registerProtocol(discovery);
 			if (this.selfConfiguration != null)
 				registerProtocol(this.selfConfiguration);
+			if (this.dnsSelfConfiguration != null)
+				registerProtocol(this.dnsSelfConfiguration);
 		} catch (ProtocolAlreadyExistsException e) {
 			throw new RuntimeException(e);
 		}
@@ -276,6 +320,8 @@ public class Babel {
 				discovery.init(props);
 			if (this.selfConfiguration != null)
 				selfConfiguration.init(props);
+			if (this.dnsSelfConfiguration != null)
+				dnsSelfConfiguration.init(props);
 		} catch (HandlerRegistrationException | IOException e) {
 			throw new RuntimeException(e);
 		}
@@ -290,8 +336,10 @@ public class Babel {
 			if (discoveries.size() != 0 && proto instanceof DiscoverableProtocol dcProto) {
 				setupDiscoverable(dcProto);
 			}
-			if (selfConfiguration != null && proto instanceof SelfConfigurableProtocol scProto) {
-				setupSelfConfiguration(scProto);
+			if (dnsSelfConfiguration != null && proto instanceof SelfConfigurableProtocol scProto) {
+				setupSelfConfiguration(scProto, dnsSelfConfiguration);
+			} else if (selfConfiguration != null && proto instanceof SelfConfigurableProtocol scProto) {
+				setupSelfConfiguration(scProto, selfConfiguration);
 			}
 
 			if (proto instanceof DiscoverableProtocol dcProto) {
@@ -300,13 +348,24 @@ public class Babel {
 				proto.startEventThread();
 			}
 		}
+
+		if (dnsSelfConfiguration != null) {
+			var protosToSetup = dnsSelfConfiguration.search();
+			if (selfConfiguration != null) {
+				for (var proto : protosToSetup) {
+					setupSelfConfiguration(proto, selfConfiguration);
+				}
+			}
+		}
 	}
 
-	public void checkAndStartDcProto(DiscoverableProtocol dcProto) {
-		if (dcProto.readyToStart()) {
+	public boolean checkAndStartDcProto(DiscoverableProtocol dcProto) {
+		if (dcProto.readyToStart() && !dcProto.hasProtocolThreadStarted()) {
 			dcProto.start();
 			dcProto.startEventThread();
+			return true;
 		}
+		return dcProto.hasProtocolThreadStarted();
 	}
 
 	/**
@@ -327,7 +386,7 @@ public class Babel {
 			throw new ProtocolAlreadyExistsException("Protocol conflicts on name: " + p.getProtoName() + " (id: "
 					+ this.protocolByNameMap.get(p.getProtoName()).getProtoId() + ")");
 		}
-	}
+    }
 
 	// ----------------------------- NETWORK
 
@@ -346,88 +405,200 @@ public class Babel {
 		}
 	}
 
-	/**
-	 * Creates a channel for a protocol Called by {@link GenericProtocol}. Do not
-	 * evoke directly.
-	 *
-	 * @param channelName the name of the channel to create
-	 * @param protoId     the protocol numeric identifier
-	 * @param props       the properties required by the channel
-	 * @return the channel Id
-	 * @throws IOException if channel creation fails
-	 */
-	int createChannel(String channelName, short protoId, Properties props) throws IOException {
-		ChannelInitializer<? extends IChannel<?>> initializer = initializers.get(channelName);
-		if (initializer == null)
-			throw new IllegalArgumentException("Channel initializer not registered: " + channelName);
+    /**
+     * Registers a new secure channel in Babel.
+     *
+     * @param name        the channel name
+     * @param initializer the channel initializer
+     */
+    public void registerChannelInitializer(String name, SecureChannelInitializer<?> initializer) {
+        var old = secureChannelInitializers.putIfAbsent(name, initializer);
+        if (old != null) {
+            throw new IllegalArgumentException("Initializer for secure channel with name " + name +
+                    " already registered: " + old);
+        }
+    }
 
-		int channelId = channelIdGenerator.incrementAndGet();
-		BabelMessageSerializer serializer = new BabelMessageSerializer(new ConcurrentHashMap<>());
-		ChannelToProtoForwarder forwarder = new ChannelToProtoForwarder(channelId);
-		IChannel<BabelMessage> newChannel = initializer.initialize(serializer, forwarder, props, protoId);
-		channelMap.put(channelId, Triple.of(newChannel, forwarder, serializer));
-		return channelId;
-	}
 
-	/**
-	 * Registers interest in receiving events from a channel.
-	 *
-	 * @param consumerProto the protocol that will receive events generated by the
-	 *                      new channel Called by {@link GenericProtocol}. Do not
-	 *                      evoke directly.
-	 */
-	void registerChannelInterest(int channelId, short protoId, GenericProtocol consumerProto) {
-		ChannelToProtoForwarder forwarder = channelMap.get(channelId).getMiddle();
-		forwarder.addConsumer(protoId, consumerProto);
-	}
+    /**
+     * Creates a channel for a protocol. <p>
+     * Called by {@link GenericProtocol}. Do not evoke directly.
+     *
+     * @param channelName the name of the channel to create
+     * @param protoId     the protocol numeric identifier
+     * @param props       the properties required by the channel
+     * @return the channel Id
+     * @throws IOException if channel creation fails
+     */
+    int createChannel(String channelName, short protoId, Properties props)
+            throws IOException {
+        ChannelInitializer<? extends IChannel<?>> initializer = initializers.get(channelName);
+        if (initializer == null)
+            throw new IllegalArgumentException("Channel initializer not registered: " + channelName +
+                    (secureChannelInitializers.containsKey(channelName)
+                            ? ". Did you mean to use createSecureChannel() instead?"
+                            : ""));
 
-	/**
-	 * Sends a message to a peer using the given channel and connection. Called by
-	 * {@link GenericProtocol}. Do not evoke directly.
-	 */
-	void sendMessage(int channelId, int connection, BabelMessage msg, Host target) {
-		Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry = channelMap
-				.get(channelId);
-		if (channelEntry == null)
-			throw new AssertionError("Sending message to non-existing channelId " + channelId);
-		channelEntry.getLeft().sendMessage(msg, target, connection);
-	}
+        int channelId = channelIdGenerator.incrementAndGet();
+        BabelMessageSerializer serializer = new BabelMessageSerializer(new ConcurrentHashMap<>());
+        ChannelToProtoForwarder forwarder = new ChannelToProtoForwarder(channelId);
+        IChannel<BabelMessage> newChannel = initializer.initialize(serializer, forwarder, props, protoId);
+        channelMap.put(channelId, Triple.of(newChannel, forwarder, serializer));
+        return channelId;
+    }
 
-	/**
-	 * Closes a connection to a peer in a given channel. Called by
-	 * {@link GenericProtocol}. Do not evoke directly.
-	 */
-	void closeConnection(int channelId, Host target, int connection) {
-		Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry = channelMap
-				.get(channelId);
-		if (channelEntry == null)
-			throw new AssertionError("Closing connection in non-existing channelId " + channelId);
-		channelEntry.getLeft().closeConnection(target, connection);
-	}
+    /**
+     * Creates a secure channel for a protocol. <p>
+     * Called by {@link GenericProtocol}. Do not evoke directly.
+     *
+     * @param channelName  the name of the channel to create
+     * @param protoId      the protocol numeric identifier
+     * @param props        the properties required by the channel
+     * @param idAliases    the aliases of the identities to be used during communication.
+     *                     If {@code null}, any available identity can be used.
+     * @return the channel Id
+     * @throws IOException if channel creation fails
+     */
+    int createSecureChannel(String channelName, short protoId, Properties props, Collection<String> idAliases, Collection<byte[]> ids)
+            throws IOException {
+        SecureChannelInitializer<?> initializer = secureChannelInitializers.get(channelName);
+        if (initializer == null)
+            throw new IllegalArgumentException("Secure channel initializer not registered: " + channelName +
+                    (initializers.containsKey(channelName)
+                            ? ". Did you mean to use createChannel(...) instead?"
+                            : ""));
 
-	/**
-	 * Opens a connection to a peer in the given channel. Called by
-	 * {@link GenericProtocol}. Do not evoke directly.
-	 */
-	void openConnection(int channelId, Host target, int connection) {
-		Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry = channelMap
-				.get(channelId);
-		if (channelEntry == null)
-			throw new AssertionError("Opening connection in non-existing channelId " + channelId);
-		channelEntry.getLeft().openConnection(target, connection);
-	}
+        int channelId = channelIdGenerator.incrementAndGet();
+        BabelMessageSerializer serializer = new BabelMessageSerializer(new ConcurrentHashMap<>());
+        SecureChannelToProtoForwarder forwarder = new SecureChannelToProtoForwarder(channelId);
 
-	/**
-	 * Registers a (de)serializer for a message type. Called by
-	 * {@link GenericProtocol}. Do not evoke directly.
-	 */
-	void registerSerializer(int channelId, short msgCode, ISerializer<? extends ProtoMessage> serializer) {
-		Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry = channelMap
-				.get(channelId);
-		if (channelEntry == null)
-			throw new AssertionError("Registering serializer in non-existing channelId " + channelId);
-		channelEntry.getRight().registerProtoSerializer(msgCode, serializer);
-	}
+        var security = BabelSecurity.getInstance();
+        var keyManager = security.getKeyManager();
+        keyManager = idAliases != null
+                ? keyManager.subKeyManagerWithAliases(idAliases)
+                : ids != null
+                        ? keyManager.subKeyManagerWithIds(ids)
+                        : keyManager;
+        var trustManager = security.getTrustManager();
+        SecureIChannel<BabelMessage> newChannel = initializer.initialize(serializer, forwarder,
+                                                      keyManager, trustManager, props, protoId);
+
+        secureChannelMap.put(channelId, Triple.of(newChannel, forwarder, serializer));
+        return channelId;
+    }
+
+    /**
+     * Registers interest in receiving events from a channel.
+     *
+     * @param consumerProto the protocol that will receive events generated by the new channel
+     *                      Called by {@link GenericProtocol}. Do not evoke directly.
+     */
+    void registerChannelInterest(int channelId, short protoId, GenericProtocol consumerProto) {
+        ChannelToProtoForwarder forwarder = getChannelSecureOrNot(channelId).getMiddle();
+        forwarder.addConsumer(protoId, consumerProto);
+    }
+
+    /**
+     * Sends a message to a peer using the given channel and connection.
+     * Called by {@link GenericProtocol}. Do not evoke directly.
+     */
+    void sendMessage(int channelId, int connection, BabelMessage msg, Host target) {
+        Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry =
+                getChannelSecureOrNot(channelId);
+        if (channelEntry == null)
+            throw new AssertionError("Sending message to non-existing channelId " + channelId);
+        channelEntry.getLeft().sendMessage(msg, target, connection);
+    }
+
+    /**
+     * Sends a message to a peer using its id and the given secure channel and connection.
+     * Called by {@link GenericProtocol}. Do not evoke directly.
+     */
+    void sendMessage(int channelId, int connection, BabelMessage msg, byte[] targetId) {
+        var channelEntry = secureChannelMap.get(channelId);
+        if (channelEntry == null)
+            throw new AssertionError("Sending message to non-existing secure channelId " + channelId +
+                    (channelMap.containsKey(channelId)
+                            ? ". Did you mean to use sendMessage( ... , Host) instead (i.e. to a non-secure channel)?"
+                            : ""));
+        channelEntry.getLeft().sendMessage(msg, targetId, connection);
+    }
+
+    /**
+     * Closes a connection to a peer in a given channel.
+     * Called by {@link GenericProtocol}. Do not evoke directly.
+     */
+    void closeConnection(int channelId, Host target, int connection) {
+        Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry =
+                getChannelSecureOrNot(channelId);
+        if (channelEntry == null)
+            throw new AssertionError("Closing connection in non-existing channelId " + channelId);
+        channelEntry.getLeft().closeConnection(target, connection);
+    }
+
+    /**
+     * Closes a secure connection to a peer in a given channel.
+     * Called by {@link GenericProtocol}. Do not evoke directly.
+     */
+    void closeConnection(int channelId, byte[] targetId, int connection) {
+        var channelEntry = secureChannelMap.get(channelId);
+        if (channelEntry == null)
+            throw new AssertionError("Closing connection in non-existing secure channelId " + channelId +
+                    (channelMap.containsKey(channelId)
+                            ? ". Did you mean to use closeConnection( ... , Host) instead (i.e. to a non-secure channel)?"
+                            : ""));
+        channelEntry.getLeft().closeConnection(targetId, connection);
+    }
+
+    /**
+     * Opens a connection to a peer in the given channel.
+     * Called by {@link GenericProtocol}. Do not evoke directly.
+     */
+    void openConnection(int channelId, Host target, int connection) {
+        Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry =
+                getChannelSecureOrNot(channelId);
+        if (channelEntry == null)
+            throw new AssertionError("Opening connection in non-existing channelId " + channelId);
+        channelEntry.getLeft().openConnection(target, connection);
+    }
+
+    /**
+     * Opens a secure connection to a peer in the given channel.
+     * Called by {@link GenericProtocol}. Do not evoke directly.
+     */
+    void openConnection(int channelId, Host target, byte[] targetId, int connection) {
+        var channelEntry = secureChannelMap.get(channelId);
+        if (channelEntry == null)
+            throw new AssertionError("Opening connection in non-existing secure channelId " + channelId +
+                    (channelMap.containsKey(channelId)
+                            ? ". Did you mean to use openConnection(...) without specifying the peer id (i.e. to a non-secure connection)?"
+                            : ""));
+        channelEntry.getLeft().openConnection(target, connection);
+    }
+
+    /**
+     * Registers a (de)serializer for a message type.
+     * Called by {@link GenericProtocol}. Do not evoke directly.
+     */
+    void registerSerializer(int channelId, short msgCode, ISerializer<? extends ProtoMessage> serializer) {
+        Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> channelEntry =
+                getChannelSecureOrNot(channelId);
+        if (channelEntry == null)
+            throw new AssertionError("Registering serializer in non-existing channelId " + channelId);
+        channelEntry.getRight().registerProtoSerializer(msgCode, serializer);
+    }
+
+    /**
+     * Gets a channel entry from channelMap or secureChannelMap. Whichever one has the {@code channelId} key.
+     */
+    private Triple<IChannel<BabelMessage>, ChannelToProtoForwarder, BabelMessageSerializer> getChannelSecureOrNot(int channelId) {
+        var channelEntry = channelMap.get(channelId);
+        if (channelEntry == null) {
+            var secure = secureChannelMap.get(channelId);
+            channelEntry = Triple.of(secure.getLeft(), secure.getMiddle(), secure.getRight());
+        }
+        return channelEntry;
+    }
 
 	// ----------------------------- REQUEST / REPLY / NOTIFY
 
@@ -542,15 +713,18 @@ public class Babel {
 	 */
 
 	public static Properties loadConfig(String[] args, String defaultConfigFile)
-			throws IOException, InvalidParameterException {
+	throws IOException, InvalidParameterException {
+		if (props == null)
+			props = new Properties(args.length);
+		else
+			logger.debug("Extending config...");
 
-		props = new Properties(args.length);
 		List<String> argsList = new ArrayList<String>(Arrays.asList(args));
 		String configFile = extractConfigFileFromArguments(argsList, defaultConfigFile);
 
-		logger.debug("config file being loaded: " + configFile);
-
 		if (configFile != null) {
+			logger.debug("Config file being loaded: " + configFile);
+
 			InputStream in = null;
 			try {
 				in = new FileInputStream(configFile);
@@ -575,12 +749,15 @@ public class Babel {
 		}
 		// Override with launch parameter props
 		for (String arg : argsList) {
-			String[] property = arg.split("=");
+			String[] property = arg.split("=", 2);
 			if (property.length == 2)
 				props.setProperty(property[0], property[1]);
 			else
-				throw new InvalidParameterException("Unknown parameter: " + arg);
+				throw new InvalidParameterException("Unknown parameter: " + arg
+													+ ". Property after spliting: " + Arrays.toString(property));
 		}
+
+		BabelSecurity.getInstance().loadConfig(props);
 
 		return props;
 	}

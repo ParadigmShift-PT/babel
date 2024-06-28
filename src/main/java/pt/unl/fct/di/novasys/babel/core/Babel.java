@@ -206,7 +206,7 @@ public class Babel {
 				try {
 					Method getter = scProtoClass.getMethod(getterName);
 					Method setter = scProtoClass.getMethod(setterName, String.class);
-					if (getter.invoke(scProto) == null && !(selfConfiguration instanceof DNSSelfConfigurationProtocol)) {
+					if (selfConfiguration instanceof DNSSelfConfigurationProtocol || getter.invoke(scProto) == null) {
 						selfConfiguration.addProtocolParameterToConfigure(field.getName(), setter, getter,
 								scProto);
 					} else {

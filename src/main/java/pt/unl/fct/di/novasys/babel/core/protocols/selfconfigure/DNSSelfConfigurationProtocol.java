@@ -3,12 +3,12 @@ package pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.commons.lang3.StringUtils;
@@ -36,10 +36,9 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
     public static final String PROTO_NAME = "BabelDNSSelfConfiguration";
     public static final short PROTO_ID = 32001;
     public static final String PAR_DNS_LOOKUP_SERVER = "dns.lookup.server";
-    public static final String PAR_DNS_LOOKUP_HOSTNAME = "dns.lookup.hostname";
 
     protected final Map<String, Map<String, Parameter>> protocolToParameterToConfigure;
-    protected final List<SelfConfigurableProtocol> protocolList;
+    protected final Set<SelfConfigurableProtocol> protocolSet;
     protected DnsNameResolver resolver;
     private String nameserver;
 
@@ -49,7 +48,7 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
         super(PROTO_NAME, PROTO_ID);
 
         protocolToParameterToConfigure = new HashMap<>();
-        protocolList = new ArrayList<>();
+        protocolSet = new HashSet<>();
     }
 
     @Override
@@ -64,7 +63,7 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
             protocolToParameterToConfigure.put(protoName, protocolParameters);
         }
         protocolParameters.put(lowerParameterName, parameter);
-        protocolList.add(proto);
+        protocolSet.add(proto);
     }
 
     @Override
@@ -84,13 +83,14 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
      * @return a list of all the protocols that attempted to find a suitable
      *         configuration
      */
-    public List<SelfConfigurableProtocol> search() {
+    public Set<SelfConfigurableProtocol> search() {
         try {
-            for (var proto : protocolList) {
-                if (proto.getHost() == null) continue;
+            for (var proto : protocolSet) {
+                if (proto.getHost() == null)
+                    continue;
 
                 DnsResponse results = resolver.query(new DefaultDnsQuestion(
-                        proto.getHost() + "." + nameserver, DnsRecordType.TXT)).get().content();
+                        proto.getHost(), DnsRecordType.TXT)).get().content();
                 int answerCount = results.count(DnsSection.ANSWER);
 
                 for (int i = 0; i < answerCount; i++) {
@@ -118,7 +118,7 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }
-        return Collections.unmodifiableList(protocolList);
+        return Collections.unmodifiableSet(protocolSet);
     }
 
     @Override
@@ -134,11 +134,5 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
         }
         builder.channelType(NioDatagramChannel.class);
         resolver = builder.build();
-
-        if (!props.containsKey(PAR_DNS_LOOKUP_HOSTNAME)) {
-            throw new RuntimeException("DNSSelfConfigurationProtocol needs a nameserver");
-        }
-        nameserver = props.getProperty(PAR_DNS_LOOKUP_HOSTNAME);
     }
-
 }

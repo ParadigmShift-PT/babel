@@ -208,19 +208,15 @@ public class Babel {
 				try {
 					Method getter = scProtoClass.getMethod(getterName);
 					Method setter = scProtoClass.getMethod(setterName, String.class);
-					String propsName = anotation.propsName();
+					String[] propsName = anotation.propsName().split("\\.");
+					String fieldName = field.getName();
+					if (propsName.length == 2) {
+						fieldName = propsName[1];
+					}
 					if (selfConfiguration instanceof DNSSelfConfigurationProtocol || getter.invoke(scProto) == null) {
-						if (propsName.equals("none")) {
-							selfConfiguration.addProtocolParameterToConfigure(field.getName(), setter, getter, scProto);
-						} else {
-							selfConfiguration.addProtocolParameterToConfigure(propsName, setter, getter, scProto);
-						}
+						selfConfiguration.addProtocolParameterToConfigure(fieldName, setter, getter, scProto);
 					} else {
-						if (propsName.equals("none")) {
-							selfConfiguration.addProtocolParameterConfigured(field.getName(), setter, getter, scProto);
-						} else {
-							selfConfiguration.addProtocolParameterConfigured(propsName, setter, getter, scProto);
-						}
+						selfConfiguration.addProtocolParameterConfigured(fieldName, setter, getter, scProto);
 					}
 				} catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
 					throw new RuntimeException(e);

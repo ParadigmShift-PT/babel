@@ -12,6 +12,10 @@ import java.lang.annotation.Target;
  * Every parameter anotated with this annotation should have a getter and a
  * setter called "getFirst" + ParameterNameCapitalized and "setFirst" +
  * ParameterNameCapitalized respectively
+ * 
+ * The propsName field should be completed when the the name of the field in a
+ * Properties object is better suited for a DNS TXT record rather than its name
+ * in code
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)

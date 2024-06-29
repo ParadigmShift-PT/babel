@@ -585,7 +585,7 @@ public class Babel {
 					(channelMap.containsKey(channelId)
 							? ". Did you mean to use openConnection(...) without specifying the peer id (i.e. to a non-secure connection)?"
 							: ""));
-		channelEntry.getLeft().openConnection(target, connection);
+		channelEntry.getLeft().openConnection(target, targetId, connection);
 	}
 
 	/**

@@ -22,6 +22,7 @@ import pt.unl.fct.di.novasys.channel.IChannel;
 import pt.unl.fct.di.novasys.channel.accrual.AccrualChannel;
 import pt.unl.fct.di.novasys.channel.secure.SecureIChannel;
 import pt.unl.fct.di.novasys.channel.secure.auth.AuthChannel;
+import pt.unl.fct.di.novasys.channel.secure.weakauth.WeakAuthChannel;
 import pt.unl.fct.di.novasys.channel.simpleclientserver.SimpleClientChannel;
 import pt.unl.fct.di.novasys.channel.simpleclientserver.SimpleServerChannel;
 import pt.unl.fct.di.novasys.channel.tcp.SharedTCPChannel;
@@ -164,8 +165,9 @@ public class Babel {
 		// registerChannelInitializer(MultithreadedTCPChannel.NAME, new
 		// MultithreadedTCPChannelInitializer());
 
-		registerChannelInitializer(AuthChannel.NAME, new AuthChannelInitializer());
-	}
+        registerChannelInitializer(AuthChannel.NAME, new AuthChannelInitializer());
+        registerChannelInitializer(WeakAuthChannel.NAME, new WeakAuthChannelInitializer());
+    }
 
 	private void timerLoop() {
 		while (true) {

@@ -26,4 +26,10 @@ public class IPCEvent extends InternalEvent {
     public short getSenderID() {
         return senderID;
     }
+
+    @Override
+    public String toString() {
+        return "IPCEvent { senderID=" + senderID + ", destinationID=" + destinationID + ", ipc=" + ipc  + " }";
+    }
+
 }

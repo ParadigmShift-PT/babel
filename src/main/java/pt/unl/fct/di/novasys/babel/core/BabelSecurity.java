@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.security.AlgorithmParameters;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
@@ -64,6 +63,7 @@ import pt.unl.fct.di.novasys.babel.internal.security.PeerIdEncoder;
 import pt.unl.fct.di.novasys.babel.internal.security.X509BabelKeyManager;
 import pt.unl.fct.di.novasys.babel.internal.security.X509BabelTrustManager;
 import pt.unl.fct.di.novasys.babel.internal.security.X509CertificateChainPredicate;
+import pt.unl.fct.di.novasys.network.data.Bytes;
 import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
@@ -325,7 +325,7 @@ public class BabelSecurity {
                 trustManager = new X509BabelTrustManager(identityExtractor,
                         List.of(getTrustStore(), getEphemeralTrustStore()),
                         trustManagerPolicy, trustManagerUknownPeerCallback,
-                        getEphemeralKeyStore());
+                        getEphemeralTrustStore());
             } catch (KeyStoreException e) {
                 throw new AssertionError(e); // Shouldn't happen
             }
@@ -817,10 +817,9 @@ public class BabelSecurity {
             String alias = PeerIdEncoder.encodeToString(peerId);
             Certificate cert = trustStore.getCertificate(alias);
             if (cert != null) {
-                byte[] trustedId;
-                trustedId = identityExtractor.extractIdentity(cert);
+                byte[] trustedId = identityExtractor.extractIdentity(cert);
                 if (Arrays.equals(trustedId, peerId))
-                return cert;
+                    return cert;
             }
         } catch (CertificateException | KeyStoreException e) {
             // ignore

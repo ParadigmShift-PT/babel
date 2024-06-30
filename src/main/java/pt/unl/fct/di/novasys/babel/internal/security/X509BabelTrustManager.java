@@ -125,9 +125,12 @@ public class X509BabelTrustManager extends X509ITrustManager {
         try {
             if (expected || trustConsistentCertificate.test(chain, idInCert)) {
                 try {
-                    targetTrustStore.setCertificateEntry(PeerIdEncoder.encodeToString(idInCert), chain[0]);
+                    String alias = PeerIdEncoder.encodeToString(idInCert);
+                    logger.debug("Saved peer certificate to trust store: {}", alias);
+                    targetTrustStore.setCertificateEntry(alias, chain[0]);
                 } catch (KeyStoreException e) {
                     // Shouldn't happen
+                    logger.error(e);
                 }
             } else {
                 String msg = "Didn't trust certificate with identity %s. Trust manager policy was %s."
@@ -161,6 +164,7 @@ public class X509BabelTrustManager extends X509ITrustManager {
                 }
             } catch (KeyStoreException | CertificateException e) {
                 // ignored. Continue
+                logger.warn(e);
             }
         }
         return ids;
@@ -183,6 +187,7 @@ public class X509BabelTrustManager extends X509ITrustManager {
                     store.deleteEntry(alias);
             } catch (KeyStoreException | CertificateException e) {
                 // ignored. Continue
+                logger.warn(e);
             }
         }
     }

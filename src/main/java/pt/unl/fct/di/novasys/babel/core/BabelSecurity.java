@@ -29,10 +29,12 @@ import java.security.SignatureException;
 import java.security.UnrecoverableEntryException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Properties;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -457,6 +459,41 @@ public class BabelSecurity {
         return sig.verify(signature);
     }
 
+    /**
+     * signerId can't refer to myself
+     * TODO or should it? And should I add my own certificates to my trust store?
+     */
+    public boolean verifySignature(byte[] signature, byte[] signerId, byte[]... data)
+            throws NoSuchAlgorithmException, SignatureException, NoSuchElementException, InvalidKeyException {
+        Certificate cert = getTrustedCertificate(signerId);
+        if (cert == null)
+            throw new NoSuchElementException("No known certificate for %s that can be used to verify the signature"
+                    .formatted(PeerIdEncoder.encodeToString(signerId)));
+
+        Signature sig = (cert instanceof X509Certificate x509Cert)
+                ? initVerifySignature(x509Cert.getSigAlgName(), x509Cert.getPublicKey(), data)
+                : initVerifySignature(cert.getPublicKey(), data);
+
+        return sig.verify(signature);
+    }
+
+    /**
+     * signerId can't refer to myself
+     */
+    public boolean verifySignature(byte[] signature, byte[] signerId, ByteBuffer data)
+            throws NoSuchAlgorithmException, SignatureException, NoSuchElementException, InvalidKeyException {
+        Certificate cert = getTrustedCertificate(signerId);
+        if (cert == null)
+            throw new NoSuchElementException("No known certificate for %s that can be used to verify the signature"
+                    .formatted(PeerIdEncoder.encodeToString(signerId)));
+
+        Signature sig = (cert instanceof X509Certificate x509Cert)
+                ? initVerifySignature(x509Cert.getSigAlgName(), x509Cert.getPublicKey(), data)
+                : initVerifySignature(cert.getPublicKey(), data);
+
+        return sig.verify(signature);
+    }
+
     public boolean verifySignature(String algorithm, byte[] signature, PublicKey publicKey, byte[]... data)
             throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
         Signature sig = initVerifySignature(algorithm, publicKey, data);
@@ -469,6 +506,64 @@ public class BabelSecurity {
         return sig.verify(signature);
     }
 
+    /**
+     * signerId can't refer to myself
+     */
+    public boolean verifySignature(String algorithm, byte[] signature, byte[] signerId, byte[]... data)
+            throws NoSuchAlgorithmException, InvalidKeyException, SignatureException, NoSuchElementException {
+        Certificate cert = getTrustedCertificate(signerId);
+        if (cert == null)
+            throw new NoSuchElementException("No known certificate for %s that can be used to verify the signature"
+                    .formatted(PeerIdEncoder.encodeToString(signerId)));
+
+        Signature sig = initVerifySignature(algorithm, cert.getPublicKey(), data);
+        return sig.verify(signature);
+    }
+
+    /**
+     * signerId can't refer to myself
+     */
+    public boolean verifySignature(String algorithm, byte[] signature, byte[] signerId, ByteBuffer data)
+            throws NoSuchAlgorithmException, InvalidKeyException, SignatureException, NoSuchElementException {
+        Certificate cert = getTrustedCertificate(signerId);
+        if (cert == null)
+            throw new NoSuchElementException("No known certificate for %s that can be used to verify the signature"
+                    .formatted(PeerIdEncoder.encodeToString(signerId)));
+
+        Signature sig = initVerifySignature(algorithm, cert.getPublicKey(), data);
+        return sig.verify(signature);
+    }
+
+    /**
+     * signerId can't refer to myself
+     */
+    public Signature initVerifySignature(byte[] signerId, byte[]... data)
+            throws NoSuchAlgorithmException, InvalidKeyException {
+        Certificate cert = getTrustedCertificate(signerId);
+        if (cert == null)
+            throw new NoSuchElementException("No known certificate for %s that can be used to verify the signature"
+                    .formatted(PeerIdEncoder.encodeToString(signerId)));
+
+        return (cert instanceof X509Certificate x509Cert)
+                ? initVerifySignature(x509Cert.getSigAlgName(), x509Cert.getPublicKey(), data)
+                : initVerifySignature(cert.getPublicKey(), data);
+    }
+
+    /**
+     * signerId can't refer to myself
+     */
+    public Signature initVerifySignature(byte[] signerId, ByteBuffer data)
+            throws NoSuchAlgorithmException, InvalidKeyException, NoSuchElementException {
+        Certificate cert = getTrustedCertificate(signerId);
+        if (cert == null)
+            throw new NoSuchElementException("No known certificate for %s that can be used to verify the signature"
+                    .formatted(PeerIdEncoder.encodeToString(signerId)));
+
+        return (cert instanceof X509Certificate x509Cert)
+                ? initVerifySignature(x509Cert.getSigAlgName(), x509Cert.getPublicKey(), data)
+                : initVerifySignature(cert.getPublicKey(), data);
+    }
+
     public Signature initVerifySignature(PublicKey publicKey, byte[]... data)
             throws NoSuchAlgorithmException, InvalidKeyException {
         return initVerifySignature(getSignatureAlgorithmFor(publicKey.getAlgorithm()), publicKey, data);
@@ -477,6 +572,32 @@ public class BabelSecurity {
     public Signature initVerifySignature(PublicKey publicKey, ByteBuffer data)
             throws NoSuchAlgorithmException, InvalidKeyException {
         return initVerifySignature(getSignatureAlgorithmFor(publicKey.getAlgorithm()), publicKey, data);
+    }
+
+    /**
+     * signerId can't refer to myself
+     */
+    public Signature initVerifySignature(String algorithm, byte[] signerId, byte[]... data)
+            throws NoSuchAlgorithmException, InvalidKeyException, NoSuchElementException {
+        Certificate cert = getTrustedCertificate(signerId);
+        if (cert == null)
+            throw new NoSuchElementException("No known certificate for %s that can be used to verify the signature"
+                    .formatted(PeerIdEncoder.encodeToString(signerId)));
+
+        return initVerifySignature(algorithm, cert.getPublicKey(), data);
+    }
+
+    /**
+     * signerId can't refer to myself
+     */
+    public Signature initVerifySignature(String algorithm, byte[] signerId, ByteBuffer data)
+            throws NoSuchAlgorithmException, InvalidKeyException, NoSuchElementException {
+        Certificate cert = getTrustedCertificate(signerId);
+        if (cert == null)
+            throw new NoSuchElementException("No known certificate for %s that can be used to verify the signature"
+                    .formatted(PeerIdEncoder.encodeToString(signerId)));
+
+        return initVerifySignature(algorithm, cert.getPublicKey(), data);
     }
 
     public Signature initVerifySignature(String algorithm, PublicKey publicKey, byte[]... data)

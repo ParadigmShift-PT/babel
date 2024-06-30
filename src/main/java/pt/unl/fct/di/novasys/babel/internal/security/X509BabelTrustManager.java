@@ -61,12 +61,13 @@ public class X509BabelTrustManager extends X509ITrustManager {
      * {@code BabelSecurity.getInstance().addTrustedCertificate(cert)}.
      */
     private X509CertificateChainPredicate trustUnknownPeerCallback;
+    private X509CertificateChainPredicate verifyCertificateSignature;
 
     private final IdFromCertExtractor idExtractor;
 
     public X509BabelTrustManager(IdFromCertExtractor idExtractor, Collection<KeyStore> trustStores,
             TrustPolicy trustPolicy, X509CertificateChainPredicate trustUnknownPeerCallback,
-            KeyStore targetTrustStore)
+            KeyStore targetTrustStore, X509CertificateChainPredicate verifyCertificateSignature)
             throws KeyStoreException {
         // Trigger KeyStoreException early if KeyStore was not initialized.
         for (KeyStore store : trustStores)
@@ -82,6 +83,7 @@ public class X509BabelTrustManager extends X509ITrustManager {
         this.expectedIds = Collections.synchronizedSet(new HashSet<>());
         this.idExtractor = idExtractor;
         this.trustUnknownPeerCallback = trustUnknownPeerCallback;
+        this.verifyCertificateSignature = verifyCertificateSignature;
         setTrustPolicy(trustPolicy);
     }
 
@@ -107,22 +109,19 @@ public class X509BabelTrustManager extends X509ITrustManager {
         if (chain == null || chain.length == 0)
             throw new CertificateException("No certificate.");
 
-        try {
-            chain[0].verify(chain[0].getPublicKey());
-        } catch (InvalidKeyException | CertificateException | NoSuchAlgorithmException
-                | NoSuchProviderException | SignatureException e) {
-            throw new CertificateException("Failed self-signed certificate verification.", e);
-        }
-
         byte[] idInCert = idExtractor.extractIdentity(chain[0]);
         if (expectedId != null && !Arrays.equals(idInCert, expectedId))
             throw new CertificateException("Expected id: %s Got: %s"
                     .formatted(PeerIdEncoder.encodeToString(expectedId), PeerIdEncoder.encodeToString(idInCert)));
 
-        boolean expected = expectedIds.remove(Bytes.of(idInCert));
-
         policyReadLock.lock();
         try {
+            if (!verifyCertificateSignature.test(chain, idInCert))
+                throw new CertificateException("Certificate signature verification failed for peer %s"
+                        .formatted(PeerIdEncoder.encodeToString(idInCert)));
+
+            boolean expected = expectedIds.remove(Bytes.of(idInCert));
+
             if (expected || trustConsistentCertificate.test(chain, idInCert)) {
                 try {
                     String alias = PeerIdEncoder.encodeToString(idInCert);
@@ -215,6 +214,16 @@ public class X509BabelTrustManager extends X509ITrustManager {
             policyWriteLock.unlock();
         }
     }
+
+    public void setCertificateSignatureVerifier(X509CertificateChainPredicate verifyCertificateSignature) {
+        policyWriteLock.lock();
+        try {
+            this.verifyCertificateSignature = verifyCertificateSignature;
+        } finally {
+            policyWriteLock.unlock();
+        }
+    }
+
 
     public void setTrustUnknownPeerCallback(X509CertificateChainPredicate trustUnknownCertCallback) {
         policyWriteLock.lock();

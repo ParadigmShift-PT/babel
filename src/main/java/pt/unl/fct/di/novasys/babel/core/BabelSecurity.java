@@ -19,6 +19,7 @@ import java.security.spec.RSAKeyGenParameterSpec;
 import java.security.KeyStoreException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.Provider;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -112,7 +113,8 @@ public class BabelSecurity {
      * If set, {@value #PAR_ASYM_KEY_LEN} will be ignored.
      */
     private static final String PAR_ASYM_KEY_PARAMS = PREFIX + ".asym_key_parameter_supplier";
-    private AlgorithmParameterSpec asymKeyParameters = new RSAKeyGenParameterSpec(asymKeyLength, RSAKeyGenParameterSpec.F4);
+    private AlgorithmParameterSpec asymKeyParameters = new RSAKeyGenParameterSpec(asymKeyLength,
+            RSAKeyGenParameterSpec.F4);
 
     private static final String PAR_ID_EXTRACTOR = PREFIX + ".identity_extractor";
     private IdFromCertExtractor identityExtractor = new BabelCredentialHandler();
@@ -137,9 +139,22 @@ public class BabelSecurity {
 
     private static final String PAR_TRUST_MANAGER_POLICY = PREFIX + ".trustmanager.policy";
     private X509BabelTrustManager.TrustPolicy trustManagerPolicy = X509BabelTrustManager.TrustPolicy.UNKNOWN;
+    private static final String PAR_TRUST_MANAGER_PERSIST_DISCOVERED_CERTS = PREFIX + ".trustmanager.persist_discovered_certificates";
+    private boolean trustManagerPersistCerts = false;
     private static final String PAR_TRUST_MANAGER_UNKNOWN_PEER_CALLBACK = PREFIX
             + ".trustmanager.unknown_peer_callback";
     private X509CertificateChainPredicate trustManagerUknownPeerCallback = (certChain, id) -> false;
+    private static final String PAR_TRUST_MANAGER_VERIFY_SIGNATURE_CALLBACK = PREFIX
+            + ".trustmanager.verify_cert_signature_callback";
+    private X509CertificateChainPredicate trustManagerVerifySignatureCallback = (certChain, id) -> {
+        try {
+            certChain[0].verify(certChain[0].getPublicKey());
+            return true;
+        } catch (InvalidKeyException | CertificateException | NoSuchAlgorithmException
+                | NoSuchProviderException | SignatureException e) {
+            throw new CertificateException("Failed self-signed certificate verification.", e);
+        }
+    };
 
     private static final String PAR_SECRET_STORE_TYPE = PREFIX + ".secretstore.type";
     private String secretStoreType = "PKCS12";
@@ -167,7 +182,7 @@ public class BabelSecurity {
      * If set, a secret key from this password will be generated at startup and
      * added to the ephemeral key manager.
      */
-    private static final String PAR_PBKDF_PWD = PREFIX + ".pbkdf.password";
+    private static final String PAR_PBKDF_PWD = PREFIX + ".pbkdf.initial_secret_password";
     private String pbkdfPassword = null;
     /** Base64 encoded salt for the PBKDF */
     private static final String PAR_PBKDF_SALT = PREFIX + ".pbkdf.salt";
@@ -322,10 +337,11 @@ public class BabelSecurity {
     public synchronized X509ITrustManager getTrustManager() {
         if (trustManager == null) {
             try {
+                var targetStore = trustManagerPersistCerts ? getTrustStore() : getEphemeralTrustStore();
                 trustManager = new X509BabelTrustManager(identityExtractor,
                         List.of(getTrustStore(), getEphemeralTrustStore()),
                         trustManagerPolicy, trustManagerUknownPeerCallback,
-                        getEphemeralTrustStore());
+                        targetStore, trustManagerVerifySignatureCallback);
             } catch (KeyStoreException e) {
                 throw new AssertionError(e); // Shouldn't happen
             }
@@ -575,11 +591,13 @@ public class BabelSecurity {
         return addIdentityWithAliasPrefix(persistOnDisk, aliasPrefix, identityGenerator.generateCredentials(keyPair));
     }
 
-    public IdentityCrypt generateIdentity(boolean persistOnDisk, String alias, KeyPair keyPair) throws NoSuchAlgorithmException {
+    public IdentityCrypt generateIdentity(boolean persistOnDisk, String alias, KeyPair keyPair)
+            throws NoSuchAlgorithmException {
         return addIdentity(persistOnDisk, alias, identityGenerator.generateCredentials(keyPair));
     }
 
-    public IdentityCrypt addIdentity(boolean persistOnDisk, PrivateKeyEntry keyStoreEntry) throws NoSuchAlgorithmException {
+    public IdentityCrypt addIdentity(boolean persistOnDisk, PrivateKeyEntry keyStoreEntry)
+            throws NoSuchAlgorithmException {
         return addIdentity(persistOnDisk, null, keyStoreEntry);
     }
 
@@ -596,7 +614,8 @@ public class BabelSecurity {
         return getIdentityCrypt(alias, id, keyStoreEntry);
     }
 
-    public IdentityCrypt addIdentity(boolean persistOnDisk, String alias, PrivateKeyEntry keyStoreEntry) throws NoSuchAlgorithmException {
+    public IdentityCrypt addIdentity(boolean persistOnDisk, String alias, PrivateKeyEntry keyStoreEntry)
+            throws NoSuchAlgorithmException {
         byte[] id;
         try {
             id = identityExtractor.extractIdentity(keyStoreEntry.getCertificate());
@@ -831,14 +850,16 @@ public class BabelSecurity {
 
     // ------ Public methods
 
-    // TODO Make a way to facilitate secret agreement? Might be terrible to make it generalized
+    // TODO Make a way to facilitate secret agreement? Might be terrible to make it
+    // generalized
 
     public SecretCrypt generateSecretFromPasswordWithAliasPrefix(boolean persistOnDisk, String aliasPrefix,
             String password) {
         try {
             return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, applyPBKDF(password.toCharArray(), pbkdfSalt));
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("PBKDF algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+            throw new RuntimeException(
+                    "PBKDF algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
         }
     }
 
@@ -847,7 +868,8 @@ public class BabelSecurity {
         try {
             return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, applyPBKDF(password.toCharArray(), salt));
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("PBKDF algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+            throw new RuntimeException(
+                    "PBKDF algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
         }
     }
 
@@ -855,7 +877,8 @@ public class BabelSecurity {
         try {
             return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), pbkdfSalt));
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("PBKDF algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+            throw new RuntimeException(
+                    "PBKDF algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
         }
     }
 
@@ -863,7 +886,8 @@ public class BabelSecurity {
         try {
             return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), salt));
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("PBKDF algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+            throw new RuntimeException(
+                    "PBKDF algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
         }
     }
 
@@ -871,7 +895,10 @@ public class BabelSecurity {
         try {
             return addSecret(persistOnDisk, generateSecretKey());
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("Generated secret key algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+            throw new RuntimeException(
+                    "Generated secret key algorithm is incompatible with some other configured algorithm: "
+                            + e.getMessage(),
+                    e);
         }
     }
 
@@ -879,7 +906,10 @@ public class BabelSecurity {
         try {
             return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, generateSecretKey());
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("Generated secret key algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+            throw new RuntimeException(
+                    "Generated secret key algorithm is incompatible with some other configured algorithm: "
+                            + e.getMessage(),
+                    e);
         }
     }
 
@@ -887,11 +917,15 @@ public class BabelSecurity {
         try {
             return addSecret(persistOnDisk, alias, generateSecretKey());
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("Generated secret key algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
+            throw new RuntimeException(
+                    "Generated secret key algorithm is incompatible with some other configured algorithm: "
+                            + e.getMessage(),
+                    e);
         }
     }
 
-    public SecretCrypt addSecretWithAliasPrefix(boolean peristOnDisk, String aliasPrefix, SecretKey secretKey) throws NoSuchAlgorithmException {
+    public SecretCrypt addSecretWithAliasPrefix(boolean peristOnDisk, String aliasPrefix, SecretKey secretKey)
+            throws NoSuchAlgorithmException {
         return addSecret(peristOnDisk, aliasPrefix + "." + generateSecretAlias(secretKey), secretKey);
     }
 
@@ -899,7 +933,8 @@ public class BabelSecurity {
         return addSecret(peristOnDisk, generateSecretAlias(secretKey), secretKey);
     }
 
-    public SecretCrypt addSecret(boolean peristOnDisk, String alias, SecretKey secretKey) throws NoSuchAlgorithmException {
+    public SecretCrypt addSecret(boolean peristOnDisk, String alias, SecretKey secretKey)
+            throws NoSuchAlgorithmException {
         try {
             var chosenPair = chooseSecretStore(__ -> peristOnDisk);
             var store = chosenPair.getLeft();

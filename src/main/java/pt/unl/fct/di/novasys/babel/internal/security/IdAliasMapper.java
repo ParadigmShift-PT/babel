@@ -23,6 +23,7 @@ public class IdAliasMapper {
 
     private static final Logger logger = LogManager.getLogger(IdAliasMapper.class);
 
+    // TODO maybe have a Map<byte[], Map<String, String>> to support multiple key types per identity?
     private final Map<String, byte[]> aliasToId;
     private final Map<Bytes, String> idToAlias;
 
@@ -64,11 +65,11 @@ public class IdAliasMapper {
     }
 
     public String getAlias(byte[] id) {
-        return idToAlias.get(Bytes.of(id));
+        return id == null ? null : idToAlias.get(Bytes.of(id));
     }
 
     public byte[] getId(String alias) {
-        return aliasToId.get(alias);
+        return alias == null ? null : aliasToId.get(alias);
     }
 
     public String getDefaultAlias() {
@@ -80,8 +81,7 @@ public class IdAliasMapper {
     }
 
     public IdentityPair getDefault() {
-        return defaultAlias != null ? new IdentityPair(defaultAlias, getId(defaultAlias))
-                                    : null;
+        return defaultAlias == null ? null : new IdentityPair(defaultAlias, getId(defaultAlias));
     }
 
     public synchronized String setDefaultAlias(String alias) {
@@ -92,8 +92,10 @@ public class IdAliasMapper {
 
     public synchronized void putDefault(String alias, byte[] id) {
         defaultAlias = alias;
-        idToAlias.put(Bytes.of(id), alias);
-        aliasToId.put(alias, id);
+        if (alias != null && id != null) {
+            idToAlias.put(Bytes.of(id), alias);
+            aliasToId.put(alias, id);
+        }
     }
 
     public synchronized void setDefaultId(byte[] id) {
@@ -101,6 +103,9 @@ public class IdAliasMapper {
     }
 
     public synchronized void put(String alias, byte[] id) {
+        if (alias == null || id == null)
+            return;
+
         if (defaultAlias == null)
             defaultAlias = alias;
 
@@ -109,17 +114,23 @@ public class IdAliasMapper {
     }
 
     public synchronized String removeId(byte[] id) {
+        if (id == null)
+            return null;
+
         String alias = idToAlias.remove(Bytes.of(id));
-        if (defaultAlias == alias && !aliasToId.isEmpty())
-            defaultAlias = aliasToId.keySet().iterator().next();
+        if (defaultAlias == alias)
+            defaultAlias = aliasToId.isEmpty() ? null : aliasToId.keySet().iterator().next();
 
         aliasToId.remove(alias);
         return alias;
     }
 
     public synchronized byte[] removeAlias(String alias) {
-        if (defaultAlias == alias && !aliasToId.isEmpty())
-            defaultAlias = aliasToId.keySet().iterator().next();
+        if (alias == null)
+            return null;
+
+        if (defaultAlias == alias)
+            defaultAlias = aliasToId.isEmpty() ? null : aliasToId.keySet().iterator().next();
 
         byte[] id = aliasToId.remove(alias);
         idToAlias.remove(Bytes.of(id));

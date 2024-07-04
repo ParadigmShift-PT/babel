@@ -1,7 +1,5 @@
 package pt.unl.fct.di.novasys.babel.core;
 
-import static java.lang.Integer.parseInt;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -190,7 +188,7 @@ public class BabelSecurity {
     private static final String PAR_PBKDF_SALT = PREFIX + ".pbkdf.salt";
     private byte[] pbkdfSalt = "Babel sa(u)lt defa(u)lt! You (or I?) should change this!!!".getBytes();
     private static final String PAR_PBKDF_ITERATIONS = PREFIX + ".pbkdf.iterations";
-    private int pbkdfIterations = 131072; // TODO find a big number that's fast enough on a raspberry
+    private int pbkdfIterations = 131072;
     private static final String PAR_PBKDF_KEY_LEN = PREFIX + ".pbkdf.key_length";
     private int pbkdfKeyLength = 256;
     /**
@@ -277,7 +275,6 @@ public class BabelSecurity {
                     idAliasMapper.populateFromPrivateKeyStore(keyStore, keyStoreProtection, identityExtractor);
                 }
             } catch (KeyStoreException e) {
-                // TODO verify that the keystore type is available when loading config
                 throw new AssertionError(e); // Shouldn't happen
             }
         }
@@ -317,7 +314,6 @@ public class BabelSecurity {
             try {
                 trustStore = loadOrCreateStore(trustStoreLoadPath, trustStoreType, trustStoreProtection);
             } catch (KeyStoreException e) {
-                // TODO verify that the keystore type is available when loading config
                 throw new AssertionError(e); // Shouldn't happen
             }
         }
@@ -361,7 +357,6 @@ public class BabelSecurity {
             try {
                 secretStore = loadOrCreateStore(secretStoreLoadPath, secretStoreType, secretStoreProtection);
             } catch (KeyStoreException e) {
-                // TODO verify that the keystore type is available when loading config
                 throw new AssertionError(e); // Shouldn't happen
             }
         }
@@ -375,7 +370,6 @@ public class BabelSecurity {
                 logger.debug("Creating new ephemeral trust store");
                 ephSecretStore = KeyStore.Builder.newInstance(secretStoreType, null, EMPTY_PWD).getKeyStore();
             } catch (KeyStoreException e) {
-                // TODO verify that the keystore type is available when loading config
                 throw new AssertionError(e); // Shouldn't happen
             }
         }
@@ -428,7 +422,6 @@ public class BabelSecurity {
             else
                 keyPairGen.initialize(asymKeyLength, keyRng);
         } catch (InvalidAlgorithmParameterException e) {
-            // TODO Catch this early in load config
             throw new AssertionError(e); // Shouldn't happen
         }
         return keyPairGen.generateKeyPair();
@@ -996,37 +989,16 @@ public class BabelSecurity {
         return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), salt));
     }
 
-    public SecretCrypt generateSecret(boolean persistOnDisk) {
-        try {
-            return addSecret(persistOnDisk, generateSecretKey());
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(
-                    "Generated secret key algorithm is incompatible with some other configured algorithm: "
-                            + e.getMessage(),
-                    e);
-        }
+    public SecretCrypt generateSecret(boolean persistOnDisk) throws NoSuchAlgorithmException {
+        return addSecret(persistOnDisk, generateSecretKey());
     }
 
-    public SecretCrypt generateSecretWithAliasPrefix(boolean persistOnDisk, String aliasPrefix) {
-        try {
-            return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, generateSecretKey());
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(
-                    "Generated secret key algorithm is incompatible with some other configured algorithm: "
-                            + e.getMessage(),
-                    e);
-        }
+    public SecretCrypt generateSecretWithAliasPrefix(boolean persistOnDisk, String aliasPrefix) throws NoSuchAlgorithmException {
+        return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, generateSecretKey());
     }
 
-    public SecretCrypt generateSecret(boolean persistOnDisk, String alias) {
-        try {
-            return addSecret(persistOnDisk, alias, generateSecretKey());
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(
-                    "Generated secret key algorithm is incompatible with some other configured algorithm: "
-                            + e.getMessage(),
-                    e);
-        }
+    public SecretCrypt generateSecret(boolean persistOnDisk, String alias) throws NoSuchAlgorithmException {
+        return addSecret(persistOnDisk, alias, generateSecretKey());
     }
 
     public SecretCrypt addSecretWithAliasPrefix(boolean peristOnDisk, String aliasPrefix, SecretKey secretKey)
@@ -1138,13 +1110,11 @@ public class BabelSecurity {
      * <p>
      * <b>Can lead to unexpected behaviour if called after one of the many key
      * stores is loaded for the first time.</b>
-     * @throws InvalidKeySpecException 
      */
-    synchronized void loadConfig(Properties config) throws InvalidParameterException {
+    synchronized void loadConfig(Properties config) throws pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException {
         if (keyStore != null || ephKeyStore != null || trustStore != null || ephTrustStore != null
                 || secretStore != null || ephSecretStore != null) {
-            logger.warn(
-                    "Loading configuration after one of the key stores was already loaded. This might lead to unexpected behaviour.");
+            logger.warn("Loading configuration after one of the key stores was already loaded. This might lead to unexpected behaviour.");
         }
 
         // key store
@@ -1169,16 +1139,36 @@ public class BabelSecurity {
 
         asymKeyAlgorithm = getAlgorithmParam("KeyFactory", config, PAR_ASYM_KEY_ALG, asymKeyAlgorithm);
 
-        var keyLenParam = config.getProperty(PAR_ASYM_KEY_LEN);
         var algParamParam = loadClassParam(AlgorithmParameterSpec.class, config, PAR_ASYM_KEY_PARAMS);
-        if (algParamParam == null && keyLenParam != null) {
-            asymKeyParameters = null;
-            asymKeyLength = parseInt(keyLenParam);
-        } else if (algParamParam != null) {
+        if (algParamParam == null) {
+            Integer keyLenParam = getObjectParam(config, PAR_ASYM_KEY_LEN, null, Integer::parseInt);
+            if (keyLenParam != null) {
+                try {
+                    KeyPairGenerator.getInstance(asymKeyAlgorithm).initialize(keyLenParam);
+                } catch (NoSuchAlgorithmException | InvalidParameterException e) {
+                    throw getConfigParamException(PAR_ASYM_KEY_LEN, keyLenParam.toString(),
+                            "Invalid parameter for asymmetric key algorithm " + asymKeyAlgorithm, e);
+                }
+                asymKeyParameters = null;
+                asymKeyLength = keyLenParam;
+            } else if (config.contains(PAR_ASYM_KEY_ALG)) {
+                try {
+                    KeyPairGenerator.getInstance(asymKeyAlgorithm).initialize(algParamParam);
+                } catch (NoSuchAlgorithmException | InvalidAlgorithmParameterException e) {
+                    throw new pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException(
+                        "Asymmetric key algorithm was set without setting proper corresponding algorithm parameters",
+                        e);
+                }
+            }
+        } else {
+            try {
+                KeyPairGenerator.getInstance(asymKeyAlgorithm).initialize(algParamParam);
+            } catch (NoSuchAlgorithmException | InvalidAlgorithmParameterException e) {
+                throw getConfigParamException(PAR_ASYM_KEY_PARAMS, algParamParam.getClass().getName(),
+                            "Invalid parameter spec for asymmetric key algorithm " + asymKeyAlgorithm, e);
+            }
             asymKeyParameters = algParamParam;
         }
-
-        asymKeyLength = param != null ? parseInt(param) : asymKeyLength;
 
         // id extractor
         identityExtractor = loadClassParam(config, PAR_ID_EXTRACTOR, identityExtractor);
@@ -1249,8 +1239,9 @@ public class BabelSecurity {
             try {
                 this.generateSecretFromPassword(false, STARTUP_PWD_DERIVED_KEY_ALIAS, param);
             } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
-                throw new InvalidParameterException(STARTUP_PWD_DERIVED_KEY_ALIAS
-                        + ": Couldn't generate secret from password in config. Cause: " + e);
+                throw new pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException(
+                        STARTUP_PWD_DERIVED_KEY_ALIAS + ": Couldn't generate secret from password in config.",
+                        e);
             }
         }
 
@@ -1258,11 +1249,10 @@ public class BabelSecurity {
         if ((param = config.getProperty(PAR_HASH_ALG)) != null) {
             try {
                 MessageDigest.getInstance(param); // Check availability
-                hashAlgorithm = param;
             } catch (NoSuchAlgorithmException e) {
-                throw new InvalidParameterException("%s: No algorithm named %s available for MessageDigest."
-                        .formatted(PAR_HASH_ALG, param));
+                throw getConfigParamException(PAR_HASH_ALG, param, "No such algorithm available for MessageDigest.", e);
             }
+            hashAlgorithm = param;
         }
 
         macAlgorithm = getAlgorithmParam("Mac", config, PAR_MAC_ALG);
@@ -1299,9 +1289,9 @@ public class BabelSecurity {
                     }
                 }
                 if (!modeFound)
-                    throw new InvalidParameterException("%s: Cipher mode \"%s\" not available.".formatted(PAR_CIPHER_MODE, cipherMode));
+                    throw getConfigParamException(PAR_CIPHER_MODE, cipherMode, "No such cipher mode available.", null);
                 if (!paddingFound)
-                    throw new InvalidParameterException("%s: Cipher padding \"%s\" not available.".formatted(PAR_CIPHER_PADDING, cipherPadding));
+                    throw getConfigParamException(PAR_CIPHER_PADDING, cipherPadding, "No such cipher padding available.", null);
             }
         }
 
@@ -1315,47 +1305,65 @@ public class BabelSecurity {
 
     }
 
-    private static <T> T loadClassParam(Class<T> clazz, Properties props, String key) {
+    private static pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException
+            getConfigParamException(String param, String value, String explanation, Throwable cause) {
+        String msg = "%s: Invalid value \"%s\"".formatted(param, value)
+                + (explanation == null ? "." : ": " + explanation);
+        return cause == null
+                ? new pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException(msg)
+                : new pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException(msg, cause);
+    }
+
+    private static <T> T loadClassParam(Class<T> clazz, Properties props, String key)
+            throws pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException {
         return loadClassParam(props, key, (T) null);
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> T loadClassParam(Properties props, String key, T defaultValue) {
+    private static <T> T loadClassParam(Properties props, String key, T defaultValue)
+            throws pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException {
         String className = props.getProperty(key);
         if (className == null)
             return defaultValue;
         try {
             return ((Class<? extends T>) Class.forName(className)).getDeclaredConstructor().newInstance();
         } catch (Exception e) {
-            throw new InvalidParameterException("%s: Couldn't load class \"%s\". Cause: %s".formatted(key, className, e));
+            throw getConfigParamException(key, className, null, e);
         }
     }
 
-    private static <T> T getObjectParam(Properties props, String key, T defaultValue, Function<String, T> parser) {
+    private static <T> T getObjectParam(Properties props, String key, T defaultValue, Function<String, T> parser)
+            throws pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException {
         var param = props.getProperty(key);
         return param != null ? parser.apply(param) : defaultValue;
     }
 
-    private static <T> T getObjectParamUpperCase(Properties props, String key, T defaultValue, Function<String, T> parser) {
+    private static <T> T getObjectParamUpperCase(Properties props, String key, T defaultValue, Function<String, T> parser)
+            throws pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException {
         var param = props.getProperty(key);
-        return param != null ? parser.apply(param.toUpperCase()) : defaultValue;
+        try {
+            return param != null ? parser.apply(param.toUpperCase()) : defaultValue;
+        } catch (Exception e) {
+            throw getConfigParamException(key, param, "Failed to parse Object", e);
+        }
     }
 
-    private static String getAlgorithmParam(String service, Properties props, String key) {
+    private static String getAlgorithmParam(String service, Properties props, String key)
+            throws pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException {
         var alg = props.getProperty(key);
         if (alg != null) {
             alg = alg.toUpperCase();
             if (!Security.getAlgorithms(service).contains(alg))
-                throw new InvalidParameterException("%s: No algorithm named \"%s\" available for %s.".formatted(key, alg, service));
+                throw getConfigParamException(key, alg, "No such algorithm available for " + service, null);
         }
         return alg;
     }
 
     private static String getAlgorithmParam(String service, Properties props, String key, String defaultValue)
-            throws InvalidParameterException {
+            throws pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException {
         var alg = props.getProperty(key, defaultValue).toUpperCase();
         if (!Security.getAlgorithms(service).contains(alg))
-            throw new InvalidParameterException("%s: No algorithm named \"%s\" available for %s.".formatted(key, alg, service));
+                throw getConfigParamException(key, alg, "No such algorithm available for " + service, null);
         return alg;
     }
 

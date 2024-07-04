@@ -1360,22 +1360,22 @@ public abstract class GenericProtocol {
         return generateSecretFromPassword(persistOnDisk, password, alias);
     }
 
-    protected final SecretCrypt generateSecret() {
+    protected final SecretCrypt generateSecret() throws NoSuchAlgorithmException {
         return generateSecret(true);
     }
 
-    protected final SecretCrypt generateSecret(boolean persistOnDisk) {
+    protected final SecretCrypt generateSecret(boolean persistOnDisk) throws NoSuchAlgorithmException {
         var secret = babelSecurity.generateSecretWithAliasPrefix(persistOnDisk, protoName);
         if (defaultSecret == null)
             defaultSecret = secret;
         return secret;
     }
 
-    protected final SecretCrypt generateSecret(String alias) {
+    protected final SecretCrypt generateSecret(String alias) throws NoSuchAlgorithmException {
         return generateSecret(true);
     }
 
-    protected final SecretCrypt generateSecret(boolean persistOnDisk, String alias) {
+    protected final SecretCrypt generateSecret(boolean persistOnDisk, String alias) throws NoSuchAlgorithmException {
         var secret = babelSecurity.generateSecret(persistOnDisk, alias);
         if (defaultSecret == null)
             defaultSecret = secret;

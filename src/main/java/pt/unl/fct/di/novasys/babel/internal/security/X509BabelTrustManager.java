@@ -67,7 +67,7 @@ public class X509BabelTrustManager extends X509ITrustManager {
 
     public X509BabelTrustManager(IdFromCertExtractor idExtractor, Collection<KeyStore> trustStores,
             TrustPolicy trustPolicy, X509CertificateChainPredicate trustUnknownPeerCallback,
-            KeyStore targetTrustStore, X509CertificateChainPredicate verifyCertificateSignature)
+            X509CertificateChainPredicate verifyCertificateSignature, KeyStore targetTrustStore)
             throws KeyStoreException {
         // Trigger KeyStoreException early if KeyStore was not initialized.
         for (KeyStore store : trustStores)
@@ -125,8 +125,10 @@ public class X509BabelTrustManager extends X509ITrustManager {
             if (expected || trustConsistentCertificate.test(chain, idInCert)) {
                 try {
                     String alias = PeerIdEncoder.encodeToString(idInCert);
-                    logger.debug("Saved peer certificate to trust store: {}", alias);
-                    targetTrustStore.setCertificateEntry(alias, chain[0]);
+                    if (targetTrustStore != null) {
+                        targetTrustStore.setCertificateEntry(alias, chain[0]);
+                        logger.debug("Saved peer certificate to trust store: {}", alias);
+                    }
                 } catch (KeyStoreException e) {
                     // Shouldn't happen
                     logger.error(e);

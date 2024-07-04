@@ -1,11 +1,14 @@
 package pt.unl.fct.di.novasys.babel.core;
 
+import static java.lang.Integer.parseInt;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
+import java.security.InvalidParameterException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.KeyStore;
@@ -37,6 +40,7 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Properties;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import javax.crypto.KeyGenerator;
@@ -66,7 +70,6 @@ import pt.unl.fct.di.novasys.babel.internal.security.PeerIdEncoder;
 import pt.unl.fct.di.novasys.babel.internal.security.X509BabelKeyManager;
 import pt.unl.fct.di.novasys.babel.internal.security.X509BabelTrustManager;
 import pt.unl.fct.di.novasys.babel.internal.security.X509CertificateChainPredicate;
-import pt.unl.fct.di.novasys.network.data.Bytes;
 import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
@@ -123,8 +126,9 @@ public class BabelSecurity {
     private static final String PAR_ID_GENERATOR = PREFIX + ".identity_generator";
     private IdentityGenerator identityGenerator = (BabelCredentialHandler) identityExtractor;
 
+    /** Defaults to the same as {@value #PAR_KEY_STORE_TYPE} */
     private static final String PAR_TRUST_STORE_TYPE = PREFIX + ".truststore.type";
-    private String trustStoreType = "PKCS12";
+    private String trustStoreType;
     private static final String PAR_TRUST_STORE_PWD = PREFIX + ".truststore.password";
     private static final String PAR_TRUST_STORE_PROTECTION = PREFIX + ".truststore.protection_handler";
     private ProtectionParameter trustStoreProtection = EMPTY_PWD;
@@ -136,11 +140,12 @@ public class BabelSecurity {
      */
     private static final String PAR_TRUST_STORE_WRITABLE = PREFIX + ".truststore.writable";
     private String trustStoreWritePath = null;
-    private static final String PAR_TRUST_STORE_SAVE_ALL_ENCOUNTERED = PREFIX + ".truststore.save_all_encountered";
-    private boolean trustStoreSaveAll = true;
 
     private static final String PAR_TRUST_MANAGER_POLICY = PREFIX + ".trustmanager.policy";
     private X509BabelTrustManager.TrustPolicy trustManagerPolicy = X509BabelTrustManager.TrustPolicy.UNKNOWN;
+    private static final String PAR_TRUST_MANAGER_SAVE_ENCOUNTERED = PREFIX + ".trustmanager.save_encountered";
+    private boolean trustManagerSaveEncountered = true;
+    /** Ignored if {@value #PAR_TRUST_MANAGER_SAVE_ENCOUNTERED} is set to {@code false} */
     private static final String PAR_TRUST_MANAGER_PERSIST_DISCOVERED_CERTS = PREFIX + ".trustmanager.persist_discovered_certificates";
     private boolean trustManagerPersistCerts = false;
     private static final String PAR_TRUST_MANAGER_UNKNOWN_PEER_CALLBACK = PREFIX
@@ -158,14 +163,14 @@ public class BabelSecurity {
         }
     };
 
+    /** Defaults to the same as {@value #PAR_KEY_STORE_TYPE} */
     private static final String PAR_SECRET_STORE_TYPE = PREFIX + ".secretstore.type";
-    private String secretStoreType = "PKCS12";
+    private String secretStoreType;
     private static final String PAR_SECRET_STORE_PWD = PREFIX + ".secretstore.password";
     private static final String PAR_SECRET_STORE_PROTECTION = PREFIX + ".secretstore.protection_handler";
     private ProtectionParameter secretStoreProtection = EMPTY_PWD;
     private static final String PAR_SECRET_STORE_PATH = PREFIX + ".secretstore.path";
-    private static final String DEF_SECRET_STORE_PATH = "babelSecretStore.jks";
-    private String secretStoreLoadPath = null;
+    private String secretStoreLoadPath = "babelSecretStore.jks";
     /**
      * Can be a String (a path) or a boolean. If boolean and true,
      * secretStoreWritePath must be set to secretStoreLoadPath
@@ -176,23 +181,25 @@ public class BabelSecurity {
     private String symKeyAlgorithm = "AES";
     private static final String PAR_SYM_KEY_LEN = PREFIX + ".secretkey_length";
     private int symKeyLength = 128;
+    // TODO PAR_SYM_KEY_PARAMS ?
 
     /** Algorithm for password based key derivation function */
     private static final String PAR_PBKDF_ALG = PREFIX + ".pbkdf.algorithm";
     private String pbkdfAlgorithm = "PBKDF2WithHmacSHA256";
+    /** Base64 encoded salt for the PBKDF */
+    private static final String PAR_PBKDF_SALT = PREFIX + ".pbkdf.salt";
+    private byte[] pbkdfSalt = "Babel sa(u)lt defa(u)lt! You (or I?) should change this!!!".getBytes();
+    private static final String PAR_PBKDF_ITERATIONS = PREFIX + ".pbkdf.iterations";
+    private int pbkdfIterations = 131072; // TODO find a big number that's fast enough on a raspberry
+    private static final String PAR_PBKDF_KEY_LEN = PREFIX + ".pbkdf.key_length";
+    private int pbkdfKeyLength = 256;
     /**
      * If set, a secret key from this password will be generated at startup and
      * added to the ephemeral key manager.
      */
     private static final String PAR_PBKDF_PWD = PREFIX + ".pbkdf.initial_secret_password";
-    private String pbkdfPassword = null;
-    /** Base64 encoded salt for the PBKDF */
-    private static final String PAR_PBKDF_SALT = PREFIX + ".pbkdf.salt";
-    private byte[] pbkdfSalt = "Babel sa(u)lt defa(u)lt! You (or I?) should change this!!!".getBytes();
-    private static final String PAR_PBKDF_ITERATIONS = PREFIX + ".pbkdf.iterations";
-    private int pbkdfIterations = 131072; // TODO find the biggest number that's fast enough on an RPi
-    private static final String PAR_PBKDF_KEY_LEN = PREFIX + ".pbkdf.key_length";
-    private int pbkdfKeyLength = 256;
+
+    private static final String STARTUP_PWD_DERIVED_KEY_ALIAS = "babel.password_derived";
 
     // See
     // https://docs.oracle.com/en/java/javase/21/docs/specs/security/standard-names.html
@@ -205,24 +212,19 @@ public class BabelSecurity {
     // https://www.rfc-editor.org/rfc/rfc5288
     public static final String PAR_CIPHER_TRANSFORM = PREFIX + ".cipher.transformation";
     private String cipherTransform = null;
+    /** Ignored if {@value #PAR_CIPHER_TRANSFORM} is set */
     public static final String PAR_CIPHER_MODE = PREFIX + ".cipher.mode";
     private String cipherMode = "GCM";
+    /** Ignored if {@value #PAR_CIPHER_TRANSFORM} is set */
     public static final String PAR_CIPHER_PADDING = PREFIX + ".cipher.padding";
     private String cipherPadding = "NoPadding";
+    /** Ignored if {@value #PAR_CIPHER_PARAM_SUPPLIER} is set */
     public static final String PAR_CIPHER_IV_SIZE = PREFIX + ".cipher.iv_size";
-    public static final String PAR_CIPHER_PARAM_GEN = PREFIX + ".cipher.parameter_supplier";
+    public static final String PAR_CIPHER_PARAM_SUPPLIER = PREFIX + ".cipher.parameter_supplier";
     private Supplier<AlgorithmParameterSpec> cipherParameterSupplier = () -> new GCMParameterSpec(128, generateIv(12));
     // public static final String PAR_CIPHER_KEYWRAP_ALG = "kwyrap_cipher";
     /*
      * public static final String PAR_... = PREFIX + ... ?
-     */
-
-    // TODO should this be a thing?
-    /*
-     * // A protocol specific property map. These are specified as
-     * // "babel.security.proto.{protoId}.{prop}"
-     * // If the protocol name has spaces, they must be escaped
-     * private final Map<String, SecurityConfiguration> protoConfigs;
      */
 
     // Lazy loaded fields
@@ -339,11 +341,13 @@ public class BabelSecurity {
     public synchronized X509ITrustManager getTrustManager() {
         if (trustManager == null) {
             try {
-                var targetStore = trustManagerPersistCerts ? getTrustStore() : getEphemeralTrustStore();
+                var targetStore = trustManagerSaveEncountered
+                        ? trustManagerPersistCerts ? getTrustStore() : getEphemeralTrustStore()
+                        : null;
                 trustManager = new X509BabelTrustManager(identityExtractor,
                         List.of(getTrustStore(), getEphemeralTrustStore()),
                         trustManagerPolicy, trustManagerUknownPeerCallback,
-                        targetStore, trustManagerVerifySignatureCallback);
+                        trustManagerVerifySignatureCallback, targetStore);
             } catch (KeyStoreException e) {
                 throw new AssertionError(e); // Shouldn't happen
             }
@@ -975,41 +979,21 @@ public class BabelSecurity {
     // generalized
 
     public SecretCrypt generateSecretFromPasswordWithAliasPrefix(boolean persistOnDisk, String aliasPrefix,
-            String password) {
-        try {
-            return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, applyPBKDF(password.toCharArray(), pbkdfSalt));
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(
-                    "PBKDF algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
-        }
+            String password) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, applyPBKDF(password.toCharArray(), pbkdfSalt));
     }
 
     public SecretCrypt generateSecretFromPasswordWithAliasPrefix(boolean persistOnDisk, String aliasPrefix,
-            String password, byte[] salt) {
-        try {
-            return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, applyPBKDF(password.toCharArray(), salt));
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(
-                    "PBKDF algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
-        }
+            String password, byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, applyPBKDF(password.toCharArray(), salt));
     }
 
-    public SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String alias, String password) {
-        try {
-            return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), pbkdfSalt));
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(
-                    "PBKDF algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
-        }
+    public SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String alias, String password) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), pbkdfSalt));
     }
 
-    public SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String alias, String password, byte[] salt) {
-        try {
-            return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), salt));
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(
-                    "PBKDF algorithm is incompatible with some other configured algorithm: " + e.getMessage(), e);
-        }
+    public SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String alias, String password, byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
+        return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), salt));
     }
 
     public SecretCrypt generateSecret(boolean persistOnDisk) {
@@ -1131,7 +1115,7 @@ public class BabelSecurity {
         }
     }
 
-    private SecretKey applyPBKDF(char[] password, byte[] salt) {
+    private SecretKey applyPBKDF(char[] password, byte[] salt) throws InvalidKeySpecException {
         SecretKeyFactory fac;
         try {
             fac = SecretKeyFactory.getInstance(pbkdfAlgorithm, PROVIDER);
@@ -1143,13 +1127,8 @@ public class BabelSecurity {
             }
         }
 
-        try {
-            SecretKey pbkdfKey = fac.generateSecret(
-                    new PBEKeySpec(password, salt, pbkdfIterations, pbkdfKeyLength));
-            return new SecretKeySpec(pbkdfKey.getEncoded(), symKeyAlgorithm);
-        } catch (InvalidKeySpecException e) {
-            throw new AssertionError(e); // Shouldn't happen // TODO verify that it's valid when loading config
-        }
+        SecretKey pbkdfKey = fac.generateSecret(new PBEKeySpec(password, salt, pbkdfIterations, pbkdfKeyLength));
+        return new SecretKeySpec(pbkdfKey.getEncoded(), symKeyAlgorithm);
     }
 
     /* ------------------- Config ------------------- */
@@ -1159,54 +1138,225 @@ public class BabelSecurity {
      * <p>
      * <b>Can lead to unexpected behaviour if called after one of the many key
      * stores is loaded for the first time.</b>
+     * @throws InvalidKeySpecException 
      */
-    synchronized void loadConfig(Properties config) {
+    synchronized void loadConfig(Properties config) throws InvalidParameterException {
         if (keyStore != null || ephKeyStore != null || trustStore != null || ephTrustStore != null
                 || secretStore != null || ephSecretStore != null) {
             logger.warn(
                     "Loading configuration after one of the key stores was already loaded. This might lead to unexpected behaviour.");
         }
 
-        keyStoreType = config.getProperty(PAR_KEY_STORE_TYPE, keyStoreType);
+        // key store
+        keyStoreType = getAlgorithmParam("KeyStore", config, PAR_KEY_STORE_TYPE, keyStoreType);
         keyStoreLoadPath = config.getProperty(PAR_KEY_STORE_PATH, keyStoreLoadPath);
 
         String param = config.getProperty(PAR_KEY_STORE_WRITABLE);
-        keyStoreWritePath = param == null || param.equals("false")
+        keyStoreWritePath = param == null || param.toUpperCase().equals("false")
                 ? null
-                : param.equals("true")
+                : param.toUpperCase().equals("true")
                         ? keyStoreLoadPath
                         : param;
 
         param = config.getProperty(PAR_KEY_STORE_PWD);
         keyStoreProtection = param != null
                 ? new PasswordProtection(param.toCharArray())
-                : loadClassParameter(ProtectionParameter.class, config,
-                        PAR_KEY_STORE_PROTECTION, keyStoreProtection);
+                : loadClassParam(config, PAR_KEY_STORE_PROTECTION, keyStoreProtection);
 
         param = config.getProperty(PAR_DEFAULT_ID);
         if (param != null)
             idAliasMapper.setDefaultAlias(param);
 
-        identityExtractor = loadClassParameter(IdFromCertExtractor.class, config,
-                PAR_ID_EXTRACTOR, identityExtractor);
+        asymKeyAlgorithm = getAlgorithmParam("KeyFactory", config, PAR_ASYM_KEY_ALG, asymKeyAlgorithm);
 
-        identityGenerator = loadClassParameter(IdentityGenerator.class, config,
-                PAR_ID_GENERATOR, identityGenerator);
+        var keyLenParam = config.getProperty(PAR_ASYM_KEY_LEN);
+        var algParamParam = loadClassParam(AlgorithmParameterSpec.class, config, PAR_ASYM_KEY_PARAMS);
+        if (algParamParam == null && keyLenParam != null) {
+            asymKeyParameters = null;
+            asymKeyLength = parseInt(keyLenParam);
+        } else if (algParamParam != null) {
+            asymKeyParameters = algParamParam;
+        }
 
-        // TODO rest of params
+        asymKeyLength = param != null ? parseInt(param) : asymKeyLength;
+
+        // id extractor
+        identityExtractor = loadClassParam(config, PAR_ID_EXTRACTOR, identityExtractor);
+
+        identityGenerator = loadClassParam(config, PAR_ID_GENERATOR, identityGenerator);
+
+        // trust store
+        // Type defaults to same as keystore
+        trustStoreType = getAlgorithmParam("KeyStore", config, PAR_TRUST_STORE_TYPE, keyStoreType);
+        trustStoreLoadPath = config.getProperty(PAR_TRUST_STORE_PATH, trustStoreLoadPath);
+
+        param = config.getProperty(PAR_TRUST_STORE_PWD);
+        trustStoreProtection = param != null
+                ? new PasswordProtection(param.toCharArray())
+                : loadClassParam(config, PAR_TRUST_STORE_PROTECTION, trustStoreProtection);
+
+        param = config.getProperty(PAR_TRUST_STORE_WRITABLE);
+        trustStoreWritePath = param == null || param.toUpperCase().equals("false")
+                ? null
+                : param.toUpperCase().equals("true") ? trustStoreLoadPath : param;
+
+
+        // trust man
+        trustManagerPolicy = getObjectParamUpperCase(config, PAR_TRUST_MANAGER_POLICY, trustManagerPolicy,
+                X509BabelTrustManager.TrustPolicy::valueOf);
+
+        trustManagerSaveEncountered = getObjectParam(config, PAR_TRUST_MANAGER_SAVE_ENCOUNTERED,
+                trustManagerSaveEncountered, Boolean::valueOf);
+        if (trustManagerSaveEncountered) {
+            trustManagerPersistCerts = getObjectParam(config, PAR_TRUST_MANAGER_PERSIST_DISCOVERED_CERTS,
+                trustManagerPersistCerts, Boolean::valueOf);
+        }
+
+        trustManagerUknownPeerCallback = loadClassParam(config, PAR_TRUST_MANAGER_UNKNOWN_PEER_CALLBACK,
+                trustManagerUknownPeerCallback);
+        trustManagerVerifySignatureCallback = loadClassParam(config, PAR_TRUST_MANAGER_VERIFY_SIGNATURE_CALLBACK,
+                trustManagerVerifySignatureCallback);
+
+        // secret store
+        // Type defaults to same as keystore
+        secretStoreType = getAlgorithmParam("KeyStore", config, PAR_SECRET_STORE_TYPE, keyStoreType);
+        secretStoreLoadPath = config.getProperty(PAR_SECRET_STORE_PATH, secretStoreLoadPath);
+
+        param = config.getProperty(PAR_SECRET_STORE_PWD);
+        secretStoreProtection = param != null
+                ? new PasswordProtection(param.toCharArray())
+                : loadClassParam(config, PAR_SECRET_STORE_PROTECTION, secretStoreProtection);
+
+        param = config.getProperty(PAR_SECRET_STORE_WRITABLE);
+        keyStoreWritePath = param == null || param.toUpperCase().equals("false")
+                ? null
+                : param.toUpperCase().equals("true")
+                        ? secretStoreLoadPath
+                        : param;
+
+
+        symKeyAlgorithm = getAlgorithmParam("SecretKeyFactory", config, PAR_SYM_KEY_ALG, symKeyAlgorithm);
+        symKeyLength = getObjectParam(config, PAR_SYM_KEY_LEN, symKeyLength, Integer::parseInt);
+
+        // pbkdf
+        pbkdfAlgorithm = getAlgorithmParam("SecretKeyFactory", config, PAR_PBKDF_ALG, pbkdfAlgorithm);
+
+        pbkdfSalt = getObjectParam(config, PAR_PBKDF_SALT, pbkdfSalt, Base64.getDecoder()::decode);
+        pbkdfIterations = getObjectParam(config, PAR_PBKDF_ITERATIONS, pbkdfIterations, Integer::parseInt);
+        pbkdfKeyLength = getObjectParam(config, PAR_PBKDF_KEY_LEN, pbkdfKeyLength, Integer::parseInt);
+
+        if ((param = config.getProperty(PAR_PBKDF_PWD)) != null) {
+            try {
+                this.generateSecretFromPassword(false, STARTUP_PWD_DERIVED_KEY_ALIAS, param);
+            } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+                throw new InvalidParameterException(STARTUP_PWD_DERIVED_KEY_ALIAS
+                        + ": Couldn't generate secret from password in config. Cause: " + e);
+            }
+        }
+
+        // hash and/or mac
+        if ((param = config.getProperty(PAR_HASH_ALG)) != null) {
+            try {
+                MessageDigest.getInstance(param); // Check availability
+                hashAlgorithm = param;
+            } catch (NoSuchAlgorithmException e) {
+                throw new InvalidParameterException("%s: No algorithm named %s available for MessageDigest."
+                        .formatted(PAR_HASH_ALG, param));
+            }
+        }
+
+        macAlgorithm = getAlgorithmParam("Mac", config, PAR_MAC_ALG);
+
+        // cipher
+        cipherTransform = getAlgorithmParam("Cipher", config, PAR_CIPHER_TRANSFORM);
+
+        if (cipherTransform == null) {
+            boolean changed = false;
+            param = config.getProperty(PAR_CIPHER_MODE);
+            if (param != null) {
+                changed = true;
+                cipherMode = param;
+            }
+            param = config.getProperty(PAR_CIPHER_PADDING);
+            if (param != null) {
+                changed = true;
+                cipherPadding = param;
+            }
+            // Validate received parameters
+            if (changed) {
+                boolean modeFound = false;
+                boolean paddingFound = false;
+                for (String algorithm : Security.getAlgorithms("Cipher")) {
+                    if (!modeFound && algorithm.contains("/" + cipherMode + "/")) {
+                        if (paddingFound)
+                            break;
+                        modeFound = true;
+                    }
+                    if (!paddingFound && algorithm.endsWith("/" + cipherPadding)) {
+                        if (modeFound)
+                            break;
+                        paddingFound = true;
+                    }
+                }
+                if (!modeFound)
+                    throw new InvalidParameterException("%s: Cipher mode \"%s\" not available.".formatted(PAR_CIPHER_MODE, cipherMode));
+                if (!paddingFound)
+                    throw new InvalidParameterException("%s: Cipher padding \"%s\" not available.".formatted(PAR_CIPHER_PADDING, cipherPadding));
+            }
+        }
+
+        if (config.contains(PAR_CIPHER_PARAM_SUPPLIER)) {
+            cipherParameterSupplier = loadClassParam((Class<Supplier<AlgorithmParameterSpec>>) null, config, PAR_CIPHER_PARAM_SUPPLIER);
+        } else {
+            Integer ivSize = getObjectParam(config, PAR_CIPHER_IV_SIZE, null, Integer::parseInt);
+            if (ivSize != null)
+                cipherParameterSupplier = () -> new IvParameterSpec(generateIv(ivSize));
+        }
+
+    }
+
+    private static <T> T loadClassParam(Class<T> clazz, Properties props, String key) {
+        return loadClassParam(props, key, (T) null);
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> T loadClassParameter(Class<T> clazz, Properties props, String parameter, T defaultValue) {
-        String className = props.getProperty(parameter);
+    private static <T> T loadClassParam(Properties props, String key, T defaultValue) {
+        String className = props.getProperty(key);
         if (className == null)
             return defaultValue;
         try {
             return ((Class<? extends T>) Class.forName(className)).getDeclaredConstructor().newInstance();
         } catch (Exception e) {
-            logger.error("Failed loading {} paremeter {}. Using default. Cause: {}", parameter, className, e);
-            return defaultValue;
+            throw new InvalidParameterException("%s: Couldn't load class \"%s\". Cause: %s".formatted(key, className, e));
         }
+    }
+
+    private static <T> T getObjectParam(Properties props, String key, T defaultValue, Function<String, T> parser) {
+        var param = props.getProperty(key);
+        return param != null ? parser.apply(param) : defaultValue;
+    }
+
+    private static <T> T getObjectParamUpperCase(Properties props, String key, T defaultValue, Function<String, T> parser) {
+        var param = props.getProperty(key);
+        return param != null ? parser.apply(param.toUpperCase()) : defaultValue;
+    }
+
+    private static String getAlgorithmParam(String service, Properties props, String key) {
+        var alg = props.getProperty(key);
+        if (alg != null) {
+            alg = alg.toUpperCase();
+            if (!Security.getAlgorithms(service).contains(alg))
+                throw new InvalidParameterException("%s: No algorithm named \"%s\" available for %s.".formatted(key, alg, service));
+        }
+        return alg;
+    }
+
+    private static String getAlgorithmParam(String service, Properties props, String key, String defaultValue)
+            throws InvalidParameterException {
+        var alg = props.getProperty(key, defaultValue).toUpperCase();
+        if (!Security.getAlgorithms(service).contains(alg))
+            throw new InvalidParameterException("%s: No algorithm named \"%s\" available for %s.".formatted(key, alg, service));
+        return alg;
     }
 
 }

@@ -29,6 +29,7 @@ import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.Signature;
 import java.security.UnrecoverableEntryException;
+import java.security.spec.InvalidKeySpecException;
 import java.security.KeyStore.SecretKeyEntry;
 import java.util.Arrays;
 import java.util.Collection;
@@ -1338,11 +1339,13 @@ public abstract class GenericProtocol {
 
     /* -------------------------- SECRET MANAGEMENT ----------------------- */
 
-    protected final SecretCrypt generateSecretFromPassword(String password) {
+    protected final SecretCrypt generateSecretFromPassword(String password)
+            throws NoSuchAlgorithmException, InvalidKeySpecException {
         return generateSecretFromPassword(true, password);
     }
 
-    protected final SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String password) {
+    protected final SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String password)
+            throws NoSuchAlgorithmException, InvalidKeySpecException {
         var secret = babelSecurity.generateSecretFromPasswordWithAliasPrefix(persistOnDisk, protoName, password);
         if (defaultSecret == null)
             defaultSecret = secret;

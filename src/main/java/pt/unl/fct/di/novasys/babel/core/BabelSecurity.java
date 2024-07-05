@@ -143,8 +143,12 @@ public class BabelSecurity {
     private X509BabelTrustManager.TrustPolicy trustManagerPolicy = X509BabelTrustManager.TrustPolicy.UNKNOWN;
     private static final String PAR_TRUST_MANAGER_SAVE_ENCOUNTERED = PREFIX + ".trustmanager.save_encountered";
     private boolean trustManagerSaveEncountered = true;
-    /** Ignored if {@value #PAR_TRUST_MANAGER_SAVE_ENCOUNTERED} is set to {@code false} */
-    private static final String PAR_TRUST_MANAGER_PERSIST_DISCOVERED_CERTS = PREFIX + ".trustmanager.persist_discovered_certificates";
+    /**
+     * Ignored if {@value #PAR_TRUST_MANAGER_SAVE_ENCOUNTERED} is set to
+     * {@code false}
+     */
+    private static final String PAR_TRUST_MANAGER_PERSIST_DISCOVERED_CERTS = PREFIX
+            + ".trustmanager.persist_discovered_certificates";
     private boolean trustManagerPersistCerts = false;
     private static final String PAR_TRUST_MANAGER_UNKNOWN_PEER_CALLBACK = PREFIX
             + ".trustmanager.unknown_peer_callback";
@@ -679,7 +683,10 @@ public class BabelSecurity {
         try {
             return addIdentity(persistOnDisk, identityGenerator.generateRandomCredentials());
         } catch (NoSuchAlgorithmException e) {
-            throw new AssertionError(e); // Shouldn't happen
+            throw new RuntimeException("The defined IdentityGenerator failed to generate a new identity", e);
+        } catch (CertificateException e) {
+            throw new RuntimeException(
+                    "Failed generating identity. Proabably the defined IdentityGenerator is incompatible with the defined IdFromCertExtractor", e);
         }
     }
 
@@ -696,12 +703,20 @@ public class BabelSecurity {
         try {
             return addIdentity(persistOnDisk, alias, identityGenerator.generateRandomCredentials());
         } catch (NoSuchAlgorithmException e) {
-            throw new AssertionError(e); // Shouldn't happen
+            throw new RuntimeException("The defined IdentityGenerator failed to generate a new identity", e);
+        } catch (CertificateException e) {
+            throw new RuntimeException(
+                    "Failed generating identity. Proabably the defined IdentityGenerator is incompatible with the defined IdFromCertExtractor", e);
         }
     }
 
     public IdentityCrypt generateIdentity(boolean persistOnDisk, KeyPair keyPair) throws NoSuchAlgorithmException {
-        return addIdentity(persistOnDisk, identityGenerator.generateCredentials(keyPair));
+        try {
+            return addIdentity(persistOnDisk, identityGenerator.generateCredentials(keyPair));
+        } catch (CertificateException e) {
+            throw new RuntimeException(
+                    "Failed generating identity. Proabably the defined IdentityGenerator is incompatible with the defined IdFromCertExtractor", e);
+        }
     }
 
     public IdentityCrypt generateIdentityWithAliasPrefix(boolean persistOnDisk, String aliasPrefix, KeyPair keyPair)
@@ -711,11 +726,16 @@ public class BabelSecurity {
 
     public IdentityCrypt generateIdentity(boolean persistOnDisk, String alias, KeyPair keyPair)
             throws NoSuchAlgorithmException {
-        return addIdentity(persistOnDisk, alias, identityGenerator.generateCredentials(keyPair));
+        try {
+            return addIdentity(persistOnDisk, alias, identityGenerator.generateCredentials(keyPair));
+        } catch (CertificateException e) {
+            throw new RuntimeException(
+                    "Failed generating identity. Proabably the defined IdentityGenerator is incompatible with the defined IdFromCertExtractor", e);
+        }
     }
 
     public IdentityCrypt addIdentity(boolean persistOnDisk, PrivateKeyEntry keyStoreEntry)
-            throws NoSuchAlgorithmException {
+            throws NoSuchAlgorithmException, CertificateException {
         return addIdentity(persistOnDisk, null, keyStoreEntry);
     }
 
@@ -733,13 +753,8 @@ public class BabelSecurity {
     }
 
     public IdentityCrypt addIdentity(boolean persistOnDisk, String alias, PrivateKeyEntry keyStoreEntry)
-            throws NoSuchAlgorithmException {
-        byte[] id;
-        try {
-            id = identityExtractor.extractIdentity(keyStoreEntry.getCertificate());
-        } catch (CertificateException e) {
-            throw new RuntimeException(e); // Shouldn't happen
-        }
+            throws NoSuchAlgorithmException, CertificateException {
+        byte[] id = identityExtractor.extractIdentity(keyStoreEntry.getCertificate());
         alias = alias == null ? PeerIdEncoder.encodeToString(id) : alias;
         addIdentity(persistOnDisk, alias, id, keyStoreEntry);
         return getIdentityCrypt(alias, id, keyStoreEntry);
@@ -981,11 +996,13 @@ public class BabelSecurity {
         return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, applyPBKDF(password.toCharArray(), salt));
     }
 
-    public SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String alias, String password) throws NoSuchAlgorithmException, InvalidKeySpecException {
+    public SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String alias, String password)
+            throws NoSuchAlgorithmException, InvalidKeySpecException {
         return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), pbkdfSalt));
     }
 
-    public SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String alias, String password, byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
+    public SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String alias, String password, byte[] salt)
+            throws NoSuchAlgorithmException, InvalidKeySpecException {
         return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), salt));
     }
 
@@ -993,7 +1010,8 @@ public class BabelSecurity {
         return addSecret(persistOnDisk, generateSecretKey());
     }
 
-    public SecretCrypt generateSecretWithAliasPrefix(boolean persistOnDisk, String aliasPrefix) throws NoSuchAlgorithmException {
+    public SecretCrypt generateSecretWithAliasPrefix(boolean persistOnDisk, String aliasPrefix)
+            throws NoSuchAlgorithmException {
         return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, generateSecretKey());
     }
 
@@ -1111,10 +1129,12 @@ public class BabelSecurity {
      * <b>Can lead to unexpected behaviour if called after one of the many key
      * stores is loaded for the first time.</b>
      */
-    synchronized void loadConfig(Properties config) throws pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException {
+    synchronized void loadConfig(Properties config)
+            throws pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException {
         if (keyStore != null || ephKeyStore != null || trustStore != null || ephTrustStore != null
                 || secretStore != null || ephSecretStore != null) {
-            logger.warn("Loading configuration after one of the key stores was already loaded. This might lead to unexpected behaviour.");
+            logger.warn(
+                    "Loading configuration after one of the key stores was already loaded. This might lead to unexpected behaviour.");
         }
 
         // key store
@@ -1156,8 +1176,8 @@ public class BabelSecurity {
                     KeyPairGenerator.getInstance(asymKeyAlgorithm).initialize(algParamParam);
                 } catch (NoSuchAlgorithmException | InvalidAlgorithmParameterException e) {
                     throw new pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException(
-                        "Asymmetric key algorithm was set without setting proper corresponding algorithm parameters",
-                        e);
+                            "Asymmetric key algorithm was set without setting proper corresponding algorithm parameters",
+                            e);
                 }
             }
         } else {
@@ -1165,7 +1185,7 @@ public class BabelSecurity {
                 KeyPairGenerator.getInstance(asymKeyAlgorithm).initialize(algParamParam);
             } catch (NoSuchAlgorithmException | InvalidAlgorithmParameterException e) {
                 throw getConfigParamException(PAR_ASYM_KEY_PARAMS, algParamParam.getClass().getName(),
-                            "Invalid parameter spec for asymmetric key algorithm " + asymKeyAlgorithm, e);
+                        "Invalid parameter spec for asymmetric key algorithm " + asymKeyAlgorithm, e);
             }
             asymKeyParameters = algParamParam;
         }
@@ -1190,7 +1210,6 @@ public class BabelSecurity {
                 ? null
                 : param.toUpperCase().equals("true") ? trustStoreLoadPath : param;
 
-
         // trust man
         trustManagerPolicy = getObjectParamUpperCase(config, PAR_TRUST_MANAGER_POLICY, trustManagerPolicy,
                 X509BabelTrustManager.TrustPolicy::valueOf);
@@ -1199,7 +1218,7 @@ public class BabelSecurity {
                 trustManagerSaveEncountered, Boolean::valueOf);
         if (trustManagerSaveEncountered) {
             trustManagerPersistCerts = getObjectParam(config, PAR_TRUST_MANAGER_PERSIST_DISCOVERED_CERTS,
-                trustManagerPersistCerts, Boolean::valueOf);
+                    trustManagerPersistCerts, Boolean::valueOf);
         }
 
         trustManagerUknownPeerCallback = loadClassParam(config, PAR_TRUST_MANAGER_UNKNOWN_PEER_CALLBACK,
@@ -1223,7 +1242,6 @@ public class BabelSecurity {
                 : param.toUpperCase().equals("true")
                         ? secretStoreLoadPath
                         : param;
-
 
         symKeyAlgorithm = getAlgorithmParam("SecretKeyFactory", config, PAR_SYM_KEY_ALG, symKeyAlgorithm);
         symKeyLength = getObjectParam(config, PAR_SYM_KEY_LEN, symKeyLength, Integer::parseInt);
@@ -1291,12 +1309,14 @@ public class BabelSecurity {
                 if (!modeFound)
                     throw getConfigParamException(PAR_CIPHER_MODE, cipherMode, "No such cipher mode available.", null);
                 if (!paddingFound)
-                    throw getConfigParamException(PAR_CIPHER_PADDING, cipherPadding, "No such cipher padding available.", null);
+                    throw getConfigParamException(PAR_CIPHER_PADDING, cipherPadding,
+                            "No such cipher padding available.", null);
             }
         }
 
         if (config.contains(PAR_CIPHER_PARAM_SUPPLIER)) {
-            cipherParameterSupplier = loadClassParam((Class<Supplier<AlgorithmParameterSpec>>) null, config, PAR_CIPHER_PARAM_SUPPLIER);
+            cipherParameterSupplier = loadClassParam((Class<Supplier<AlgorithmParameterSpec>>) null, config,
+                    PAR_CIPHER_PARAM_SUPPLIER);
         } else {
             Integer ivSize = getObjectParam(config, PAR_CIPHER_IV_SIZE, null, Integer::parseInt);
             if (ivSize != null)
@@ -1305,8 +1325,8 @@ public class BabelSecurity {
 
     }
 
-    private static pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException
-            getConfigParamException(String param, String value, String explanation, Throwable cause) {
+    private static pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException getConfigParamException(
+            String param, String value, String explanation, Throwable cause) {
         String msg = "%s: Invalid value \"%s\"".formatted(param, value)
                 + (explanation == null ? "." : ": " + explanation);
         return cause == null
@@ -1338,7 +1358,8 @@ public class BabelSecurity {
         return param != null ? parser.apply(param) : defaultValue;
     }
 
-    private static <T> T getObjectParamUpperCase(Properties props, String key, T defaultValue, Function<String, T> parser)
+    private static <T> T getObjectParamUpperCase(Properties props, String key, T defaultValue,
+            Function<String, T> parser)
             throws pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException {
         var param = props.getProperty(key);
         try {
@@ -1363,7 +1384,7 @@ public class BabelSecurity {
             throws pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException {
         var alg = props.getProperty(key, defaultValue).toUpperCase();
         if (!Security.getAlgorithms(service).contains(alg))
-                throw getConfigParamException(key, alg, "No such algorithm available for " + service, null);
+            throw getConfigParamException(key, alg, "No such algorithm available for " + service, null);
         return alg;
     }
 

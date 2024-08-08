@@ -87,7 +87,7 @@ public class BabelSecurity {
     }
 
     public static final String PREFIX = "babel.security";
-    public static final String PRNG_ALG = "SHA1PRNG";
+    public static final String PRNG_ALG = "DEFAULT";//"SHA1PRNG"; 
     public static final String NONCE_ALG = "NonceAndIV";
 
     private static final String PAR_KEY_STORE_TYPE = PREFIX + ".keystore.type";
@@ -256,6 +256,8 @@ public class BabelSecurity {
     private BabelSecurity() {
         Security.addProvider(PROVIDER);
 
+        
+        
         try {
             this.keyRng = SecureRandom.getInstance(PRNG_ALG, PROVIDER);
             this.nonceRng = SecureRandom.getInstance(NONCE_ALG, PROVIDER);

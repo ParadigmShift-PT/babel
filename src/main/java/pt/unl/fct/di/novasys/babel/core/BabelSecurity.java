@@ -87,6 +87,8 @@ public class BabelSecurity {
     }
 
     public static final String PREFIX = "babel.security";
+    public static final String PRNG_ALG = "SHA1PRNG";
+    public static final String NONCE_ALG = "NonceAndIV";
 
     private static final String PAR_KEY_STORE_TYPE = PREFIX + ".keystore.type";
     private String keyStoreType = "PKCS12";
@@ -255,8 +257,8 @@ public class BabelSecurity {
         Security.addProvider(PROVIDER);
 
         try {
-            this.keyRng = SecureRandom.getInstance("DEFAULT", PROVIDER);
-            this.nonceRng = SecureRandom.getInstance("NonceAndIV", PROVIDER);
+            this.keyRng = SecureRandom.getInstance(PRNG_ALG, PROVIDER);
+            this.nonceRng = SecureRandom.getInstance(NONCE_ALG, PROVIDER);
         } catch (NoSuchAlgorithmException e) {
             throw new AssertionError(e); // Shouldn't happen
         }

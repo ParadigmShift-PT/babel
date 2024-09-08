@@ -48,6 +48,7 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
     private Map<String, ServiceMessage> discoveryProtocolsData;
     private Map<String, DiscoverableProtocol> protocolsWaiting;
     private Map<String, Short> runningProtcolsWaiting;
+    private Map<String, DiscoverableProtocol> allDiscoverableProtocols;
     private Host discoveryHost;
     private Set<InetSocketAddress> socketAddresses;
     private Set<ServiceMessage> pendingServices;
@@ -112,6 +113,7 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
         socketAddresses = new HashSet<>();
         pendingServices = new HashSet<>();
         runningProtcolsWaiting = new ConcurrentHashMap<>();
+        allDiscoverableProtocols = new ConcurrentHashMap<>();
 
         registerTimerHandler(AnoucementTimer.TIMER_ID, this::announce);
 
@@ -120,6 +122,7 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
 
     @Override
     public void registerProtocol(DiscoverableProtocol dcProto) {
+    	this.allDiscoverableProtocols.put(dcProto.getProtoName(), dcProto);
         this.discoveryProtocolsData.put(dcProto.getProtoName(),
                 new ServiceMessage(dcProto.getProtoName(), dcProto.getMyself(), discoveryHost));
         if (dcProto.needsDiscovery()) {
@@ -215,6 +218,9 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                         // running
                         List<ServiceMessage> replies = new ArrayList<ServiceMessage>();
                         for (ServiceMessage m : messages) {
+                        	DiscoverableProtocol dp = this.allDiscoverableProtocols.get(m.getServiceName());
+                        	if(dp != null && !dp.isDiscoverable())
+                        		continue;
                             ServiceMessage reply = this.discoveryProtocolsData.get(m.getServiceName());
                             if (reply != null)
                                 replies.add(reply);

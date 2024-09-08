@@ -71,6 +71,18 @@ public abstract class DiscoverableProtocol extends GenericProtocol {
      * @param host
      */
     public abstract void addContact(Host host);
+    
+    /**
+     * This method is used by the DiscoveryProtocol to understand if it should announce
+     * this host/protocol instance in reply to a discovery request.
+     * The default behavior is to announce one self, but the method can be overloaded
+     * by a protocol that has a different logic to govern this decision.
+     * 
+     * @return turn if this protocol should be announced, false other wise
+     */
+    public boolean isDiscoverable() {
+    	return true;
+    }
 
     /**
      * Gets any contact that this protocol has

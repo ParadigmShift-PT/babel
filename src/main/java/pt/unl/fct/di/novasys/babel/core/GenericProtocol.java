@@ -196,6 +196,9 @@ public abstract class GenericProtocol {
      * Start the event thread of the protocol
      */
     public final void startEventThread() {
+    	if(this.protocolThreadedStarted)
+    		return;
+    	
         try {
             this.executionThread.start();
             this.protocolThreadedStarted = true;

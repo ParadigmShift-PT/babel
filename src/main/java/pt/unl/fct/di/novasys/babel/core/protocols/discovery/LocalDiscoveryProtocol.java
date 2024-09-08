@@ -126,6 +126,12 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
             logger.debug("Registered protocol " + dcProto.getProtoName());
             this.protocolsWaiting.put(dcProto.getProtoName(), dcProto);
         }
+        if (dcProto.readyToStart()) {
+        	dcProto.start();
+        	if(!dcProto.hasProtocolThreadStarted())
+        		dcProto.startEventThread();
+        }
+        	
     }
 
     private void announce(AnoucementTimer timer, long timerId) {
@@ -229,18 +235,16 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                                 DiscoverableProtocol dp = this.protocolsWaiting.get(m.getServiceName());
                                 if (dp != null) {
                                     synchronized (dp) {
-                                        if (dp.hasProtocolThreadStarted()) {
-                                            this.protocolsWaiting.remove(m.getServiceName());
-                                            continue;
-                                        }
-
-                                        dp.addContact(m.getServiceHost());
+                                    	if(dp.needsDiscovery())
+                                    		dp.addContact(m.getServiceHost());
+                                    	
                                         if (!dp.needsDiscovery())
                                             this.protocolsWaiting.remove(m.getServiceName());
 
                                         if (!dp.hasProtocolThreadStarted() && dp.readyToStart()) {
                                             dp.start();
-                                            dp.startEventThread();
+                                            if(!dp.hasProtocolThreadStarted())
+                                            	dp.startEventThread();
                                         }
                                     }
                                 }

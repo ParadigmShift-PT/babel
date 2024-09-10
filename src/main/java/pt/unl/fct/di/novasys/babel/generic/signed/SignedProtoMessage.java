@@ -72,6 +72,7 @@ public abstract class SignedProtoMessage extends ProtoMessage {
 		sig.initVerify(key);
 		sig.update(this.serializedMessage);
 		boolean valid = sig.verify(this.signature);
+		if (!valid)
 			logger.debug("Invalid signature on message: <" + this.getClass().getCanonicalName() + "> :: " + this.toString());
 		return valid;
 	}

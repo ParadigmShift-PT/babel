@@ -6,7 +6,7 @@
 
 	<groupId>pt.unl.fct.di.novasys.babel</groupId>
 	<artifactId>babel-sc-core</artifactId>
-	<version>0.5.15</version>
+	<version>0.6-a</version>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -17,7 +17,7 @@
 			<extension>
 				<groupId>org.apache.maven.wagon</groupId>
 				<artifactId>wagon-ssh-external</artifactId>
-				<version>1.0-beta-6</version>
+				<version>3.5.3</version>
 			</extension>
 		</extensions>
 		<plugins>
@@ -114,7 +114,7 @@
         <dependency>
             <groupId>pt.unl.fct.di.novasys</groupId>
             <artifactId>network-layer-secure</artifactId>
-            <version>[2.10.5,)</version>
+            <version>3.0-a</version>
         </dependency>
         <!-- Bouncy Castle dependencies for cryptography https://www.bouncycastle.org/ -->
         <dependency> <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcprov-jdk18on -->

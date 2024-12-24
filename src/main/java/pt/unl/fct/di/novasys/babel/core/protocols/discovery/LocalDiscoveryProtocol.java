@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.babel.core.DiscoverableProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.messages.ServiceMessage;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.requests.FoundServiceReply;
@@ -124,7 +125,7 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
     public void registerProtocol(DiscoverableProtocol dcProto) {
     	this.allDiscoverableProtocols.put(dcProto.getProtoName(), dcProto);
         this.discoveryProtocolsData.put(dcProto.getProtoName(),
-                new ServiceMessage(dcProto.getProtoName(), dcProto.getMyself(), discoveryHost));
+                new ServiceMessage(dcProto.getProtoName(), dcProto.getMyself(), discoveryHost, dcProto.isDiscoverable()));
         if (dcProto.needsDiscovery()) {
             logger.debug("Registered protocol " + dcProto.getProtoName());
             this.protocolsWaiting.put(dcProto.getProtoName(), dcProto);
@@ -237,16 +238,17 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                     // bootstrap our own protocols :)
                     synchronized (protocolsWaiting) {
                         for (ServiceMessage m : messages) {
+                        	DiscoverableProtocol dp = null;
                             if (protocolsWaiting.size() > 0) {
-                                DiscoverableProtocol dp = this.protocolsWaiting.get(m.getServiceName());
+                                dp = this.protocolsWaiting.get(m.getServiceName());
                                 if (dp != null) {
                                     synchronized (dp) {
-                                    	if(dp.needsDiscovery())
+                                    	if(dp.needsDiscovery() && m.isSenderDiscoverable())
                                     		dp.addContact(m.getServiceHost());
                                     	
                                         if (!dp.needsDiscovery())
                                             this.protocolsWaiting.remove(m.getServiceName());
-
+                                        
                                         if (!dp.hasProtocolThreadStarted() && dp.readyToStart()) {
                                             dp.start();
                                             if(!dp.hasProtocolThreadStarted())
@@ -256,7 +258,8 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                                 }
                             }
                             Short dpID = this.runningProtcolsWaiting.get(m.getServiceName());
-                            if (dpID != null) {
+                            
+                            if (dpID != null && dp.isDiscoverable()) {
                                 sendReply(new FoundServiceReply(m.getServiceHost()), dpID);
                             }
                         }
@@ -278,8 +281,12 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
 
     public void uponRequestDiscovery(RequestDiscovery request, short sourceProtocol) {
         logger.debug("Received discovery request for " + request.getServiceName() + " from proto " + sourceProtocol);
+        DiscoverableProtocol dp = this.allDiscoverableProtocols.get(request.getProtoName());
+        boolean isDiscoverable = true;
+        if(dp != null)
+        	isDiscoverable = dp.isDiscoverable();
         this.discoveryProtocolsData.put(request.getServiceName(),
-                new ServiceMessage(request.getProtoName(), request.getMyself(), discoveryHost));
+                new ServiceMessage(request.getProtoName(), request.getMyself(), discoveryHost, isDiscoverable)); //TODO: check if this last argument is correct
         if (request.getListen()) {
             runningProtcolsWaiting.put(request.getServiceName(), sourceProtocol);
         } else {

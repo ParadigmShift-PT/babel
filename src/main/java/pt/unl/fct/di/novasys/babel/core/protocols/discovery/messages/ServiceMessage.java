@@ -24,15 +24,17 @@ public class ServiceMessage {
     private final String serviceName;
     private final Host serviceHost;
     private final Host discoveryHost;
+    private final boolean isDiscoverable;
 
-    public ServiceMessage(String serviceName, Host serviceHost, Host discoveryHost) {
+    public ServiceMessage(String serviceName, Host serviceHost, Host discoveryHost, boolean isDiscoverable) {
     	this.id = ServiceMessage.probeID;
         this.serviceName = serviceName;
         this.serviceHost = serviceHost; 
         this.discoveryHost = discoveryHost;
+        this.isDiscoverable = isDiscoverable;
     }
     
-    public ServiceMessage(byte[] rid, String serviceName, Host serviceHost, Host discoveryHost) throws Exception {
+    public ServiceMessage(byte[] rid, String serviceName, Host serviceHost, Host discoveryHost, boolean isDiscoverable) throws Exception {
     	if (Arrays.compare(rid, probeID) == 0)
     		this.id = ServiceMessage.probeID;
     	else if (Arrays.compare(rid, announceID) == 0) 
@@ -42,6 +44,7 @@ public class ServiceMessage {
         this.serviceName = serviceName;
         this.serviceHost = serviceHost; 
         this.discoveryHost = discoveryHost;
+        this.isDiscoverable = isDiscoverable;
     }
 
     public String getServiceName() {
@@ -56,6 +59,10 @@ public class ServiceMessage {
         return discoveryHost;
     }
 
+    public boolean isSenderDiscoverable() {
+    	return this.isDiscoverable;
+    }
+    
     public boolean isProbe() {
         return this.id == probeID;
     }
@@ -69,6 +76,7 @@ public class ServiceMessage {
     		buffer.writeBytes(ServiceMessage.announceID);
     	buffer.writeInt(m.serviceName.getBytes().length);
     	buffer.writeBytes(m.serviceName.getBytes());
+    	buffer.writeBoolean(m.isDiscoverable);
     	Host.serializer.serialize(m.serviceHost, buffer);
     	Host.serializer.serialize(m.discoveryHost, buffer);
     	
@@ -82,10 +90,11 @@ public class ServiceMessage {
     	buffer.readBytes(rid);
     	byte[] serviceName = new byte[buffer.readInt()];
     	buffer.readBytes(serviceName);
+    	boolean discoverable = buffer.readBoolean();
     	Host seviceHost = Host.serializer.deserialize(buffer);
     	Host discoveryHost = Host.serializer.deserialize(buffer);
     	
-    	return new ServiceMessage(rid, new String(serviceName), seviceHost, discoveryHost);
+    	return new ServiceMessage(rid, new String(serviceName), seviceHost, discoveryHost, discoverable);
     }
    
     public static List<byte[]> convertToMessage(Collection<ServiceMessage> ms, boolean asProbe) throws IOException {

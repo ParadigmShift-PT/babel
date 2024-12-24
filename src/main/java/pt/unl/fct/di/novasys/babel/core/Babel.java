@@ -238,7 +238,7 @@ public class Babel {
 	 * @return true if a discovery protocol is running
 	 */
 	public boolean askRunningDiscovery(GenericProtocol proto, Host myself, boolean listen) {
-		for (var discovery : discoveries) {
+		for (DiscoveryProtocol discovery : discoveries) {
 			if (discovery.hasProtocolThreadStarted())
 				proto.sendRequest(new RequestDiscovery(proto.getProtoName(), myself, proto.getProtoName(), listen),
 						discovery.getProtoId());

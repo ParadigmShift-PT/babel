@@ -34,5 +34,5 @@ public class RequestDiscovery extends ProtoRequest {
     public String getProtoName() {
         return protoName;
     }
-
+    
 }

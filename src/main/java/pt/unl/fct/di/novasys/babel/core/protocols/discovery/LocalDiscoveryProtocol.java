@@ -219,7 +219,7 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                         List<ServiceMessage> replies = new ArrayList<ServiceMessage>();
                         for (ServiceMessage m : messages) {
                         	DiscoverableProtocol dp = this.allDiscoverableProtocols.get(m.getServiceName());
-                        	if(dp != null && !dp.isDiscoverable())
+                        	if(dp == null || !dp.isDiscoverable())
                         		continue;
                             ServiceMessage reply = this.discoveryProtocolsData.get(m.getServiceName());
                             if (reply != null)

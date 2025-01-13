@@ -23,7 +23,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.babel.core.DiscoverableProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.messages.ServiceMessage;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.requests.FoundServiceReply;
@@ -128,6 +127,7 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                 new ServiceMessage(dcProto.getProtoName(), dcProto.getMyself(), discoveryHost, dcProto.isDiscoverable()));
         if (dcProto.needsDiscovery()) {
             logger.debug("Registered protocol " + dcProto.getProtoName());
+            System.err.println("TardisApp: registered protocol " + dcProto.getProtoName());
             this.protocolsWaiting.put(dcProto.getProtoName(), dcProto);
         }
         if (dcProto.readyToStart()) {
@@ -141,8 +141,11 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
     private void announce(AnoucementTimer timer, long timerId) {
         logger.info("Firing anouncements");
 
+        System.err.println("TardisApp: Firing anouncements");
+        
         if (protocolsWaiting.size() == 0 && runningProtcolsWaiting.size() == 0) {
             logger.debug("No protocols waiting registered");
+            System.err.println("TardisApp: No protocols waiting registered");
             return;
         }
 
@@ -150,10 +153,12 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
         for (String protocol : protocolsWaiting.keySet()) {
             pendingServices.add(this.discoveryProtocolsData.get(protocol));
             logger.debug("Added protocol " + protocol + " to send buffer");
+            System.err.println("TardisApp: Added protocol " + protocol + " to send buffer");
         }
         for (String protocol : runningProtcolsWaiting.keySet()) {
             pendingServices.add(this.discoveryProtocolsData.get(protocol));
             logger.debug("Added protocol " + protocol + " to send buffer");
+            System.err.println("TardisApp: Added protocol " + protocol + " to send buffer");
         }
 
         /*
@@ -173,8 +178,13 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                 for (var socketAddress : socketAddresses) {
                     logger.debug("Going to send an announce with " + m.length + " bytes to " + socketAddress);
                     logger.debug("Sending from socket bounded  (" + socket.isBound() + ") to: " + socket.getLocalAddress() + ":" + socket.getLocalPort());  
+                    System.err.println("TardisApp: Going to send an announce with " + m.length + " bytes to " + socketAddress);
+                    System.err.println("TardisApp: Sending from socket bounded  (" + socket.isBound() + ") to: " + socket.getLocalAddress() + ":" + socket.getLocalPort());  
                 	socket.send(new DatagramPacket(m, m.length, socketAddress));
                     logger.debug("Sent one message to " + socketAddress.getAddress() + ":"
+                            + socketAddress.getPort() + " from " + socket.getLocalAddress() + ":"
+                            + socket.getLocalPort());
+                    System.err.println("TardisApp: Sent one message to " + socketAddress.getAddress() + ":"
                             + socketAddress.getPort() + " from " + socket.getLocalAddress() + ":"
                             + socket.getLocalPort());
                 }
@@ -182,6 +192,7 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
 
         } catch (Exception e) {
             logger.error("Could not send announcements.");
+            System.err.println("TardisApp: " + e.getMessage());
             e.printStackTrace();
         }
     }

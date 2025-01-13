@@ -23,7 +23,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import pt.unl.fct.di.novasys.babel.core.Babel;
 import pt.unl.fct.di.novasys.babel.core.DiscoverableProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.messages.ServiceMessage;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.requests.FoundServiceReply;

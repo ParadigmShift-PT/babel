@@ -802,10 +802,11 @@ public class BabelSecurity {
         try {
             Set<IdentityPair> ids = new HashSet<>(getKeyStore().size() + getEphemeralKeyStore().size());
 
+            aliasPrefix = aliasPrefix.toLowerCase();
             for (var enumeration : List.of(getKeyStore().aliases(), getEphemeralKeyStore().aliases())) {
                 while (enumeration.hasMoreElements()) {
                     String alias = enumeration.nextElement();
-                    if (alias.startsWith(aliasPrefix + "."))
+                    if (alias.toLowerCase().startsWith(aliasPrefix + "."))
                         ids.add(new IdentityPair(alias, idAliasMapper.getId(alias)));
                 }
             }

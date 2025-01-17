@@ -295,6 +295,7 @@ public class BabelSecurity {
             try {
                 logger.debug("Creating new ephemeral key store with an auto-generated identity.");
                 ephKeyStore = KeyStore.Builder.newInstance(keyStoreType, null, EMPTY_PWD).getKeyStore();
+                // TODO should a default id really be created here?
                 generateIdentityWithAliasPrefix(false, "babel");
             } catch (KeyStoreException e) {
                 throw new AssertionError(e); // Shouldn't happen
@@ -1146,9 +1147,9 @@ public class BabelSecurity {
         keyStoreLoadPath = config.getProperty(PAR_KEY_STORE_PATH, keyStoreLoadPath);
 
         String param = config.getProperty(PAR_KEY_STORE_WRITABLE);
-        keyStoreWritePath = param == null || param.toUpperCase().equals("false")
+        keyStoreWritePath = param == null || param.toUpperCase().equals("FALSE")
                 ? null
-                : param.toUpperCase().equals("true")
+                : param.toUpperCase().equals("TRUE")
                         ? keyStoreLoadPath
                         : param;
 
@@ -1210,9 +1211,9 @@ public class BabelSecurity {
                 : loadClassParam(config, PAR_TRUST_STORE_PROTECTION, trustStoreProtection);
 
         param = config.getProperty(PAR_TRUST_STORE_WRITABLE);
-        trustStoreWritePath = param == null || param.toUpperCase().equals("false")
+        trustStoreWritePath = param == null || param.toUpperCase().equals("FALSE")
                 ? null
-                : param.toUpperCase().equals("true") ? trustStoreLoadPath : param;
+                : param.toUpperCase().equals("TRUE") ? trustStoreLoadPath : param;
 
         // trust man
         trustManagerPolicy = getObjectParamUpperCase(config, PAR_TRUST_MANAGER_POLICY, trustManagerPolicy,
@@ -1241,9 +1242,9 @@ public class BabelSecurity {
                 : loadClassParam(config, PAR_SECRET_STORE_PROTECTION, secretStoreProtection);
 
         param = config.getProperty(PAR_SECRET_STORE_WRITABLE);
-        keyStoreWritePath = param == null || param.toUpperCase().equals("false")
+        secretStoreWritePath = param == null || param.toUpperCase().equals("FALSE")
                 ? null
-                : param.toUpperCase().equals("true")
+                : param.toUpperCase().equals("TRUE")
                         ? secretStoreLoadPath
                         : param;
 

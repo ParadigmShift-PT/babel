@@ -17,7 +17,12 @@ import pt.unl.fct.di.novasys.babel.metrics.MetricsManager;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
 import pt.unl.fct.di.novasys.babel.metrics.exporters.Exporter;
+import pt.unl.fct.di.novasys.babel.metrics.exporters.ExporterCollectOptions;
+import pt.unl.fct.di.novasys.babel.metrics.exporters.ThreadedExporter;
 import pt.unl.fct.di.novasys.babel.metrics.generic.os.OSMetrics;
+import pt.unl.fct.di.novasys.babel.metrics.monitor.Monitor;
+import pt.unl.fct.di.novasys.babel.metrics.monitor.datalayer.MonitorStorage;
+import pt.unl.fct.di.novasys.babel.metrics.monitor.datalayer.Storage;
 import pt.unl.fct.di.novasys.channel.IChannel;
 import pt.unl.fct.di.novasys.channel.accrual.AccrualChannel;
 import pt.unl.fct.di.novasys.channel.secure.SecureIChannel;
@@ -814,17 +819,17 @@ public class Babel {
 	 * Registers a new exporter in the metrics manager<br>
 	 * If no exporters are registered, the manager will attempt to load them from a
 	 * configuration file
-	 * 
+	 *
 	 * @param exporters the exporters to register
 	 */
-	public void registerExporters(Exporter... exporters) {
+	public void registerExporters(ThreadedExporter... exporters) {
 		MetricsManager.getInstance().registerExporters(exporters);
 	}
 
 	/**
 	 * Registers the OS Metric(s) specified<br>
 	 * The list can be seen in {@link OSMetrics.MetricType}
-	 * 
+	 *
 	 * @param metricTypes the metrics to register
 	 */
 	public void registerOSMetrics(OSMetrics.MetricType... metricTypes) {
@@ -834,7 +839,7 @@ public class Babel {
 	/**
 	 * Registers all the OS Metrics present in the specified Category(ies)<br>
 	 * The list can be seen in {@link OSMetrics.MetricCategory}
-	 * 
+	 *
 	 * @param metricCategories the categories to register
 	 */
 	public void registerOSMetricCategory(OSMetrics.MetricCategory... metricCategories) {
@@ -842,11 +847,57 @@ public class Babel {
 	}
 
 	/**
-	 * Starts the metrics manager
-	 * This will start all registered exporters
+	 * Starts the MetricsManager<br>
+	 * The effects of the start operation are explained in {@link MetricsManager#start()}<br>
 	 */
 	public void startMetrics() {
 		MetricsManager.getInstance().start();
+	}
+
+	/**
+	 * Returns the MetricsManager instance<br>
+	 * The MetricsManager is a singleton, so this method will always return the same instance
+	 * @return the MetricsManager instance
+	 */
+	public MetricsManager getMetricsManager() {
+		return MetricsManager.getInstance();
+	}
+
+	/**
+	 * Starts a {@link pt.unl.fct.di.novasys.babel.metrics.exporters.MonitorExporter}, which will export the metrics to the monitor at the given host, at given intervals (in milliseconds)<br>
+	 */
+	public void exportToMonitor(Host self, Host monitor, long interval, ExporterCollectOptions eco) {
+		MetricsManager.getInstance().startMonitorExporter(self, monitor, interval, eco);
+	}
+
+	/**
+	 * Starts the {@link pt.unl.fct.di.novasys.babel.metrics.monitor.SimpleMonitor}, which will collect metrics from the protocols and store them in {@link MonitorStorage}<br>
+	 * The {@link MonitorStorage} is a docker stack, comprised of a time-series database (InfluxDB) and a visualization tool (Grafana)
+	 * @param myself the host that is starting the monitor
+	 * @param props the properties for the monitor storage, must contain the following keys:
+	 *<ul>
+	 *              <li>HOST: the host where the monitor storage is running</li>
+	 *              <li> PORT: the port where the monitor storage is running</li>
+	 *</ul>
+	 */
+	public Monitor startMonitor(Host myself, Properties props){
+		return MetricsManager.getInstance().startMonitor(myself, props);
+	}
+
+	/**
+	 * Starts a {@link pt.unl.fct.di.novasys.babel.metrics.monitor.SimpleMonitor} on this host, which will listen for metrics from hosts<br>
+	 * The monitor will store the metrics in the given {@link Storage} instance
+	 */
+	public Monitor startMonitor(Host myself, Storage storage) {
+		return MetricsManager.getInstance().startMonitor(myself, storage);
+	}
+
+	/**
+	 * Disables the tracking of metrics, stops all exporters<br>
+	 * Useful to reduce overhead when metrics are not needed
+	 */
+	public void disableMetrics() {
+		MetricsManager.getInstance().disable();
 	}
 
 }

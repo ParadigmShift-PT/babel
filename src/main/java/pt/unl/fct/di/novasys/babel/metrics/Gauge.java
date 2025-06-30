@@ -1,91 +1,71 @@
 package pt.unl.fct.di.novasys.babel.metrics;
 
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.LabeledMetricException;
-import pt.unl.fct.di.novasys.babel.metrics.exporters.CollectOptions;
-import pt.unl.fct.di.novasys.babel.metrics.simplemetrics.SimpleGauge;
 
-import java.util.Arrays;
-import java.util.Map;
+public class Gauge extends Metric<Gauge> {
 
-public class Gauge extends LabeledMetric<SimpleGauge> {
+    private double value;
 
-   // private final Object metricLock = new Object();
+    private final Object lock = new Object();
 
-    private SimpleGauge unlabelledGauge;
-
-
-
-    public Gauge(String name, String unit, String... labelNames) {
-        super(name, unit, MetricType.GAUGE, labelNames);
+    protected Gauge(Builder builder) {
+        super(builder);
         if(isUnlabeledMetric())
-            this.unlabelledGauge = new SimpleGauge();
+            this.value = 0;
     }
 
-    @Override
-    protected void reset() {
-        if(isUnlabeledMetric()){
-            this.unlabelledGauge.reset();
-        }else{
-            for (SimpleGauge gauge : labelValues.values()){
-                gauge.reset();
-            }
+    private Gauge(Metric<Gauge> metric){
+        super(metric);
+        this.value = 0;
+    }
+
+    public static class Builder extends MetricBuilder<Builder> {
+
+        public Builder(String name, String unit, String... labelNames) {
+            super(name, unit, MetricType.GAUGE, labelNames);
+        }
+
+        @Override
+        public Builder self() {
+            return this;
+        }
+
+        @Override
+        public Gauge build() {
+            return new Gauge(this);
         }
     }
 
+    @Override
+    protected void resetThisMetric() {
+        synchronized (lock){
+            this.value = 0;
+        }
+    }
 
+    @Override
+    protected MetricSample collectMetric() {
+        Sample sample;
+        synchronized (lock) {
+            sample = new Sample(this.value);
+        }
+        return sampleBuilder().build(sample);
+    }
+
+    @Override
+    protected Gauge newInstance() {
+        return new Gauge(this);
+    }
 
     public void set(double value) {
+        if(isDisabled()) return;
         if(isUnlabeledMetric()){
-            this.unlabelledGauge.set(value);
+            synchronized (lock){
+                this.value = value;
+            }
         }
         else{
             throw new LabeledMetricException();
         }
     }
-
-
-
-    public SimpleGauge labelValues(String... labelValues) {
-        if (labelValues.length != getNumLabels())
-            throw new IllegalArgumentException("Invalid number of labels");
-
-        LabelValues lv = new LabelValues(labelValues);
-        if (!this.labelValues.containsKey(lv)) {
-            SimpleGauge lg = new SimpleGauge();
-            this.labelValues.put(lv, lg);
-            return lg;
-        }
-
-        return this.labelValues.get(lv);
-    }
-
-
-    @Override
-    protected MetricSample collect(CollectOptions collectOptions)  {
-        if (isUnlabeledMetric())
-            return MetricSample.builder(getUnit(), getName(), getType()).build(new Sample(this.unlabelledGauge.getValue()));
-
-
-        Sample[] samples = new Sample[labelValues.size()];
-        int index = 0;
-
-        for (Map.Entry<LabelValues, SimpleGauge> entry : labelValues.entrySet()) {
-            LabelValues sampleLabelValues = entry.getKey();
-            SimpleGauge sampleLabeledCounter = entry.getValue();
-
-            String[] labelValuesSample = Arrays.copyOf(sampleLabelValues.getLabelValues(), getNumLabels());
-
-            double valueSample = sampleLabeledCounter.getValue();
-
-            samples[index++] = new Sample(valueSample, labelValuesSample);
-        }
-
-        if(collectOptions.getResetOnCollect()){
-            reset();
-        }
-
-
-        return MetricSample.builder(getUnit(), getName(), getType()).labelNames(getLabelNames()).build(samples);
-    }
-
 }

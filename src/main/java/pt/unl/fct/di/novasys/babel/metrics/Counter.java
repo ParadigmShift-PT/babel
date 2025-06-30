@@ -2,92 +2,66 @@ package pt.unl.fct.di.novasys.babel.metrics;
 
 
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.LabeledMetricException;
-import pt.unl.fct.di.novasys.babel.metrics.exporters.CollectOptions;
-import pt.unl.fct.di.novasys.babel.metrics.simplemetrics.SimpleCounter;
+import java.util.concurrent.atomic.AtomicLong;
 
-import java.util.Arrays;
-import java.util.Map;
+public class Counter extends Metric<Counter> {
+    private AtomicLong value;
 
-public class Counter extends LabeledMetric<SimpleCounter> {
-
-    private SimpleCounter unlabeledCounter;
-
-//    private Object collectLock = new Object();
-
-
-    public Counter(String name, String unit, String... labelNames) {
-        super(name, unit, MetricType.COUNTER, labelNames);
+    protected Counter(Builder builder) {
+        super(builder);
         if(isUnlabeledMetric())
-            this.unlabeledCounter = new SimpleCounter();
+            this.value = new AtomicLong();
     }
 
+    private Counter(Metric<Counter> metric){
+        super(metric);
+        this.value = new AtomicLong();
+    }
+
+    public static class Builder extends MetricBuilder<Builder>{
+
+        public Builder(String name, String unit, String... labelNames) {
+            super(name, unit, MetricType.COUNTER, labelNames);
+        }
+
+        @Override
+        public Builder self() {
+            return this;
+        }
+
+        @Override
+        public Counter build() {
+            return new Counter(this);
+        }
+    }
 
     public void inc() {
-        if(isUnlabeledMetric())
-            this.unlabeledCounter.inc();
-        else
-            throw new LabeledMetricException();
+       inc(1);
     }
 
-
     public void inc(long n) {
-       if(isUnlabeledMetric())
-            this.unlabeledCounter.inc();
+       if(isDisabled()) return;
+       if(isUnlabeledMetric()) {
+           if (n < 0)
+               throw new IllegalArgumentException("Counter cannot be decremented");
+           this.value.addAndGet(n);
+       }
        else
             throw new LabeledMetricException();
     }
-
-
-    public SimpleCounter labelValues(String... labelValues) {
-        if (labelValues.length != getNumLabels())
-            throw new IllegalArgumentException("Invalid number of labels");
-
-        LabelValues lv = new LabelValues(labelValues);
-        if (!this.labelValues.containsKey(lv)) {
-            SimpleCounter lc = new SimpleCounter();
-            this.labelValues.put(lv, lc);
-            return lc;
-        }
-
-        return this.labelValues.get(lv);
-    }
-
+    
 
     @Override
-    public synchronized void reset() {
-        if(isUnlabeledMetric())
-            this.unlabeledCounter.reset();
-        else {
-            for (SimpleCounter counter : labelValues.values())
-                counter.reset();
-        }
+    protected void resetThisMetric() {
+        this.value.set(0);
     }
 
-
-    @Override
-    protected MetricSample collect(CollectOptions collectOptions) {
-
-        if(isUnlabeledMetric())
-            return MetricSample.builder(getUnit(), getName(), getType()).build(new Sample(this.unlabeledCounter.getValue()));
-
-        Sample[] samples = new Sample[labelValues.size()];
-        int index = 0;
-
-        for (Map.Entry<LabelValues, SimpleCounter> entry : labelValues.entrySet()) {
-            LabelValues sampleLabelValues = entry.getKey();
-            SimpleCounter sampleSimpleCounter = entry.getValue();
-
-            String[] labelValuesSample = Arrays.copyOf(sampleLabelValues.getLabelValues(), getNumLabels());
-
-            double valueSample = sampleSimpleCounter.getValue();
-
-            samples[index++] = new Sample(valueSample, labelValuesSample);
-        }
-
-        if (collectOptions.getResetOnCollect()){
-            reset();
-        }
-
-        return MetricSample.builder(getUnit(), getName(), getType()).labelNames(getLabelNames()).build(samples);    
+    protected Counter newInstance() {
+        return new Counter(this);
     }
+
+    protected MetricSample collectMetric(){
+        return sampleBuilder().build(new Sample(this.value.doubleValue()));
+    }
+
 }

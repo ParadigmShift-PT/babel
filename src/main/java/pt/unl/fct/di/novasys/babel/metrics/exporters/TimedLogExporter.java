@@ -1,9 +1,8 @@
 package pt.unl.fct.di.novasys.babel.metrics.exporters;
 
-import pt.unl.fct.di.novasys.babel.metrics.MultiRegistryEpochSample;
+import pt.unl.fct.di.novasys.babel.metrics.NodeSample;
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.NoSuchProtocolRegistry;
-import pt.unl.fct.di.novasys.babel.metrics.formatting.Formatter;
-import pt.unl.fct.di.novasys.babel.metrics.formatting.PrometheusFormatter;
+import pt.unl.fct.di.novasys.babel.metrics.formatting.NodeSampleFormatter;
 import pt.unl.fct.di.novasys.babel.metrics.formatting.SimpleFormatter;
 
 import java.io.FileWriter;
@@ -17,52 +16,87 @@ import static java.lang.Thread.sleep;
  * <br>
  * The log is saved in the specified path. If no path is specified, the log is saved in the current working directory under the name exporterName.log
  */
-public class TimedLogExporter extends Exporter{
+public class TimedLogExporter extends ThreadedExporter{
+
+    public static final String FORMATTER = "FORMATTER";
+    public static final String INTERVAL = "INTERVAL";
+    public static final String LOG_PATH = "LOG_PATH";
 
     private static final long S_TO_MS = 1000;
 
+    private final NodeSampleFormatter formatter;
 
-    public TimedLogExporter(String exporterName){
-        super(exporterName);
+
+    public static class Builder extends ExporterBuilder<Builder> {
+        private NodeSampleFormatter formatter;
+        Properties properties = new Properties();
+
+        /**
+         * Builder for TimedLogExporter
+         * <br>
+         * Default values:
+         * <ul>
+         *     <li>INTERVAL: 10</li>
+         *     <li>LOG_PATH: ./</li>
+         *     <li>FORMATTER: SimpleFormatter</li>
+         * </ul>
+         *
+         */
+        public Builder(String exporterName) {
+            super(exporterName);
+        }
+
+        public Builder setFormatter(NodeSampleFormatter formatter){
+            properties.setProperty(FORMATTER,formatter.getFormatterName());
+            return this;
+        }
+
+        public Builder setLogPath(String path){
+            properties.setProperty(LOG_PATH, path);
+            return this;
+        }
+
+        public Builder setInterval(long interval){
+            properties.setProperty(INTERVAL, Long.toString(interval));
+            return this;
+        }
+
+
+        @Override
+        public Builder self() {
+            return this;
+        }
+
+
+        @Override
+        public TimedLogExporter build() {
+            exporterConfigs(properties);
+            return new TimedLogExporter(this);
+        }
     }
 
-    public TimedLogExporter(String exporterName, Properties properties) {
-        super(exporterName, properties);
-    }
+    public TimedLogExporter(Builder builder) {
+        super(builder);
+        this.formatter = getFormatterOrDefault(getProperty(FORMATTER), new SimpleFormatter());
 
-    public TimedLogExporter(String exporterName, String configPath) {
-        super(exporterName, configPath);
-    }
-
-    public TimedLogExporter(String exporterName, String configPath, ExporterCollectOptions exporterCollectOptions) {
-        super(exporterName, configPath, exporterCollectOptions);
-    }
-
-    public TimedLogExporter(String exporterName, ExporterCollectOptions exporterCollectOptions) {
-        super(exporterName, exporterCollectOptions);
-    }
-
-    public TimedLogExporter(String exporterName, Properties exporterConfigs, ExporterCollectOptions exporterCollectOptions) {
-        super(exporterName, exporterConfigs, exporterCollectOptions);
     }
 
 
     @Override
     public Properties loadDefaults() {
         Properties defaultProperties = new Properties();
-        defaultProperties.setProperty("INTERVAL", "20");
-        defaultProperties.setProperty("LOG_PATH", "./");
+        defaultProperties.setProperty(INTERVAL, "10");
+        defaultProperties.setProperty(LOG_PATH, "./");
         return defaultProperties;
     }
 
     @Override
     public void run() {
-        long sleep_ms = Long.parseLong(this.getProperty("INTERVAL")) * S_TO_MS;
-        Formatter formatter = new SimpleFormatter();
+        long sleep_ms = Long.parseLong(this.getProperty(INTERVAL)) * S_TO_MS;
 
         FileWriter writer;
         try {
-            writer = new FileWriter(this.getProperty("LOG_PATH") + this.getExporterName() + ".log", true);
+            writer = new FileWriter(this.getProperty(LOG_PATH) + this.getExporterName() + ".log", true);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -73,22 +107,16 @@ public class TimedLogExporter extends Exporter{
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
+            //If the exporter is disabled, stop the thread
+            if(isDisabled()) return;
+            
             try {
-                MultiRegistryEpochSample sample = collectAllMetrics();
-
+                NodeSample sample = collectAllMetrics();
                 String formattedSample = formatter.format(sample);
                 // Write to file
-
-                if(formatter instanceof SimpleFormatter){
-                        writer.write(formattedSample);
-                        writer.write("\n");
-                        writer.flush();
-                }else{
-                    writer.write(System.currentTimeMillis() + "\n");
-                    writer.write(formattedSample);
-                    writer.write("--------------------\n");
-                    writer.flush();
-                }
+                writer.write(formattedSample);
+                writer.write("\n");
+                writer.flush();
 
             } catch (NoSuchProtocolRegistry noSuchProtocolRegistry) {
                 noSuchProtocolRegistry.printStackTrace();
@@ -100,3 +128,4 @@ public class TimedLogExporter extends Exporter{
 
     }
 }
+

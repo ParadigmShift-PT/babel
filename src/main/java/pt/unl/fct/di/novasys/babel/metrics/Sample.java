@@ -1,42 +1,65 @@
 package pt.unl.fct.di.novasys.babel.metrics;
 
-public class Sample {
-    private final String[] labelValues;
-    private final double valueSample;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
+
+public class Sample implements Serializable {
+    private final Map<String,String> labels;
+    private final double value;
 
     /**
-     *
-     * @param sample
-     * @param labelValues
+     * Creates a sample with the given value and labels
+     * @param sampledValue sampled value of the metric
+     * @param labelNames names of the labels
+     * @param labelValues values of the labels
      */
-    public Sample(double sample, String... labelValues) {
-        this.valueSample = sample;
-        this.labelValues = labelValues;
+    public Sample(double sampledValue, String[] labelNames, String[] labelValues) {
+        this.value = sampledValue;
+        this.labels = new HashMap<>();
+        for (int i = 0; i < labelNames.length; i++) {
+            this.labels.put(labelNames[i], labelValues[i]);
+        }
     }
 
     /**
-     *
-     * @param sample
+     * Creates a sample with the given value and no labels
+     * @param sampledValue sampled value of the metric
      */
-    public Sample(double sample) {
-        this.valueSample = sample;
-        this.labelValues = new String[0];
+    public Sample(double sampledValue) {
+        this.value = sampledValue;
+        this.labels = new HashMap<>();
     }
 
 
     /**
-     * Returns the label values of the sample
-     * @return label values of the sample
+     * Returns the map containing the labels and corresponding label value<br>
+     * Example: key = "protocol", value = "TCP"
+     * @return map containing the labels and values of the sample
      */
-    public String[] getLabelValues() {
-        return labelValues;
+    public Map<String,String> getLabels() {
+        return this.labels;
     }
 
+    @JsonIgnore
+    public String[] getLabelsNames() {
+        return labels.keySet().toArray(new String[0]);
+    }
+
+    @JsonIgnore
+    public String[] getLabelsValues() {
+        return labels.values().toArray(new String[0]);
+    }
     /**
      * Returns the value of the sample
      * @return value of the sample
      */
-    public double getValueSample() {
-        return valueSample;
+    public double getValue() {
+        return value;
+    }
+
+    public Sample clone(){
+        return new Sample(this.value, this.getLabelsNames(), this.getLabelsValues());
     }
 }

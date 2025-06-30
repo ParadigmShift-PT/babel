@@ -1,42 +1,94 @@
 package pt.unl.fct.di.novasys.babel.metrics;
 
-
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.LabeledMetricException;
-import pt.unl.fct.di.novasys.babel.metrics.exporters.CollectOptions;
-import pt.unl.fct.di.novasys.babel.metrics.simplemetrics.SimpleHistogram;
-import pt.unl.fct.di.novasys.babel.metrics.simplemetrics.SimpleHistogram.SimpleHistogramSample;
-
 import java.util.Arrays;
-import java.util.Map;
 
-public class Histogram extends LabeledMetric<SimpleHistogram> {
+public class Histogram extends Metric<Histogram> {
     private final Object lock = new Object();
+
+    /**
+     * The upper bound of each bucket
+     */
     double[] buckets;
+
+    /**
+     * Upper bound of each bucket as a string, last bucket is "+Inf"
+     */
+    String[] buckets_labels;
+
+    /**
+     * The number of observations for each of the buckets with the upper bound specified in the <i>buckets</i> array
+     */
+    double[] observations_per_bucket;
+
+    /**
+     * The sum of all observations
+     */
+    double sum;
+
+    /**
+     * The number of observations
+     */
+    double count;
+
 
     long time;
     boolean timerStarted = false;
 
-    String[] buckets_labels;
 
-    SimpleHistogram unlabeledHistogram;
+    String[] labelNames = new String[]{"le"};
 
 
-    public Histogram(String name, String unit, double[] buckets, String... labelNames){
-        super(name, unit, MetricType.HISTOGRAM, labelNames);
-        this.buckets = new double[buckets.length + 1];
-        System.arraycopy(buckets, 0, this.buckets, 0, buckets.length);
 
-        this.buckets[this.buckets.length - 1] = Double.MAX_VALUE;
+    protected Histogram(Builder builder){
+        super(builder);
+        init(builder.buckets, false);
+    }
 
-        this.buckets_labels = new String[this.buckets.length];
-        for(int i = 0; i < buckets.length; i++){
-            this.buckets_labels[i] = String.valueOf(buckets[i]);
+    private Histogram(Metric<Histogram> metric, double[] buckets, String[] bucket_labels ) {
+        super(metric);
+        this.buckets = buckets;
+        this.buckets_labels = bucket_labels;
+        init(buckets, true);
+    }
+
+    private void init(double[] buckets, boolean bucketsReady) {
+        if(!bucketsReady) {
+            this.buckets = new double[buckets.length + 1];
+            System.arraycopy(buckets, 0, this.buckets, 0, buckets.length);
+
+            this.buckets[this.buckets.length - 1] = Double.MAX_VALUE;
+
+            this.buckets_labels = new String[this.buckets.length];
+            for (int i = 0; i < this.buckets.length - 1; i++) {
+                this.buckets_labels[i] = String.valueOf(buckets[i]);
+            }
+            this.buckets_labels[this.buckets.length - 1] = "+Inf";
         }
-        this.buckets_labels[buckets_labels.length - 1] = "+Inf";
+        if(isUnlabeledMetric()) {
+            this.observations_per_bucket = new double[this.buckets.length];
+            this.sum = this.count = 0;
+        }
+    }
 
-        if(isUnlabeledMetric())
-            this.unlabeledHistogram = new SimpleHistogram(this.buckets);
+    public static class Builder extends MetricBuilder<Builder> {
 
+        double[] buckets;
+
+        public Builder(String name, String unit, double[] buckets, String... labelNames) {
+            super(name, unit, MetricType.HISTOGRAM, labelNames);
+            this.buckets = buckets;
+        }
+
+        @Override
+        public Builder self() {
+            return this;
+        }
+
+        @Override
+        public Histogram build() {
+            return new Histogram(this);
+        }
     }
 
 
@@ -46,11 +98,14 @@ public class Histogram extends LabeledMetric<SimpleHistogram> {
      * If the histogram is labeled, it throws a LabeledMetricException, as labeled histograms must be recorded with the labelValues method
      */
     public void startTimer(){
-        if(timerStarted)
-            throw new IllegalStateException("Timer already started");
+        if(isDisabled()) return;
 
         if(!isUnlabeledMetric())
             throw new LabeledMetricException();
+
+        if(timerStarted)
+            throw new IllegalStateException("Timer already started");
+
 
         time = System.nanoTime();
     }
@@ -61,11 +116,14 @@ public class Histogram extends LabeledMetric<SimpleHistogram> {
      * If the histogram is labeled, it throws a LabeledMetricException, as labeled histograms must be recorded with the labelValues method
      */
     public void stopTimer(){
-        if(!timerStarted)
-            throw new IllegalStateException("Timer not started");
+        if(isDisabled()) return;
 
         if(!isUnlabeledMetric())
             throw new LabeledMetricException();
+
+        if(!timerStarted)
+            throw new IllegalStateException("Timer not started");
+
 
         record(System.nanoTime() - time);
         time = 0;
@@ -79,116 +137,68 @@ public class Histogram extends LabeledMetric<SimpleHistogram> {
      * @param value the value to record
      */
     public void record(double value){
-        if(isUnlabeledMetric())
-            unlabeledHistogram.record(value);
+        if(isDisabled()) return;
+        if(isUnlabeledMetric()){
+            synchronized (lock) {
+                for (int i = 0; i < buckets.length; i++) {
+                    if (value <= buckets[i]) {
+                        observations_per_bucket[i]++;
+                        break;
+                    }
+                }
+                sum += value;
+                count++;
+            }
+        }
         else
             throw new LabeledMetricException();
     }
 
 
     /**
-     * Reset the histogram, setting the observations for each bucket to 0 <br>
-     * If the histogram is labeled, it resets all labeled histograms
-     */
-    @Override
-    protected void reset() {
-        if(isUnlabeledMetric()){
-            unlabeledHistogram.reset();
-        }else{
-            for (SimpleHistogram histogram : labelValues.values()){
-                histogram.reset();
-            }
-        }
-    }
-
-
-    /**
-     * Returns the SimpleHistogram for the given label values
-     * @param labelValues the label values
-     * @return the SimpleHistogram for the given label values
-     */
-    public SimpleHistogram labelValues(String... labelValues) {
-        if (labelValues.length != getNumLabels())
-            throw new IllegalArgumentException("Invalid number of labels");
-
-        LabelValues lv = new LabelValues(labelValues);
-        if (!this.labelValues.containsKey(lv)) {
-            SimpleHistogram lc = new SimpleHistogram(this.buckets);
-            this.labelValues.put(lv, lc);
-            return lc;
-        }
-
-        return this.labelValues.get(lv);
-    }
-
-
-
-    @Override
-    protected MetricSample collect(CollectOptions collectOptions)  {
-        Sample[] samples;
-        if(isUnlabeledMetric()){
-            samples = sampleFromSimpleHistogram(this.unlabeledHistogram);
-            return MetricSample.builder(getUnit(), getName(), getType()).labelNames("le").build(samples);
-        }
-
-
-        int index = 0;
-        samples = new Sample[(buckets.length + 2) * labelValues.size()];
-
-        for (Map.Entry<LabelValues, SimpleHistogram> entry : labelValues.entrySet()) {
-            LabelValues sampleLabelValues = entry.getKey();
-            SimpleHistogram sampleSimpleHistogram = entry.getValue();
-            Sample[] samplesForLabeledHistogram = sampleFromSimpleHistogram(sampleSimpleHistogram, sampleLabelValues.getLabelValues());
-
-            for (int j = 0; j < samplesForLabeledHistogram.length; j++) {
-                samples[index++] = samplesForLabeledHistogram[j];
-            }
-        }
-
-        String[] labelsWithLeBucketLabel = Arrays.copyOf(getLabelNames(), getNumLabels() + 1);
-        labelsWithLeBucketLabel[labelsWithLeBucketLabel.length - 1 ] = "le";
-
-
-        if (collectOptions.getResetOnCollect()){
-            reset();
-        }
-
-
-        return MetricSample.builder(getUnit(), getName(), getType()).labelNames(labelsWithLeBucketLabel).build(samples);
-    }
-
-
-    /**
-     * Receives a simple histogram and returns an array of samples, one for each bucket, one for the sum and one for the count
-     * @param simpleHistogram the simple histogram to sample
-     * @param labelValues if the simple histogram is associated with a label, the label values
+     * Returns an array of samples, one for each bucket, one for the sum and one for the count
      * @return an array of samples, one for each bucket, one for the sum and one for the count
      */
-    private Sample[] sampleFromSimpleHistogram(SimpleHistogram simpleHistogram, String... labelValues) {
-        SimpleHistogramSample simpleHistogramSample = simpleHistogram.getSample();
-        double[] observations = simpleHistogramSample.observations;
-        double sum = simpleHistogramSample.sum;
-        double count = simpleHistogramSample.count;
+    private Sample[] sampleFromSimpleHistogram(String[] labelNames) {
+        double[] observations = this.observations_per_bucket;
+        double sum = this.sum;
+        double count = this.count;
 
         Sample[] samples = new Sample[observations.length + 2];
 
         //Here we add the labelValues to the sample, these are the labelValues + the bucket upper bound
         for (int i = 0; i < observations.length; i++) {
-            String[] labelValuesWithBucketLabel = new String[labelValues.length + 1];
-
-            if(labelValues.length > 0)
-                System.arraycopy(labelValues, 0, labelValuesWithBucketLabel, 0, labelValues.length);
-
-            labelValuesWithBucketLabel[labelValuesWithBucketLabel.length - 1 ] = this.buckets_labels[i];
-            samples[i] = new Sample(observations[i], labelValuesWithBucketLabel);
+            samples[i] = new Sample(observations[i], labelNames, new String[]{this.buckets_labels[i]});
         }
+
         //Second to last sample is the sum, these carry the same label values, without the bucket upper bound
-        samples[samples.length - 2] = new Sample(sum, labelValues);
+        samples[samples.length - 2] = new Sample(sum, labelNames, new String[]{"sum"});
 
         //Last sample is the count
-        samples[samples.length - 1] = new Sample(count, labelValues);
-
+        samples[samples.length - 1] = new Sample(count, labelNames, new String[]{"count"});
 
         return samples;
+    }
+
+    @Override
+    protected void resetThisMetric() {
+        synchronized (lock) {
+            Arrays.fill(this.observations_per_bucket, 0);
+            this.sum = this.count = 0;
+        }
+    }
+
+    @Override
+    protected MetricSample collectMetric() {
+        Sample[] samples;
+        synchronized (lock) {
+            samples = sampleFromSimpleHistogram(this.labelNames);
+        }
+        return sampleBuilder().labelNames(this.labelNames).build(samples);
+    }
+
+    @Override
+    protected Histogram newInstance() {
+        return new Histogram(this, this.buckets, this.buckets_labels);
     }
 }

@@ -1,142 +1,127 @@
 package pt.unl.fct.di.novasys.babel.metrics;
 
-public class MetricSample {
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import java.io.Serializable;
+
+public class MetricSample implements Serializable {
     private final String metricUnit;
     private final String metricName;
-
     private final Metric.MetricType metricType;
+    private final String description;
+
+    @JsonIgnore
     private final String[] labelNames;
 
     private final boolean hasLabels;
     private final Sample[] samples;
     private final int nSamples;
 
-//    private final boolean hasTimestamp;
-
-//    private final long timestamp;
-
-//    public MetricSample(String metricUnit, String metricName, Metric.MetricType metricType, Sample[] samples, String[] labelNames, int nSamples) {
-//        this.metricUnit = metricUnit;
-//        this.metricName = metricName;
-//        this.metricType = metricType;
-//        this.labelNames = labelNames;
-////        this.timestamp = timestamp;
-//        this.hasLabels = true;
-//        this.samples = samples;
-//        this.nSamples = nSamples;
-//    }
-//
-//
-//
-//    /**
-//     * In the case of unlabelled metrics, there is only one sample
-//     * @param metricUnit
-//     * @param metricName
-//     * @param sample
-//     */
-//    public MetricSample(String metricUnit, String metricName, Metric.MetricType metricType, Sample sample) {
-//        this.metricUnit = metricUnit;
-//        this.metricName = metricName;
-//        this.metricType = metricType;
-////        this.timestamp = timestamp;
-//        this.labelNames = new String[]{};
-//        this.hasLabels = false;
-//        this.samples = new Sample[]{sample};
-//        this.nSamples = 1;
-//    }
-
 
     private MetricSample(Builder builder) {
         this.metricUnit = builder.metricUnit;
         this.metricName = builder.metricName;
         this.metricType = builder.metricType;
+        this.description = builder.description;
         this.labelNames = new String[]{};
         this.hasLabels = false;
         this.samples = new Sample[]{builder.sample};
         this.nSamples = 1;
-//        this.hasTimestamp = builder.timestamp != -1;
-//        this.timestamp = builder.timestamp;
     }
 
     private MetricSample(LabeledBuilder labeledBuilder) {
         this.metricUnit = labeledBuilder.builder.metricUnit;
         this.metricName = labeledBuilder.builder.metricName;
         this.metricType = labeledBuilder.builder.metricType;
+        this.description = labeledBuilder.builder.description;
         this.labelNames = labeledBuilder.labelNames;
         this.hasLabels = true;
         this.samples = labeledBuilder.samples;
         this.nSamples = labeledBuilder.samples.length;
-//        this.hasTimestamp = labeledBuilder.builder.timestamp != -1;
-//        this.timestamp = labeledBuilder.builder.timestamp;
     }
 
 
     public String getMetricUnit() {
-        return metricUnit;
+        return this.metricUnit;
     }
 
     public String getMetricName() {
-        return metricName;
+        return this.metricName;
     }
 
     public Metric.MetricType getMetricType() {
-        return metricType;
+        return this.metricType;
     }
 
     public String[] getLabelNames() {
-        return labelNames;
+        return this.labelNames;
     }
 
     public boolean hasLabels() {
-        return hasLabels;
+        return this.hasLabels;
+    }
+
+    public boolean hasDescription() {
+        return !this.description.isEmpty();
     }
 
     public Sample[] getSamples() {
-        return samples;
+        return this.samples;
     }
 
-    public int getNSamples() { return nSamples; }
+    public String getDescription() {
+        return this.description;
+    }
 
-//    public boolean hasTimestamp() {
-//        return hasTimestamp;
-//    }
+    public int getNSamples() { return this.nSamples; }
 
-//    public long getTimestamp() {
-//        return timestamp;
-//    }
+    public MetricSample clone() {
+        Sample[] samples = new Sample[this.samples.length];
+        for (int i = 0; i < samples.length; i++) {
+            samples[i] = this.samples[i].clone();
+        }
 
+        if(this.hasLabels){
+            String[] labelNames = new String[this.labelNames.length];
+            System.arraycopy(this.labelNames, 0, labelNames, 0, this.labelNames.length);
+            MetricSample.builder(metricUnit, metricName, metricType)
+                    .description(description)
+                    .labelNames(labelNames)
+                    .build(samples);
+        }
+
+        return new Builder(metricUnit, metricName, metricType)
+                .description(description)
+                .build(samples[0]);
+    }
 
     public static Builder builder(String metricUnit, String metricName, Metric.MetricType metricType) {
         return new Builder(metricUnit, metricName, metricType);
     }
 
-
-
-
     public static class Builder {
         private final String metricUnit;
         private final String metricName;
         private final Metric.MetricType metricType;
+        private String description = "";
 
         private Sample sample;
-
-        //opt
-        private long timestamp = -1;
 
         public Builder(String metricUnit, String metricName, Metric.MetricType metricType) {
             this.metricUnit = metricUnit;
             this.metricName = metricName;
             this.metricType = metricType;
+
+        }
+
+        public Builder description(String description) {
+            this.description = description;
+            return this;
         }
 
         public LabeledBuilder labelNames(String... labelNames) {
             return new LabeledBuilder(this, labelNames);
         }
-
-//        public Builder timestamp(long timestamp) {
-//            this.timestamp = timestamp;
-//            return this;
-//        }
 
         public MetricSample build(Sample sample) {
             this.sample = sample;
@@ -144,7 +129,6 @@ public class MetricSample {
         }
 
     }
-
 
     public static class LabeledBuilder{
         private Builder builder;
@@ -157,18 +141,11 @@ public class MetricSample {
             this.labelNames = labelNames;
         }
 
-//        public LabeledBuilder timestamp(long timestamp) {
-//            this.builder = builder.timestamp(timestamp);
-//            return this;
-//        }
-
-
         public MetricSample build(Sample... samples) {
             this.samples = samples;
             return new MetricSample(this);
         }
     }
-
 
 
 }

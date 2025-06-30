@@ -148,7 +148,7 @@ public abstract class GenericProtocol {
         this.notificationHandlers = new HashMap<>();
 
         //Initialize generic protocol metrics, but don't register them by default
-        this.metrics_babel = new ProtocolMetricsBabelMetrics(protoId);
+        this.metrics_babel = new ProtocolMetricsBabelMetrics(protoId, protoName);
 
         //tmx.setThreadContentionMonitoringEnabled(true);
     }
@@ -1584,7 +1584,7 @@ public abstract class GenericProtocol {
      * @param <T> type of the metric
      */
     protected <T extends Metric> T registerMetric(T m)  {
-        MetricsManager.getInstance().registerMetric(m, protoId);
+        MetricsManager.getInstance().registerMetric(m, protoId, protoName);
         return m;
     }
 
@@ -1604,17 +1604,20 @@ public abstract class GenericProtocol {
 
         private final short protoId;
 
-        public ProtocolMetricsBabelMetrics(short protoId) {
+        private final String protoName;
+
+        public ProtocolMetricsBabelMetrics(short protoId, String protoName) {
             this.protoId = protoId;
-            this.totalEventsCount =  new Counter("babel_events_total", Metric.Unit.NONE);
-            this.messagesInCount = new Counter("babel_messages_in_total", Metric.Unit.NONE);
-            this.messagesFailedCount = new Counter("babel_messages_failed_total", Metric.Unit.NONE);
-            this.messagesSentCount = new Counter("babel_messages_sent_total", Metric.Unit.NONE);
-            this.timersCount = new Counter("babel_timers_total", Metric.Unit.NONE);
-            this.notificationsCount = new Counter("babel_notifications_total", Metric.Unit.NONE);
-            this.requestsCount = new Counter("babel_requests_total", Metric.Unit.NONE);
-            this.repliesCount = new Counter("babel_replies_total", Metric.Unit.NONE);
-            this.customChannelEventsCount = new Counter("babel_custom_channel_events_total", Metric.Unit.NONE);
+            this.protoName = protoName;
+            this.totalEventsCount =  new Counter.Builder("babel_events_total", Metric.Unit.NONE).build();
+            this.messagesInCount = new Counter.Builder("babel_messages_in_total", Metric.Unit.NONE).build();
+            this.messagesFailedCount = new Counter.Builder("babel_messages_failed_total", Metric.Unit.NONE).build();
+            this.messagesSentCount = new Counter.Builder("babel_messages_sent_total", Metric.Unit.NONE).build();
+            this.timersCount = new Counter.Builder("babel_timers_total", Metric.Unit.NONE).build();
+            this.notificationsCount = new Counter.Builder("babel_notifications_total", Metric.Unit.NONE).build();
+            this.requestsCount = new Counter.Builder("babel_requests_total", Metric.Unit.NONE).build();
+            this.repliesCount = new Counter.Builder("babel_replies_total", Metric.Unit.NONE).build();
+            this.customChannelEventsCount = new Counter.Builder("babel_custom_channel_events_total", Metric.Unit.NONE).build();
 
         }
 
@@ -1633,15 +1636,15 @@ public abstract class GenericProtocol {
 
         //Metrics are not registered by default
         public void registerMetrics(){
-            MetricsManager.getInstance().registerMetric(totalEventsCount, protoId);
-            MetricsManager.getInstance().registerMetric(messagesInCount, protoId);
-            MetricsManager.getInstance().registerMetric(messagesFailedCount, protoId);
-            MetricsManager.getInstance().registerMetric(messagesSentCount, protoId);
-            MetricsManager.getInstance().registerMetric(timersCount, protoId);
-            MetricsManager.getInstance().registerMetric(notificationsCount, protoId);
-            MetricsManager.getInstance().registerMetric(requestsCount, protoId);
-            MetricsManager.getInstance().registerMetric(repliesCount, protoId);
-            MetricsManager.getInstance().registerMetric(customChannelEventsCount, protoId);
+            MetricsManager.getInstance().registerMetric(totalEventsCount, protoId, protoName);
+            MetricsManager.getInstance().registerMetric(messagesInCount, protoId, protoName);
+            MetricsManager.getInstance().registerMetric(messagesFailedCount, protoId, protoName);
+            MetricsManager.getInstance().registerMetric(messagesSentCount, protoId, protoName);
+            MetricsManager.getInstance().registerMetric(timersCount, protoId, protoName);
+            MetricsManager.getInstance().registerMetric(notificationsCount, protoId, protoName);
+            MetricsManager.getInstance().registerMetric(requestsCount, protoId, protoName);
+            MetricsManager.getInstance().registerMetric(repliesCount, protoId, protoName);
+            MetricsManager.getInstance().registerMetric(customChannelEventsCount, protoId, protoName);
         }
     }
 

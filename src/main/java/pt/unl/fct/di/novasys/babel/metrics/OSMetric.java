@@ -2,7 +2,7 @@ package pt.unl.fct.di.novasys.babel.metrics;
 import pt.unl.fct.di.novasys.babel.metrics.generic.os.OSMetrics;
 
 
-public abstract class OSMetric extends Metric{
+public abstract class OSMetric extends Metric<OSMetric>{
     OSMetrics.MetricType mt;
 
     OSMetrics osm;
@@ -17,4 +17,14 @@ public abstract class OSMetric extends Metric{
         return osm;
     }
 
+
+    @Override
+    protected void resetThisMetric() {
+
+    }
+
+    @Override
+    protected OSMetric newInstance() {
+        return null;
+    }
 }

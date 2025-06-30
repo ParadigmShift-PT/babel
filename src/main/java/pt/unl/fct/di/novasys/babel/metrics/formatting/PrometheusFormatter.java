@@ -3,9 +3,13 @@ package pt.unl.fct.di.novasys.babel.metrics.formatting;
 import pt.unl.fct.di.novasys.babel.metrics.*;
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.NoSuchProtocolRegistry;
 
+import java.util.Map;
+
 import static pt.unl.fct.di.novasys.babel.metrics.MetricsManager.OS_METRIC_PROTOCOL_ID;
 
-public class PrometheusFormatter implements Formatter {
+public class PrometheusFormatter implements NodeSampleFormatter {
+
+    public static final String NAME = "PrometheusFormatter";
 
     private static final int SUM = 1;
     private static final int COUNT = 2;
@@ -19,17 +23,16 @@ public class PrometheusFormatter implements Formatter {
 
         //If the metric has labels, we need to append each of the labels to the metric name
         if(labelNames.length > 0){
-            for (int i = 0; i < labelNames.length; i++) {
                 sb.append(metricName);
                 sb.append("{");
-                sb.append(labelNames[i]);
+            for(Map.Entry<String, String> entry : sample.getLabels().entrySet()){
+                sb.append(entry.getKey());
                 sb.append("=");
                 sb.append("\"");
-                sb.append(sample.getLabelValues()[i]);
+                sb.append(entry.getValue());
                 sb.append("\"");
                 sb.append(",");
             }
-
             sb.deleteCharAt(sb.length() - 1);
             sb.append("}");
         }
@@ -39,7 +42,7 @@ public class PrometheusFormatter implements Formatter {
         }
 
         sb.append(" ");
-        sb.append(sample.getValueSample());
+        sb.append(sample.getValue());
         if(timestamp != -1){
             sb.append(" ");
             sb.append(timestamp);
@@ -47,19 +50,19 @@ public class PrometheusFormatter implements Formatter {
         return sb;
     }
 
-    private StringBuilder formatMetricSample(short registryId, MetricSample metricSample, long timestamp){
+    private StringBuilder formatMetricSample(short protocolID, MetricSample metricSample, long timestamp){
         StringBuilder sb = new StringBuilder();
 
-        //Prometheus doesn't support multiple registries, so we need to append the registryId to the metric name,
+        //Prometheus doesn't support multiple protocols, so we need to append the protocolID to the metric name,
         // also units are to be added to the end of the metric name
         StringBuilder nameSb = new StringBuilder();
 
-        //Prefix depends if it is a protocol metric or OS metric
-        if(registryId == OS_METRIC_PROTOCOL_ID){
+        //Prefix depends on if it is a protocol metric or OS metric
+        if(protocolID == OS_METRIC_PROTOCOL_ID){
             nameSb.append("OS_");
         }else{
             nameSb.append("Protocol_");
-            nameSb.append(registryId);
+            nameSb.append(protocolID);
             nameSb.append("_");
         }
 
@@ -80,11 +83,13 @@ public class PrometheusFormatter implements Formatter {
         String metricName = nameSb.toString();
 
         //HELP line
-//        sb.append("# HELP ");
-//        sb.append(metricName);
-//        sb.append(" ");
-//        //sb.append(sample.getMetricUnit()); //TODO: HERE SHOULD BE A STRING THAT DESCRIBES THE METRIC
-//        sb.append("\n");
+        if(metricSample.hasDescription()){
+            sb.append("# HELP ");
+            sb.append(metricName);
+            sb.append(" ");
+            sb.append(metricSample.getDescription());
+            sb.append("\n");
+        }
 
         //TYPE line
         sb.append("# TYPE ");
@@ -99,7 +104,7 @@ public class PrometheusFormatter implements Formatter {
         if(!metricSample.hasLabels()){
             sb.append(nameSb);
             sb.append(" ");
-            sb.append(metricSample.getSamples()[0].getValueSample());
+            sb.append(metricSample.getSamples()[0].getValue());
             sb.append("\n");
             return sb;
         }
@@ -140,9 +145,13 @@ public class PrometheusFormatter implements Formatter {
 
                 for(int i = 0; i < metricSample.getNSamples(); i++){
                     Sample sample = metricSample.getSamples()[i];
-                    //If the number of labelValues is smaller than the number of labels, means we are missing the bucket range label,
-                    // meaning it's either count or sum. If not it's the value of a bucket
-                    if(sample.getLabelValues().length < metricSample.getLabelNames().length){
+                    /*
+                    * If the value of the last label is "sum" or "count", we remove that label and append "sum" or "count" to the metric name
+                     */
+
+                    String[] histogramLabelValues = sample.getLabelsValues();
+                    String lastLabelValue = histogramLabelValues[histogramLabelValues.length - 1];
+                    if(lastLabelValue.equals("sum") || lastLabelValue.equals("count")){
                         if(count_or_sum == SUM){
                             sb.append(formatSample(metricName + "_sum", labelNamesWithoutLe, timestamp, sample));
                             count_or_sum = COUNT;
@@ -169,21 +178,27 @@ public class PrometheusFormatter implements Formatter {
     }
 
 
+    @Override
+    public String getFormatterName() {
+        return NAME;
+    }
 
-
-    public String format(MultiRegistryEpochSample sample) throws NoSuchProtocolRegistry {
+    public String format(NodeSample sample) throws NoSuchProtocolRegistry {
         StringBuilder sb = new StringBuilder();
 
-        // Since prometheus doesn't support multiple registries, we need to iterate over the registryIds, and append the registryId to the metric name
-        for(short registryId : sample.getRegistryIds()){
-            EpochSample epochSample = sample.getRegistrySample(registryId);
+        // Since prometheus doesn't support multiple protocols, we need to iterate over the protocolIds, and append the protocolId to the metric name
+        for(short protocolID : sample.getProtocols()){
+            ProtocolSample protocolSample = sample.getProtocolSample(protocolID);
 
             //Timestamp is the epoch of the sample, so we use it for all the metrics in the sample
-            long timestamp = epochSample.getEpoch();
+            long timestamp = protocolSample.getTimestamp();
 
-            for(MetricSample metricSample : epochSample.getMetricSamples()){
-                sb.append(formatMetricSample(registryId, metricSample, timestamp));
-                sb.append("\n");
+            for(MetricSample metricSample : protocolSample.getMetricSamples()){
+                //We don't want to format record metrics, as they are not supported by Prometheus
+                if(metricSample.getMetricType() != Metric.MetricType.RECORD) {
+                    sb.append(formatMetricSample(protocolID, metricSample, timestamp));
+                    sb.append("\n");
+                }
             }
         }
 

@@ -111,7 +111,7 @@ public abstract class GenericProtocol {
     public static final Babel babel = Babel.getInstance();
     public static final BabelSecurity babelSecurity = BabelSecurity.getInstance();
 
-    ProtocolMetricsBabelMetrics metrics_babel;
+    private final ProtocolMetricsBabelMetrics metrics_babel;
 
     //Debug
     //protected ThreadMXBean tmx = ManagementFactory.getThreadMXBean();
@@ -1618,7 +1618,6 @@ public abstract class GenericProtocol {
             this.requestsCount = new Counter.Builder("babel_requests_total", Metric.Unit.NONE).build();
             this.repliesCount = new Counter.Builder("babel_replies_total", Metric.Unit.NONE).build();
             this.customChannelEventsCount = new Counter.Builder("babel_custom_channel_events_total", Metric.Unit.NONE).build();
-
         }
 
         public void reset() {

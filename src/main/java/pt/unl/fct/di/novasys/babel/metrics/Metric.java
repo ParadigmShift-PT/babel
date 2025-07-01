@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class Metric<T extends Metric<T>>{
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(Metric.class);
 
     public enum MetricType implements Serializable {
         COUNTER ("counter"),
@@ -65,7 +65,7 @@ public abstract class Metric<T extends Metric<T>>{
         }
     }
 
-    protected Metric(MetricBuilder builder){
+    protected Metric(MetricBuilder<?> builder){
         this(builder.name, builder.unit, builder.type, builder.labelNames);
 
         if(!builder.description.isEmpty()){
@@ -113,7 +113,7 @@ public abstract class Metric<T extends Metric<T>>{
             return self();
         }
 
-        public abstract Metric build();
+        public abstract Metric<?> build();
     }
 
 

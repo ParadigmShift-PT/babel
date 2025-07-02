@@ -1578,12 +1578,13 @@ public abstract class GenericProtocol {
     // ------------------ PROTOCOL METRICS -------------------------------------------------
 
     /**
-     * Register a metric for this protocol
+     * Register a metric for this protocol<br>
+     * MUST only be called after call to super() in constructor
      * @param m metric to register
      * @return the registered metric
      * @param <T> type of the metric
      */
-    protected <T extends Metric> T registerMetric(T m)  {
+    protected final <T extends Metric<?>> T registerMetric(T m)  {
         MetricsManager.getInstance().registerMetric(m, protoId, protoName);
         return m;
     }

@@ -1,19 +1,23 @@
 package pt.unl.fct.di.novasys.babel.metrics.exporters;
 
-import java.io.*;
-import java.nio.file.Files;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import pt.unl.fct.di.novasys.babel.metrics.MetricsManager;
 import pt.unl.fct.di.novasys.babel.metrics.NodeSample;
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.NoSuchProtocolRegistry;
 import pt.unl.fct.di.novasys.babel.metrics.formatting.JSONFormatter;
-import pt.unl.fct.di.novasys.babel.metrics.formatting.PrometheusFormatter;
 import pt.unl.fct.di.novasys.babel.metrics.formatting.NodeSampleFormatter;
+import pt.unl.fct.di.novasys.babel.metrics.formatting.PrometheusFormatter;
 import pt.unl.fct.di.novasys.babel.metrics.formatting.SimpleFormatter;
 import pt.unl.fct.di.novasys.babel.metrics.utils.JSONParser;
+
+import java.io.File;
+import java.nio.file.Files;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class Exporter {
 
@@ -336,7 +340,7 @@ public abstract class Exporter {
 
 
     /**
-     * Collects metrics for the protocols specified in the exporterCollectOptions. <br>
+     * Collects metrics for the protocols specified in the supplied exporterCollectOptions. <br>
      * @return {@link NodeSample} object containing metrics for all specified protocols
      * @throws NoSuchProtocolRegistry if a protocol to be collected is not found in the metrics manager
      */

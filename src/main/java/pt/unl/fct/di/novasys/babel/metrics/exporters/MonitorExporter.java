@@ -2,21 +2,14 @@ package pt.unl.fct.di.novasys.babel.metrics.exporters;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.metrics.NodeSample;
 import pt.unl.fct.di.novasys.babel.metrics.exporters.timers.ExportMetricsTimer;
-import pt.unl.fct.di.novasys.babel.metrics.formatting.JSONFormatter;
-import pt.unl.fct.di.novasys.network.data.Host;
 import pt.unl.fct.di.novasys.babel.metrics.messages.SendMetricsMessage;
 import pt.unl.fct.di.novasys.babel.metrics.monitor.SimpleMonitor;
 import pt.unl.fct.di.novasys.channel.tcp.TCPChannel;
-import pt.unl.fct.di.novasys.channel.tcp.events.InConnectionDown;
-import pt.unl.fct.di.novasys.channel.tcp.events.InConnectionUp;
-import pt.unl.fct.di.novasys.channel.tcp.events.OutConnectionDown;
-import pt.unl.fct.di.novasys.channel.tcp.events.OutConnectionFailed;
-import pt.unl.fct.di.novasys.channel.tcp.events.OutConnectionUp;
+import pt.unl.fct.di.novasys.channel.tcp.events.*;
+import pt.unl.fct.di.novasys.network.data.Host;
 
 import java.io.IOException;
 import java.util.Properties;
@@ -25,7 +18,7 @@ import java.util.Properties;
  * Exporter protocol that periodically exports metrics to a monitor node.
  * This protocol can be used to send metrics from a node to another protocol capable of receiving a {@link SendMetricsMessage} (normally a {@link SimpleMonitor}).
  */
-public class MonitorExporter extends GenericProtocol implements ExporterProtocol {
+public class MonitorExporter extends ProtocolExporter {
 	public static final short PROTO_ID = 406;
 
 	public static final String PROTO_NAME = "MonitorExporter";
@@ -34,19 +27,19 @@ public class MonitorExporter extends GenericProtocol implements ExporterProtocol
 
 	private long exportPeriod;
 
-	private ProtocolExporter pe;
+//	private ProtocolExporter pe;
 	private long exportMetricsTimerID;
 
 	private Host myself;
 	private Host monitor;
 
 	public MonitorExporter(Host myself, Host monitor, long exportPeriod, ExporterCollectOptions eco) {
-		super(PROTO_NAME, PROTO_ID);
+		super(PROTO_NAME, PROTO_ID, eco);
 
 		this.myself = myself;
 		this.monitor = monitor;
 		this.exportPeriod = exportPeriod;
-		this.pe = new ProtocolExporter.Builder("MonitorExporter").exporterCollectOptions(eco).build();
+		//this.pe = new ProtocolExporter.Builder("MonitorExporter").exporterCollectOptions(eco).build();
 	}
 
 	@Override
@@ -74,12 +67,12 @@ public class MonitorExporter extends GenericProtocol implements ExporterProtocol
 	}
 
 	public void uponExportMetricsTimer(ExportMetricsTimer t, long time) {
-		if(pe.isDisabled()){
+		if(isExporterDisabled()){
 			logger.debug("Exporter is disabled, not exporting metrics");
 			cancelTimer(this.exportMetricsTimerID);
 			return;
 		}
-		NodeSample sample = this.pe.collectAllMetrics();
+		NodeSample sample = collectAllMetrics();
 		SendMetricsMessage msg = new SendMetricsMessage(sample);
 		openConnection(this.monitor);
 		logger.debug("Sending metrics to {}", this.monitor);
@@ -110,8 +103,8 @@ public class MonitorExporter extends GenericProtocol implements ExporterProtocol
 		logger.trace("Connection from host {} is down, cause: {}", event.getNode(), event.getCause());
 	}
 
-	@Override
-	public ProtocolExporter getExporter() {
-		return this.pe;
-	}
+//	@Override
+//	public ProtocolExporter getExporter() {
+//		return this.pe;
+//	}
 }

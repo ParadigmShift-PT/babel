@@ -19,6 +19,10 @@ public class NodeSample implements Serializable {
         this.samplesPerProtocol = new HashMap<>();
     }
 
+    public NodeSample(int size) {
+        this.samplesPerProtocol = new HashMap<>(size);
+    }
+
     public void addProtocolSample(short protocolID, ProtocolSample protocolSample){
         this.samplesPerProtocol.put(protocolID, protocolSample);
     }

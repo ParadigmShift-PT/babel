@@ -3,7 +3,6 @@ package pt.unl.fct.di.novasys.babel.metrics;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import pt.unl.fct.di.novasys.babel.core.Babel;
-import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.DuplicatedProtocolMetric;
@@ -18,14 +17,9 @@ import pt.unl.fct.di.novasys.babel.metrics.monitor.Monitor;
 import pt.unl.fct.di.novasys.babel.metrics.monitor.SimpleMonitor;
 import pt.unl.fct.di.novasys.babel.metrics.monitor.datalayer.MonitorStorage;
 import pt.unl.fct.di.novasys.babel.metrics.monitor.datalayer.Storage;
-import pt.unl.fct.di.novasys.babel.metrics.utils.JSONParser;
 import pt.unl.fct.di.novasys.network.data.Host;
 
-
-import java.io.FileReader;
 import java.io.IOException;
-import java.io.Reader;
-import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -116,7 +110,7 @@ public class MetricsManager {
      * While these are the user's responsibility to start, they are registered here, so they can be stopped by the MetricsManager if disable() is called
      * @param exporters the exporters to be used
      */
-    public void registerExporters(ProtocolExporter ...exporters){
+    public void registerExporters(ProtocolExporterHelper...exporters){
         if(exporters.length == 0){
             throw new IllegalArgumentException("No exporters provided");
         }
@@ -125,123 +119,123 @@ public class MetricsManager {
     }
 
 
-    public void registerExporters(String configPath){
-        registerExportersUsingConfig(configPath);
-    }
+//    public void registerExporters(String configPath){
+//        registerExportersUsingConfig(configPath);
+//    }
 
 
 
 
 
 
-    /**
-     * Registers the exporters to be used by the MetricsManager using the <br>
-     *
-     * */
-    @SuppressWarnings("unchecked")
-    private void registerExportersUsingConfig(String configPath){
-            List<Object> parsedJson = (List<Object>) JSONParser.parseJsonFile(configPath);
-            //System.out.println(parsedJson);
-            for(Object exporter : parsedJson){
-                    String exporterClass = (String) ((Map<String, Object>) exporter).get("type");
-                    String exporterName = (String) ((Map<String, Object>) exporter).get("name");
-                    String exporterConfigPath = (String) ((Map<String, Object>) exporter).get("exporterConfigs");
-                    String exporterCollectOptionsPath = (String) ((Map<String, Object>) exporter).get("exporterCollectOptions");
-
-                    ThreadedExporter ex = null;
-                    GenericProtocol exporterProtocol = null;
-                    switch (exporterClass){
-//                        case "TimedLogExporter":
-//                            ex = new TimedLogExporter.Builder(exporterName)
-//                                    .exporterConfigPath(exporterConfigPath)
+//    /**
+//     * Registers the exporters to be used by the MetricsManager using the <br>
+//     *
+//     * */
+//    @SuppressWarnings("unchecked")
+//    private void registerExportersUsingConfig(String configPath){
+//            List<Object> parsedJson = (List<Object>) JSONParser.parseJsonFile(configPath);
+//            //System.out.println(parsedJson);
+//            for(Object exporter : parsedJson){
+//                    String exporterClass = (String) ((Map<String, Object>) exporter).get("type");
+//                    String exporterName = (String) ((Map<String, Object>) exporter).get("name");
+//                    String exporterConfigPath = (String) ((Map<String, Object>) exporter).get("exporterConfigs");
+//                    String exporterCollectOptionsPath = (String) ((Map<String, Object>) exporter).get("exporterCollectOptions");
+//
+//                    ThreadedExporter ex = null;
+//                    GenericProtocol exporterProtocol = null;
+//                    switch (exporterClass){
+////                        case "TimedLogExporter":
+////                            ex = new TimedLogExporter.Builder(exporterName)
+////                                    .exporterConfigPath(exporterConfigPath)
+////                                    .exporterCollectOptionsPath(exporterCollectOptionsPath)
+////                                    .build();
+////                            break;
+//                        //TODO: CHECK WORKING AND REMOVE THIS CASE AS DID W/ TIMELOGEXPORTER
+//                        case "PrometheusHTTPExporter":
+//                            ex = new PrometheusHTTPExporter.Builder(exporterName).
+//                                    exporterConfigPath(exporterConfigPath)
 //                                    .exporterCollectOptionsPath(exporterCollectOptionsPath)
 //                                    .build();
 //                            break;
-                        //TODO: CHECK WORKING AND REMOVE THIS CASE AS DID W/ TIMELOGEXPORTER
-                        case "PrometheusHTTPExporter":
-                            ex = new PrometheusHTTPExporter.Builder(exporterName).
-                                    exporterConfigPath(exporterConfigPath)
-                                    .exporterCollectOptionsPath(exporterCollectOptionsPath)
-                                    .build();
-                            break;
-                        default:
-                            try {
-                                Class<?> exporterClassType;
-                                try{
-                                    exporterClassType = Class.forName(exporterClass);
-                                } catch (ClassNotFoundException e) {
-                                    throw new RuntimeException("Exporter class not found!! " + e);
-                                }
-                                //Check if class is a superclass of Threaded exporter, if yes, it must implement a Builder class
-                                if (ThreadedExporter.class.isAssignableFrom(exporterClassType)) {
-                                        Class<?> exporterBuilder;
-                                    try {
-                                        exporterBuilder = Class.forName(exporterClass + "$Builder");
-                                    } catch (ClassNotFoundException e) {
-                                        throw new RuntimeException("Exporter class must have a Builder class!!" + e);
-                                    }
-                                    try {
-                                        Object builderInstance = exporterBuilder.getDeclaredConstructor(String.class).newInstance(exporterName);
-                                        exporterBuilder.getMethod("exporterConfigPath", String.class).invoke(builderInstance, exporterConfigPath);
-                                        exporterBuilder.getMethod("exporterCollectOptionsPath", String.class).invoke(builderInstance, exporterCollectOptionsPath);
-                                        ex = (ThreadedExporter) exporterBuilder.getMethod("build").invoke(builderInstance);
-                                    }catch (NoSuchMethodException | InstantiationException | IllegalAccessException e){
-                                        throw new RuntimeException("Builder method not found, wrong arguments or wrong return type!!" + e);
-                                    }catch (InvocationTargetException e){
-                                        throw new RuntimeException("Builder threw an exception!! " + e.getTargetException().getMessage());
-                                    }
-                                } else {
-                                    if (GenericProtocol.class.isAssignableFrom(exporterClassType)) {
-                                        ProtocolExporter protocolExporter = new ProtocolExporter
-                                                .Builder(exporterName)
-                                                .exporterConfigPath(exporterConfigPath)
-                                                .exporterCollectOptionsPath(exporterCollectOptionsPath)
-                                                .build();
-                                        try{
-                                            Object protocolInstance = exporterClassType.getDeclaredConstructor(ProtocolExporter.class).newInstance(protocolExporter);
-                                            exporterProtocol = (GenericProtocol) protocolInstance;
-                                        }catch (NoSuchMethodException e){
-                                            throw new RuntimeException("Exporter protocol must have a constructor that receives a ProtocolExporter object!!");
-                                        }
-                                    }
-                                }
-                            }
-                            catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
-                                throw new RuntimeException(e);
-                            }
-
-                    }
-
-                    if(ex != null){
-                        threadedExporters.add(ex);
-                    }else{
-                        if(exporterProtocol != null){
-                            try {
-                                Babel.getInstance().registerProtocol(exporterProtocol);
-                            } catch (ProtocolAlreadyExistsException e) {
-                                throw new RuntimeException(e);
-                            }
-                            Properties exporterProperties = new Properties();
-                            if (exporterConfigPath != null) {
-                                try {
-                                    Reader reader = new FileReader(exporterConfigPath);
-                                    exporterProperties.load(reader);
-                                } catch (Exception e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                            try {
-                                exporterProtocol.init(exporterProperties);
-                            } catch (Exception e) {
-                                throw new RuntimeException("Error initializing protocol " + exporterProtocol.getProtoName() + " " + e);
-                        }
-                    }
-
-
-            }
-            }
-
-    }
+//                        default:
+//                            try {
+//                                Class<?> exporterClassType;
+//                                try{
+//                                    exporterClassType = Class.forName(exporterClass);
+//                                } catch (ClassNotFoundException e) {
+//                                    throw new RuntimeException("Exporter class not found!! " + e);
+//                                }
+//                                //Check if class is a superclass of Threaded exporter, if yes, it must implement a Builder class
+//                                if (ThreadedExporter.class.isAssignableFrom(exporterClassType)) {
+//                                        Class<?> exporterBuilder;
+//                                    try {
+//                                        exporterBuilder = Class.forName(exporterClass + "$Builder");
+//                                    } catch (ClassNotFoundException e) {
+//                                        throw new RuntimeException("Exporter class must have a Builder class!!" + e);
+//                                    }
+//                                    try {
+//                                        Object builderInstance = exporterBuilder.getDeclaredConstructor(String.class).newInstance(exporterName);
+//                                        exporterBuilder.getMethod("exporterConfigPath", String.class).invoke(builderInstance, exporterConfigPath);
+//                                        exporterBuilder.getMethod("exporterCollectOptionsPath", String.class).invoke(builderInstance, exporterCollectOptionsPath);
+//                                        ex = (ThreadedExporter) exporterBuilder.getMethod("build").invoke(builderInstance);
+//                                    }catch (NoSuchMethodException | InstantiationException | IllegalAccessException e){
+//                                        throw new RuntimeException("Builder method not found, wrong arguments or wrong return type!!" + e);
+//                                    }catch (InvocationTargetException e){
+//                                        throw new RuntimeException("Builder threw an exception!! " + e.getTargetException().getMessage());
+//                                    }
+//                                } else {
+//                                    if (GenericProtocol.class.isAssignableFrom(exporterClassType)) {
+//                                        ProtocolExporter protocolExporter = new ProtocolExporter
+//                                                .Builder(exporterName)
+//                                                .exporterConfigPath(exporterConfigPath)
+//                                                .exporterCollectOptionsPath(exporterCollectOptionsPath)
+//                                                .build();
+//                                        try{
+//                                            Object protocolInstance = exporterClassType.getDeclaredConstructor(ProtocolExporter.class).newInstance(protocolExporter);
+//                                            exporterProtocol = (GenericProtocol) protocolInstance;
+//                                        }catch (NoSuchMethodException e){
+//                                            throw new RuntimeException("Exporter protocol must have a constructor that receives a ProtocolExporter object!!");
+//                                        }
+//                                    }
+//                                }
+//                            }
+//                            catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
+//                                throw new RuntimeException(e);
+//                            }
+//
+//                    }
+//
+//                    if(ex != null){
+//                        threadedExporters.add(ex);
+//                    }else{
+//                        if(exporterProtocol != null){
+//                            try {
+//                                Babel.getInstance().registerProtocol(exporterProtocol);
+//                            } catch (ProtocolAlreadyExistsException e) {
+//                                throw new RuntimeException(e);
+//                            }
+//                            Properties exporterProperties = new Properties();
+//                            if (exporterConfigPath != null) {
+//                                try {
+//                                    Reader reader = new FileReader(exporterConfigPath);
+//                                    exporterProperties.load(reader);
+//                                } catch (Exception e) {
+//                                    throw new RuntimeException(e);
+//                                }
+//                            }
+//                            try {
+//                                exporterProtocol.init(exporterProperties);
+//                            } catch (Exception e) {
+//                                throw new RuntimeException("Error initializing protocol " + exporterProtocol.getProtoName() + " " + e);
+//                        }
+//                    }
+//
+//
+//            }
+//            }
+//
+//    }
 
 
     public synchronized void registerOSMetrics(OSMetrics.MetricType ...metricTypes) throws NoProcfsException, OSMetricsConfigException, DuplicatedProtocolMetric {

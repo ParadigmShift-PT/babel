@@ -1,38 +1,60 @@
 package pt.unl.fct.di.novasys.babel.metrics.exporters;
 
-import java.util.Properties;
+import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
+import pt.unl.fct.di.novasys.babel.metrics.MetricsManager;
+import pt.unl.fct.di.novasys.babel.metrics.NodeSample;
 
-/**
- * Exporter to be instantiated by protocols that want to export metrics.<br>
- * If the protocol is to be instantiated by the MetricsManager using the json configs, the protocol will receive in the init method the properties that are in the properties file given in the json config.
- * It must also have a constructor that receives a ProtocolExporter Object.<br>
- * Any protocol exporter should periodically check if the metrics were disabled using the isDisabled method.
- */
-public class ProtocolExporter extends Exporter {
+public abstract class ProtocolExporter extends GenericProtocol {
+    ProtocolExporterHelper protocolExporterHelper;
 
-    public static class Builder extends ExporterBuilder<Builder> {
-        public Builder(String exporterName) {
-            super(exporterName);
-        }
+    static final NodeSample EMPTY_NODE_SAMPLE = new NodeSample(0);
 
-        @Override
-        public Builder self() {
-            return this;
-        }
-
-        @Override
-        public ProtocolExporter build() {
-            return new ProtocolExporter(this);
-        }
+    public ProtocolExporter(String protoName, short protoId, ExporterCollectOptions options) {
+        super(protoName, protoId);
+        this.protocolExporterHelper = new ProtocolExporterHelper.Builder(protoName)
+                .exporterCollectOptions(options)
+                .build();
+        MetricsManager.getInstance().registerExporters(this.protocolExporterHelper);
     }
 
-    private ProtocolExporter(Builder exporterBuilder) {
-        super(exporterBuilder);
+    public ProtocolExporter(String protoName, short protoId){
+        this(protoName, protoId, new ExporterCollectOptions.Builder().build());
     }
 
-    @Override
-    public Properties loadDefaults() {
-        return new Properties();
+    /**
+     * Refer to {@link Exporter#collectMetrics()}} for documentation
+     */
+    public NodeSample collectMetrics() {
+        if (protocolExporterHelper.isDisabled()) {
+            return EMPTY_NODE_SAMPLE;
+        }
+        return protocolExporterHelper.collectMetrics();
     }
 
+    /**
+     * Refer to {@link Exporter#collectAllMetrics()}} for documentation
+     */
+    public NodeSample collectAllMetrics() {
+        if (protocolExporterHelper.isDisabled()) {
+            return EMPTY_NODE_SAMPLE;
+        }
+        return protocolExporterHelper.collectAllMetrics();
+    }
+
+    /**
+     * Refer to {@link Exporter#collectMetrics(boolean, short...)} for documentation
+     * @param collectOSMetrics if true, OS metrics will be collected
+     * @param protocolIDs the protocol IDs for which metrics should be collected
+     * @return a NodeSample containing the collected metrics
+     */
+    public NodeSample collectMetrics(boolean collectOSMetrics, short... protocolIDs) {
+        if (protocolExporterHelper.isDisabled()) {
+            return EMPTY_NODE_SAMPLE;
+        }
+        return protocolExporterHelper.collectMetrics(collectOSMetrics, protocolIDs);
+    }
+
+    public boolean isExporterDisabled() {
+        return protocolExporterHelper.isDisabled();
+    }
 }

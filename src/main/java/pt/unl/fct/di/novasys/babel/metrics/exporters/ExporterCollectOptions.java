@@ -12,6 +12,8 @@ public class ExporterCollectOptions {
 
     boolean collectOSMetrics;
 
+
+
     /**
      * Builder for ExporterCollectOptions<br>
      * By default, all protocol metrics are collected along with the OS metrics.<br>
@@ -56,16 +58,15 @@ public class ExporterCollectOptions {
          * @return the Builder instance for method chaining<br>
          */
         public Builder metricCollectOptions(short protocolId, String metricName, CollectOptions collectOptions){
+            ProtocolCollectOptions options;
             if(!perProtocolCollectOptions.containsKey(protocolId)){
-                ProtocolCollectOptions options = new ProtocolCollectOptions();
-                options.addCollectOptions(metricName, collectOptions);
-                perProtocolCollectOptions.put(protocolId, options);
+                options = new ProtocolCollectOptions();
             }
             else{
-                ProtocolCollectOptions options = perProtocolCollectOptions.get(protocolId);
-                options.addCollectOptions(metricName, collectOptions);
-                perProtocolCollectOptions.put(protocolId, options);
+                options = perProtocolCollectOptions.get(protocolId);
             }
+            options.addCollectOptions(metricName, collectOptions);
+            perProtocolCollectOptions.put(protocolId, options);
             return this;
         }
 

@@ -238,23 +238,25 @@ public class MetricsManager {
 //    }
 
 
-    public synchronized void registerOSMetrics(OSMetrics.MetricType ...metricTypes) throws NoProcfsException, OSMetricsConfigException, DuplicatedProtocolMetric {
+    public synchronized void registerOSMetrics(OSMetrics.MetricType ...metricTypes) throws NoProcfsException, OSMetricsConfigException {
         if (this.osMetrics == null) {
             this.osMetrics = new OSMetrics();
         }
 
         for(OSMetrics.MetricType mt : metricTypes){
-            registerMetric(osMetrics.getOSMetric(mt, osMetrics), OS_METRIC_PROTOCOL_ID, OS_PROTO_NAME);
+            try{
+                registerMetric(osMetrics.getOSMetric(mt, osMetrics), OS_METRIC_PROTOCOL_ID, OS_PROTO_NAME);
+            }catch(DuplicatedProtocolMetric e){
+                //If we already registered the metric, we just ignore the exception, since OS metrics do not return a reference that can be misused
+            }
         }
-
     }
 
-    public synchronized void registerOSMetricCategory(OSMetrics.MetricCategory ...metricCategories) throws NoProcfsException, OSMetricsConfigException, DuplicatedProtocolMetric {
+    public synchronized void registerOSMetricCategory(OSMetrics.MetricCategory ...metricCategories) throws NoProcfsException, OSMetricsConfigException {
         if (this.osMetrics == null) {
             this.osMetrics = new OSMetrics();
         }
         Set<OSMetrics.MetricType> mts = osMetrics.getMetricsFromCategories(metricCategories);
-
         registerOSMetrics(mts.toArray(new OSMetrics.MetricType[0]));
     }
 

@@ -26,20 +26,20 @@ public class AggregationInput {
      * Get all samples for a given metric, indexed by the host
      * @param protocol Protocol of the metric
      * @param metricName Name of the metric
-     * @return Map containing the samples for the given metric identifier, indexed by the host
+     * @return Map containing the samples for the given metric identifier, indexed by the host, or an empty map if no samples are found
      */
     public Map<String, MetricSample> getSamplesIndexedPerHost(short protocol, String metricName){
-        return samplesPerHost.get(new MetricIdentifier(metricName, protocol));
+        return samplesPerHost.getOrDefault(new MetricIdentifier(metricName, protocol), new HashMap<>());
     }
 
     /**
      * Returns a list containing all samples for a given metric, without any host information
      * @param protocol Protocol of the metric
      * @param metricName Name of the metric
-     * @return List containing all samples for the given metric identifier
+     * @return List containing all samples for the given metric identifier, or an empty list if no samples are found
      */
     public List<MetricSample> getSamples(short protocol, String metricName){
-        return samplesList.get(new MetricIdentifier(metricName, protocol));
+        return samplesList.getOrDefault(new MetricIdentifier(metricName, protocol), new LinkedList<>());
     }
 
     /**

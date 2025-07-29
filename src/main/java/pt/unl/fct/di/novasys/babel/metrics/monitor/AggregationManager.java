@@ -140,18 +140,16 @@ public class AggregationManager {
                 AggregationResult ar = new AggregationResult(timestamp, protocolIdsToNames);
 
                 for(MetricIdentifier mi : aggregation.getMetricIdentifiers()){
-                    //If any of the metrics required by the aggregation is not present in the samples, skip this aggregation
-                    Map<String, MetricSample> metricSamples = this.samples.get(mi);
-                    if(metricSamples == null || metricSamples.isEmpty()){
-                        logger.warn("Aggregation {} was not performed because metric {} was not present in the samples", aggregation.getClass().getName(), mi);
-                        return;
+                    Map<String, MetricSample> metricSamples = this.samples.getOrDefault(mi, new HashMap<>());
+                    if(metricSamples.isEmpty()){
+                        logger.warn("Aggregation {} - metric {} was not present in the samples", aggregation.getClass().getName(), mi);
                     }
 
                     if(metricSamples.size() == 1){
-                        logger.warn("Aggregation {} was not performed because metric {} was only present for one host", aggregation.getClass().getName(), mi);
+                        logger.warn("Aggregation {} - metric {} was only present for one host", aggregation.getClass().getName(), mi);
                     }
 
-                    for(Entry<String, MetricSample> entry : this.samples.get(mi).entrySet()){
+                    for(Entry<String, MetricSample> entry : metricSamples.entrySet()){
                         ai.addMetricSample(entry.getKey(), mi, entry.getValue());
                     }
                 }

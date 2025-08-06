@@ -200,42 +200,46 @@ public abstract class Metric<T extends Metric<T>>{
             return sampleBuilder().build(new Sample(0));
         }
 
+        MetricSample resultMetricSample;
 
         if (isUnlabeledMetric()) {
-            return collectMetric();
+            resultMetricSample = collectMetric();
         }
+        else {
+            List<Sample> samples = new ArrayList<>();
 
-        List<Sample> samples = new ArrayList<>();
+            for (Map.Entry<LabelValues, T> entry : labelValues.entrySet()) {
+                LabelValues sampleLabelValues = entry.getKey();
+                MetricSample metricSample = entry.getValue().collectMetric();
+                String[] labelNames;
 
-        for (Map.Entry<LabelValues, T> entry : labelValues.entrySet()) {
-            LabelValues sampleLabelValues = entry.getKey();
-            MetricSample metricSample = entry.getValue().collectMetric();
-            String[] labelNames;
-
-            if (metricSample.hasLabels()) {
-                int labelLength = getNumLabels() + metricSample.getLabelNames().length;
-                labelNames = new String[labelLength];
-                System.arraycopy(getLabelNames(), 0, labelNames, 0, getNumLabels());
-                System.arraycopy(metricSample.getLabelNames(), 0, labelNames, getNumLabels(), metricSample.getLabelNames().length);
-                for (int i = 0; i < metricSample.getNSamples(); i++) {
-                    Sample sample = metricSample.getSamples()[i];
-                    String[] labelValues = new String[labelLength];
-                    System.arraycopy(sampleLabelValues.getLabelValues(), 0, labelValues, 0, getNumLabels());
-                    System.arraycopy(sample.getLabelsValues(), 0, labelValues, getNumLabels(), metricSample.getLabelNames().length);
-                    samples.add(new Sample(sample.getValue(), labelNames, labelValues));
+                if (metricSample.hasLabels()) {
+                    int labelLength = getNumLabels() + metricSample.getLabelNames().length;
+                    labelNames = new String[labelLength];
+                    System.arraycopy(getLabelNames(), 0, labelNames, 0, getNumLabels());
+                    System.arraycopy(metricSample.getLabelNames(), 0, labelNames, getNumLabels(), metricSample.getLabelNames().length);
+                    for (int i = 0; i < metricSample.getNSamples(); i++) {
+                        Sample sample = metricSample.getSamples()[i];
+                        String[] labelValues = new String[labelLength];
+                        System.arraycopy(sampleLabelValues.getLabelValues(), 0, labelValues, 0, getNumLabels());
+                        System.arraycopy(sample.getLabelsValues(), 0, labelValues, getNumLabels(), metricSample.getLabelNames().length);
+                        samples.add(new Sample(sample.getValue(), labelNames, labelValues));
+                    }
+                } else {
+                    labelNames = getLabelNames();
+                    String[] labelValuesSample = Arrays.copyOf(sampleLabelValues.getLabelValues(), getNumLabels());
+                    samples.add(new Sample(metricSample.getSamples()[0].getValue(), labelNames, labelValuesSample));
                 }
-            } else {
-                labelNames = getLabelNames();
-                String[] labelValuesSample = Arrays.copyOf(sampleLabelValues.getLabelValues(), getNumLabels());
-                samples.add(new Sample(metricSample.getSamples()[0].getValue(), labelNames, labelValuesSample));
             }
+
+            resultMetricSample = sampleBuilder().labelNames(getLabelNames()).build(samples.toArray(new Sample[0]));
         }
 
         if (collectOptions.getResetOnCollect()) {
             reset();
         }
 
-        return sampleBuilder().labelNames(getLabelNames()).build(samples.toArray(new Sample[0]));
+        return resultMetricSample;
     }
 
     /**

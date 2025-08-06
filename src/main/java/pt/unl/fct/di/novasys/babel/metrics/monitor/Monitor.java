@@ -51,4 +51,11 @@ public abstract class Monitor extends GenericProtocol {
     public void addAggregation(Aggregation aggregation) {
         getAggregationManager().addAggregation(aggregation);
     }
+
+    /**
+     * Refer to {@link AggregationManager#getMetricSampleCount(short, String)} for documentation
+     */
+    public int getMetricSampleCount(short protocolId, String metricName) {
+        return getAggregationManager().getMetricSampleCount(protocolId, metricName);
+    }
 }

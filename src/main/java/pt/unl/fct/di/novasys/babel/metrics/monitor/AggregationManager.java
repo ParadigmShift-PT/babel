@@ -29,12 +29,17 @@ public class AggregationManager {
 
     private final Map <Short, String> protocolIdsToNames;
 
+    private final Map<MetricIdentifier, Integer> metricSampleCounts;
+
+
     public AggregationManager() {
         this.samples = new ConcurrentHashMap<>();
         this.aggregationsToPerform = new LinkedList<>();
         this.metricsNotAggregated = new HashSet<>();
         this.metricsBelongingToAggregation = new HashSet<>();
         this.protocolIdsToNames = new ConcurrentHashMap<>();
+        this.metricSampleCounts = new ConcurrentHashMap<>();
+
     }
 
     /**
@@ -64,6 +69,17 @@ public class AggregationManager {
         return metricsNotAggregated;
     }
 
+    /**
+     * Returns the number of samples for a given metric included in the last aggregation round.<br>
+     * This method can only be used in between calls to {@link #performAggregations()}.<br>
+     * @param protocolId Protocol ID of the metric.<br>
+     * @param metricName Name of the metric to get the sample count for.<br>
+     * @return Number of samples for the given metric.<br>
+     */
+    public int getMetricSampleCount(short protocolId, String metricName) {
+        MetricIdentifier mi = new MetricIdentifier(metricName, protocolId);
+        return metricSampleCounts.getOrDefault(mi, 0);
+    }
 
     /**
      * Adds a sample to be considered in the next aggregation round.<br>
@@ -126,6 +142,9 @@ public class AggregationManager {
             throw new IllegalArgumentException("Timestamp must be a positive value");
         }
 
+        //Clear the metric sample counts
+        this.metricSampleCounts.clear();
+
         if(this.samples.isEmpty()){
             logger.warn("No samples to aggregate, returning empty result");
             return resultSamples;
@@ -148,6 +167,8 @@ public class AggregationManager {
                     if(metricSamples.size() == 1){
                         logger.warn("Aggregation {} - metric {} was only present for one host", aggregation.getClass().getName(), mi);
                     }
+
+                    this.metricSampleCounts.putIfAbsent(mi, metricSamples.size());
 
                     for(Entry<String, MetricSample> entry : metricSamples.entrySet()){
                         ai.addMetricSample(entry.getKey(), mi, entry.getValue());

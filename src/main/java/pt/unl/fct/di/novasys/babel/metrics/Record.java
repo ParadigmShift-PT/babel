@@ -1,5 +1,7 @@
 package pt.unl.fct.di.novasys.babel.metrics;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.IncorrectLabelNumberException;
 
 import java.util.ArrayList;
@@ -12,6 +14,8 @@ import java.util.List;
  * This metric is not compatible with the PrometheusExporter (will be ignored by it).
  */
 public class Record extends Metric<Record> {
+    private static final Logger logger = LogManager.getLogger(Record.class);
+
     private final boolean timestampParam;
 
     private final String[] recordParams;
@@ -75,6 +79,7 @@ public class Record extends Metric<Record> {
     @Override
     protected void resetThisMetric() {
         this.records.clear();
+        logger.debug("Reset record metric {}, number of records {}", getName(), records.size());
     }
 
     @Override

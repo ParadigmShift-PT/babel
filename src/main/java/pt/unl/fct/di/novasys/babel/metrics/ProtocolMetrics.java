@@ -1,5 +1,7 @@
 package pt.unl.fct.di.novasys.babel.metrics;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.DuplicatedProtocolMetric;
 import pt.unl.fct.di.novasys.babel.metrics.exporters.CollectOptions;
 import pt.unl.fct.di.novasys.babel.metrics.exporters.ProtocolCollectOptions;
@@ -14,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * It is used to collect samples of the metrics registered for that protocol.<br>
  */
 public class ProtocolMetrics {
-
+    private static final Logger logger = LogManager.getLogger(ProtocolMetrics.class);
 
     //Each protocol will have one of these, as multiple protocols may have same metrics, and may make easier to export metrics for a single protocol
     //Will this have performance implications :))) TBD
@@ -51,8 +53,10 @@ public class ProtocolMetrics {
             CollectOptions co = protocolCollectOptions.getCollectOptions(entry.getKey());
 
             if(co == null ) {
+                logger.debug("Metric {} has no collect options", entry.getKey());
                 co = new CollectOptions();
             }
+            logger.debug("Metric {} collect with reset metric: {}", entry.getKey(), co.getResetOnCollect());
             samples.add(entry.getValue().collect(co));
         }
         return new ProtocolSample(this.protocolID, this.protocolName, samples);

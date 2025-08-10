@@ -178,8 +178,10 @@ public abstract class Metric<T extends Metric<T>>{
         if (isDisabled()) return;
 
         if (isUnlabeledMetric()) {
+        logger.debug("unlabelled {} reset() called", this.name);
             resetThisMetric(); // Call subclass-specific reset
         } else {
+            logger.debug("labeled {} reset() called", this.name);
             for (T metric : labelValues.values()) {
                 metric.reset(); // Recursive reset on child metrics
             }

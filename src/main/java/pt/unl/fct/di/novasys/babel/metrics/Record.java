@@ -14,43 +14,42 @@ import java.util.List;
  * This metric is not compatible with the PrometheusExporter (will be ignored by it).
  */
 public class Record extends Metric<Record> {
-    private static final Logger logger = LogManager.getLogger(Record.class);
+    private static final int DEFAULT_RECORDS_ESTIMATE = 25;
 
-    private final boolean timestampParam;
+    private boolean timestampParam;
 
-    private final String[] recordParams;
-    private final List<LabelValues> records;
+    private String[] recordParams;
+    private List<LabelValues> records;
+
+    private final Object lock = new Object();
 
     /**
      * Number of parameters that are used to record the event.
      */
-    private final int numRecordParams;
+    private int numRecordParams;
+
 
 
     protected Record(Builder builder) {
        super(builder);
-       this.timestampParam = builder.timestampParam;
-       this.recordParams = builder.recordParams;
-
-        if(this.timestampParam)
-            this.numRecordParams = recordParams.length - 1;
-        else
-            this.numRecordParams = recordParams.length;
-
-        this.records = new ArrayList<>();
+       init(builder.timestampParam, builder.estimatedRecords, builder.recordParams);
     }
 
     private Record(Record r){
         super(r);
-        this.timestampParam = r.timestampParam;
-        this.recordParams = r.recordParams;
+        init(r.timestampParam, 0, r.recordParams);
+    }
+
+    public void init(boolean timestampParam, int estimatedRecords, String... recordParams) {
+        this.timestampParam = timestampParam;
+        this.recordParams = recordParams;
 
         if(this.timestampParam)
             this.numRecordParams = recordParams.length - 1;
         else
             this.numRecordParams = recordParams.length;
 
-        this.records = new ArrayList<>();
+        this.records = new ArrayList<>(estimatedRecords);
     }
 
     public void record(String... parameters) {
@@ -59,17 +58,15 @@ public class Record extends Metric<Record> {
         if (this.numRecordParams != parameters.length)
             throw new IncorrectLabelNumberException();
 
-        String[] lvalues;
+        String[] recordParamsCopy = Arrays.copyOf(parameters, this.numRecordParams + (this.timestampParam ? 1 : 0));
         if (this.timestampParam) {
-            lvalues = new String[parameters.length + 1];
-            System.arraycopy(parameters, 0, lvalues, 0, parameters.length);
-            lvalues[parameters.length] = String.valueOf(System.currentTimeMillis());
-        } else {
-            lvalues = parameters;
+            recordParamsCopy[parameters.length] = String.valueOf(System.currentTimeMillis());
         }
 
-        LabelValues lv = new LabelValues(lvalues);
-        this.records.add(lv);
+        LabelValues lv = new LabelValues(recordParamsCopy);
+        synchronized (lock) {
+            this.records.add(lv);
+        }
     }
 
     public static Builder builder(String name, String... recordParams){
@@ -78,20 +75,25 @@ public class Record extends Metric<Record> {
 
     @Override
     protected void resetThisMetric() {
-        this.records.clear();
-        logger.debug("Reset record metric {}, number of records {}", getName(), records.size());
+        synchronized (lock) {
+            this.records.clear();
+        }
     }
 
     @Override
     protected MetricSample collectMetric() {
-        Sample[] samples = new Sample[records.size()];
-        int i = 0;  
-        for(LabelValues lv : records){
-            samples[i] = new Sample(0, recordParams, Arrays.copyOf(lv.getLabelValues(), recordParams.length));
-            i++;
+        //Snapshot approach allows for concurrent recording without blocking the recording thread while iterating over the records
+
+        List<LabelValues> snapshot;
+        synchronized (lock){
+            snapshot = new ArrayList<>(this.records);
+        }
+        List<Sample> samples = new ArrayList<>(snapshot.size());
+        for(LabelValues lv : snapshot){
+            samples.add(new Sample(0, recordParams, Arrays.copyOf(lv.getLabelValues(), recordParams.length)));
         }
 
-        return sampleBuilder().labelNames(Arrays.copyOf(recordParams,recordParams.length)).build(samples);
+        return sampleBuilder().labelNames(Arrays.copyOf(recordParams,recordParams.length)).build(samples.toArray(new Sample[0]));
     }
 
     @Override
@@ -103,10 +105,11 @@ public class Record extends Metric<Record> {
     public static class Builder extends MetricBuilder<Builder> {
         private String[] recordParams;
         private boolean timestampParam = false;
+        private int estimatedRecords = DEFAULT_RECORDS_ESTIMATE;
 
         public Builder(String name, String... recordParams){
             super(name, Unit.NONE, MetricType.RECORD);
-            this.recordParams = recordParams;
+            this.recordParams = Arrays.copyOf(recordParams, recordParams.length);
         }
 
         /**
@@ -115,11 +118,27 @@ public class Record extends Metric<Record> {
          * @return the builder
          */
         public Builder timestampParam(){
+            if (timestampParam) {
+               return this;
+            }
             String[] updatedRecordParams = new String[recordParams.length + 1];
             System.arraycopy(recordParams, 0, updatedRecordParams, 0, recordParams.length);
             updatedRecordParams[recordParams.length] = "timestamp";
             recordParams = updatedRecordParams;
             timestampParam = true;
+            return this;
+        }
+
+        /**
+         * Sets the number of records that are estimated to be recorded by this metric, in between resets.<br>
+         * This is used to optimize the memory allocation for the records.<br>
+         * If the number is not set, or is smaller than 0, a default value of 25 is used.
+         * @param num the number of records that are estimated to be recorded
+         * @return the builder
+         */
+        public Builder numberRecordsEstimate(int num){
+            if(num > 0)
+                this.estimatedRecords = num;
             return this;
         }
 

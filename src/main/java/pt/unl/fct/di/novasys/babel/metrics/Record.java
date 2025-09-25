@@ -1,9 +1,6 @@
 package pt.unl.fct.di.novasys.babel.metrics;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.IncorrectLabelNumberException;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;

@@ -9,7 +9,7 @@ import pt.unl.fct.di.novasys.babel.metrics.NodeSample;
 import java.util.*;
 
 import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.*;
 
 /**
  * Manages the aggregation of samples collected by a {@link Monitor}.<br>
@@ -30,6 +30,10 @@ public class AggregationManager {
     private final Map <Short, String> protocolIdsToNames;
 
     private final Map<MetricIdentifier, Integer> metricSampleCounts;
+
+    private boolean retainUnaggregatedMetrics = true;
+
+    private ExecutorService executor;
 
 
     public AggregationManager() {
@@ -134,8 +138,11 @@ public class AggregationManager {
      * @return Map of NodeSample, containing the aggregated samples per host.
      */
     public synchronized Map<String, NodeSample> performAggregations(long timestamp) {
-        List<Thread> threads = new LinkedList<>();
-        Object lock = new Object();
+        if(executor == null || executor.isShutdown()) {
+            executor = Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors() - 1));
+        }
+
+        List<Future<?>> futures = new ArrayList<>(this.aggregationsToPerform.size());
         Map<String, NodeSample> resultSamples = new HashMap<>();
 
         if(timestamp <= 0){
@@ -150,11 +157,11 @@ public class AggregationManager {
             return resultSamples;
         }
 
-        List<AggregationResult> results = new LinkedList<>();
+        List<AggregationResult> results = Collections.synchronizedList(new LinkedList<>());
 
         //Perform all aggregations, each in a separate thread
         for (Aggregation aggregation : this.aggregationsToPerform){
-            Thread t = new Thread(() -> {
+            futures.add(executor.submit(() -> {
                 AggregationInput ai = new AggregationInput();
                 AggregationResult ar = new AggregationResult(timestamp, protocolIdsToNames);
 
@@ -177,33 +184,32 @@ public class AggregationManager {
 
 
                 AggregationResult result = aggregation.aggregate(ai, ar);
-                synchronized(lock){
-                    if(result != null) {
-                        results.add(result);
-                    }
+                if(result != null) {
+                    results.add(result);
                 }
-            });
-
-            threads.add(t);
-            t.start();
+            }));
         }
 
         //Wait for all threads to finish
-        for(Thread t : threads){
+        for (Future<?> f : futures) {
             try {
-                t.join();
-            } catch (InterruptedException ignored) {
+                f.get();
+            } catch (InterruptedException | ExecutionException e) {
+                logger.error("Aggregation task failed", e);
             }
         }
 
-        //No aggregation is performed on the remainder metrics
-        AggregationResult ar = new AggregationResult(timestamp, protocolIdsToNames);
-        for(MetricIdentifier mi : metricsNotAggregated){
-            for(Entry<String, MetricSample> entry : this.samples.get(mi).entrySet()){
-                ar.addSample(entry.getValue(), mi.getProtocolId(), entry.getKey());
+
+        if(this.retainUnaggregatedMetrics) {
+            //No aggregation is performed on the remainder metrics
+            AggregationResult ar = new AggregationResult(timestamp, protocolIdsToNames);
+            for (MetricIdentifier mi : metricsNotAggregated) {
+                for (Entry<String, MetricSample> entry : this.samples.get(mi).entrySet()) {
+                    ar.addSample(entry.getValue(), mi.getProtocolId(), entry.getKey());
+                }
             }
+            results.add(ar);
         }
-        results.add(ar);
 
         for(AggregationResult result : results){
             for(Entry<HostProtocolIdentifier, List<MetricSample>> entry : result.getAggregatedSamples().entrySet()){

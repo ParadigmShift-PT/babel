@@ -605,7 +605,7 @@ public class OSMetrics {
         BufferedReader reader;
 
         try {
-            reader = new BufferedReader((new FileReader("/proc/" + pid + "/stat")));
+            reader = new BufferedReader((new FileReader(PROC + pid + "/stat")));
             String[] stat = reader.readLine().split(" ");
             long utime = Long.parseLong(stat[13]);
             long stime = Long.parseLong(stat[14]);

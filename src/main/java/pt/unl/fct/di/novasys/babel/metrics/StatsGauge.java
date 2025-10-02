@@ -1,9 +1,6 @@
 package pt.unl.fct.di.novasys.babel.metrics;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class StatsGauge extends Metric<Gauge> {
     public enum StatType  {
@@ -27,7 +24,11 @@ public class StatsGauge extends Metric<Gauge> {
         /**
          * Count of the samples
          */
-        COUNT;
+        COUNT,
+        /**
+         * Sum of the samples
+         */
+        SUM;
     }
 
     private static final String LABEL_NAME = "stat_type";
@@ -154,9 +155,14 @@ public class StatsGauge extends Metric<Gauge> {
 
         for (StatType statType : statTypes) {
             switch (statType) {
+                case COUNT:
+                    samples[index++] = new Sample(count, labelNames, new String[]{"count"});
+                    break;
                 case AVG:
                     samples[index++] = new Sample(avg, labelNames, new String[]{"avg"});
                     break;
+                case SUM:
+                    samples[index++] = new Sample(sum, labelNames, new String[]{"sum"});
                 case MIN:
                     samples[index++] = new Sample(min,labelNames, new String[]{"min"});
                     break;
@@ -166,9 +172,6 @@ public class StatsGauge extends Metric<Gauge> {
                 case STD_DEV:
                     double stdDev = count > 1 ? Math.sqrt(m2 / (count - 1)) : 0.0;
                     samples[index++] = new Sample(stdDev, labelNames, new String[]{"std_dev"});
-                    break;
-                case COUNT:
-                    samples[index++] = new Sample(count, labelNames, new String[]{"count"});
                     break;
             }
         }
@@ -204,11 +207,19 @@ public class StatsGauge extends Metric<Gauge> {
 
 
         public Builder(String name, String unit) {
-            super(name, unit, MetricType.GAUGE);
+            super(name, unit, MetricType.STATSGAUGE);
         }
 
         public Builder statTypes(StatType... statTypes) {
-            this.statTypes = statTypes;
+            Set<StatType> statTypeSet = new HashSet<>();
+            for (StatType st : statTypes) {
+                statTypeSet.add(st);
+                if(st.equals(StatType.AVG)) {
+                    statTypeSet.add(StatType.COUNT);
+                }
+            }
+            this.statTypes = statTypeSet.toArray(new StatType[0]);
+
             return this;
         }
 

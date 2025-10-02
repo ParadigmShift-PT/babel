@@ -2,6 +2,7 @@ package pt.unl.fct.di.novasys.babel.metrics.monitor.aggregation;
 
 import pt.unl.fct.di.novasys.babel.metrics.MetricSample;
 import pt.unl.fct.di.novasys.babel.metrics.Sample;
+import pt.unl.fct.di.novasys.babel.metrics.StatsGauge;
 import pt.unl.fct.di.novasys.babel.metrics.monitor.Aggregation;
 import pt.unl.fct.di.novasys.babel.metrics.monitor.AggregationInput;
 import pt.unl.fct.di.novasys.babel.metrics.monitor.AggregationResult;
@@ -23,8 +24,15 @@ public class DefaultAggregation extends Aggregation {
 
     private static final String DELIMITER = ";";
 
+    String globalID ="";
+
     public DefaultAggregation(short protocolId, String metricName) {
         super(protocolId, metricName);
+    }
+
+    public DefaultAggregation(short protocolId, String metricName, String globalID){
+        super(protocolId, metricName);
+        this.globalID = globalID;
     }
 
     /**
@@ -60,6 +68,74 @@ public class DefaultAggregation extends Aggregation {
         Map<String, Double> resultSamples = aggregateCounter(samples);
         for(Map.Entry<String, Double> entry : resultSamples.entrySet()){
             entry.setValue(entry.getValue()/nHosts);
+        }
+        return resultSamples;
+    }
+
+    private Map<String, Double> aggregateStatsGauge(Iterator<MetricSample> samples) {
+        Map<String, Double> resultSamples = new HashMap<>();
+        MetricSample sample;
+
+        double accCount = 0;
+        double accCountTimesAvg = 0;
+        double finalMin = Double.MAX_VALUE;
+        double finalmax = Double.MIN_VALUE;
+
+        Set<StatsGauge.StatType> aggregatedStats = new HashSet<>();
+
+        while (samples.hasNext()) {
+            sample = samples.next();
+            double thisCount = 0;
+            for (int i = 0; i < sample.getSamples().length; i++) {
+
+                String stat = sample.getSamples()[i].getLabelsValues()[0];
+                double value = sample.getSamples()[i].getValue();
+
+                switch (stat) {
+                    case "count":
+                        accCount += value;
+                        thisCount = value;
+                        aggregatedStats.add(StatsGauge.StatType.COUNT);
+                        break;
+                    case "avg":
+                        accCountTimesAvg += value * thisCount;
+                        aggregatedStats.add(StatsGauge.StatType.AVG);
+                        break;
+                    case "min":
+                        finalMin = Math.min(value, finalMin);
+                        aggregatedStats.add(StatsGauge.StatType.MIN);
+                        break;
+                    case "max":
+                        finalmax = Math.max(value, finalmax);
+                        aggregatedStats.add(StatsGauge.StatType.MAX);
+                        break;
+                    default:
+                        // Ignore other stats like stddev and percentiles for now
+                        break;
+                }
+            }
+        }
+
+        for (StatsGauge.StatType statType : aggregatedStats) {
+            switch (statType) {
+                case COUNT:
+                    resultSamples.put("count", accCount);
+                    break;
+                case AVG:
+                    if (accCount != 0) {
+                        resultSamples.put("avg", accCountTimesAvg / accCount);
+                    }
+                    break;
+                case MIN:
+                    resultSamples.put("min", finalMin);
+                    break;
+                case MAX:
+                    resultSamples.put("max", finalmax);
+                    break;
+                default:
+                    // Ignore other stats like stddev and percentiles for now
+                    break;
+            }
         }
         return resultSamples;
     }
@@ -119,6 +195,9 @@ public class DefaultAggregation extends Aggregation {
                     resultingSamples = aggregateRecord(it);
                     //Record Aggregation
                     break;
+            case STATSGAUGE:
+                    resultingSamples = aggregateStatsGauge(it);
+                    break;
                 default:
                     throw new IllegalArgumentException("Unknown metric type");
         }
@@ -141,9 +220,14 @@ public class DefaultAggregation extends Aggregation {
                     .build(samplesArray[0]);
         }
 
-        aggregationResult.addGlobalSample(resultingMetricSample, mid.getProtocolId());
-
+        if(!globalID.isEmpty()){
+            aggregationResult.addSample(resultingMetricSample, mid.getProtocolId(), this.globalID);
+        }else {
+            aggregationResult.addGlobalSample(resultingMetricSample, mid.getProtocolId());
+        }
 
         return aggregationResult;
     }
+
+
 }

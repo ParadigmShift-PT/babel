@@ -22,7 +22,8 @@ public abstract class Metric<T extends Metric<T>>{
         COUNTER ("counter"),
         GAUGE ("gauge"),
         HISTOGRAM ("histogram"),
-        RECORD("record");
+        RECORD("record"),
+        STATSGAUGE("statsgauge");
 
         private final String type;
 

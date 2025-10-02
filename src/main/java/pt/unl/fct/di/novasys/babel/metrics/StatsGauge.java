@@ -232,7 +232,7 @@ public class StatsGauge extends Metric<Gauge> {
         }
 
         @Override
-        public Metric<?> build() {
+        public StatsGauge build() {
             return new StatsGauge(this);
         }
     }

@@ -72,7 +72,7 @@ public class MonitorExporter extends ProtocolExporter {
 			cancelTimer(this.exportMetricsTimerID);
 			return;
 		}
-		NodeSample sample = collectAllMetrics();
+		NodeSample sample = collectMetrics();
 		SendMetricsMessage msg = new SendMetricsMessage(sample);
 		openConnection(this.monitor);
 		logger.debug("Sending metrics to {}", this.monitor);

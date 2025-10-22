@@ -90,10 +90,15 @@ public class SimpleMonitor extends Monitor {
 
 	private void uponAggregationTimer(AggregationTimer timer, long timerId) {
 		try {
-			//logger.info("Aggregating from {} nodes", this.samplesPerNode.size());
+			logger.info("Aggregating from {} nodes", getAggregationManager().numberOfHostsIncludedNextAggregation());
+            for(MetricIdentifier mid: getAggregationManager().getMetricsBelongingToAggregation()){
+                int count = getAggregationManager().getMetricSampleCount(mid.getProtocolId(), mid.getMetricName());
+                logger.debug("Metric {} from protocol {} has {} samples", mid.getMetricName(), mid.getProtocolId(), count);
+            }
+
 			Map<String, NodeSample> result = performAggregations();
 			if(result.isEmpty()) {
-				logger.debug("No samples aggregated!");
+				logger.info("No samples aggregated!");
 				return;
 			}
 			metricStorage.store(result);

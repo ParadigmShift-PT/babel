@@ -10,6 +10,8 @@ import pt.unl.fct.di.novasys.babel.metrics.monitor.MetricIdentifier;
 
 import java.util.*;
 
+import static pt.unl.fct.di.novasys.babel.metrics.Metric.MetricType.*;
+
 
 /**
  * Default aggregation which depends on the metric type
@@ -86,6 +88,7 @@ public class DefaultAggregation extends Aggregation {
         while (samples.hasNext()) {
             sample = samples.next();
             double thisCount = 0;
+            double thisAvg = 0;
             for (int i = 0; i < sample.getSamples().length; i++) {
 
                 String stat = sample.getSamples()[i].getLabelsValues()[0];
@@ -98,7 +101,7 @@ public class DefaultAggregation extends Aggregation {
                         aggregatedStats.add(StatsGauge.StatType.COUNT);
                         break;
                     case "avg":
-                        accCountTimesAvg += value * thisCount;
+                        thisAvg = value;
                         aggregatedStats.add(StatsGauge.StatType.AVG);
                         break;
                     case "min":
@@ -114,6 +117,8 @@ public class DefaultAggregation extends Aggregation {
                         break;
                 }
             }
+
+            accCountTimesAvg += (thisCount * thisAvg);
         }
 
         for (StatsGauge.StatType statType : aggregatedStats) {
@@ -180,22 +185,22 @@ public class DefaultAggregation extends Aggregation {
 
 
         Map<String, Double> resultingSamples;
-        switch (sample.getMetricType()){
-                case COUNTER:
+        switch (sample.getMetricType().toString()){
+                case COUNTER_NAME:
                     resultingSamples = aggregateCounter(it);
                     break;
-                case GAUGE:
+                case GAUGE_NAME:
                     resultingSamples = aggregateGauge(it, nHosts);
                     break;
-                case HISTOGRAM:
+                case HISTOGRAM_NAME:
                     resultingSamples = aggregateHistogram(it);
                     //Histogram Aggregation
                     break;
-                case RECORD:
+                case RECORD_NAME:
                     resultingSamples = aggregateRecord(it);
                     //Record Aggregation
                     break;
-            case STATSGAUGE:
+            case STATSGAUGE_NAME:
                     resultingSamples = aggregateStatsGauge(it);
                     break;
                 default:

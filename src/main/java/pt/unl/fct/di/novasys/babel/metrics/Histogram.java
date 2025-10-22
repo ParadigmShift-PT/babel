@@ -75,8 +75,13 @@ public class Histogram extends Metric<Histogram> {
 
         double[] buckets;
 
-        public Builder(String name, String unit, double[] buckets, String... labelNames) {
+        public Builder(String name, Unit unit, double[] buckets, String... labelNames) {
             super(name, unit, MetricType.HISTOGRAM, labelNames);
+            this.buckets = buckets;
+        }
+
+        public Builder(String name, String unit, double[] buckets, String... labelNames) {
+            super(name, Unit.of(unit), MetricType.HISTOGRAM, labelNames);
             this.buckets = buckets;
         }
 

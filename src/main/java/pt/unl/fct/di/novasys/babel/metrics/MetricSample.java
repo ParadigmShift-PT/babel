@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.io.Serializable;
 
 public class MetricSample implements Serializable {
-    private final String metricUnit;
+    private final Metric.Unit metricUnit;
     private final String metricName;
     private final Metric.MetricType metricType;
     private final String description;
@@ -41,7 +41,7 @@ public class MetricSample implements Serializable {
     }
 
 
-    public String getMetricUnit() {
+    public Metric.Unit getMetricUnit() {
         return this.metricUnit;
     }
 
@@ -95,19 +95,19 @@ public class MetricSample implements Serializable {
                 .build(samples[0]);
     }
 
-    public static Builder builder(String metricUnit, String metricName, Metric.MetricType metricType) {
+    public static Builder builder(Metric.Unit metricUnit, String metricName, Metric.MetricType metricType) {
         return new Builder(metricUnit, metricName, metricType);
     }
 
     public static class Builder {
-        private final String metricUnit;
+        private final Metric.Unit metricUnit;
         private final String metricName;
         private final Metric.MetricType metricType;
         private String description = "";
 
         private Sample sample;
 
-        public Builder(String metricUnit, String metricName, Metric.MetricType metricType) {
+        public Builder(Metric.Unit metricUnit, String metricName, Metric.MetricType metricType) {
             this.metricUnit = metricUnit;
             this.metricName = metricName;
             this.metricType = metricType;

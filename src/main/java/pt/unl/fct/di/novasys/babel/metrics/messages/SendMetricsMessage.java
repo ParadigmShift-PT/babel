@@ -5,6 +5,7 @@ import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.babel.metrics.NodeSample;
 import pt.unl.fct.di.novasys.network.ISerializer;
 
+//TODO: Message should contain host identifier -> nodeid string
 public class SendMetricsMessage extends ProtoMessage {
 
     public final static short ID = 2929;

@@ -35,6 +35,8 @@ public class AggregationManager {
 
     private ExecutorService executor;
 
+    private int nSamplesReceived;
+
 
     public AggregationManager() {
         this.samples = new ConcurrentHashMap<>();
@@ -43,6 +45,7 @@ public class AggregationManager {
         this.metricsBelongingToAggregation = new HashSet<>();
         this.protocolIdsToNames = new ConcurrentHashMap<>();
         this.metricSampleCounts = new ConcurrentHashMap<>();
+        this.nSamplesReceived = 0;
 
     }
 
@@ -73,6 +76,10 @@ public class AggregationManager {
         return metricsNotAggregated;
     }
 
+    public Set<MetricIdentifier> getMetricsBelongingToAggregation() {
+        return metricsBelongingToAggregation;
+    }
+
     /**
      * Returns the number of samples for a given metric included in the last aggregation round.<br>
      * This method can only be used in between calls to {@link #performAggregations()}.<br>
@@ -85,6 +92,12 @@ public class AggregationManager {
         return metricSampleCounts.getOrDefault(mi, 0);
     }
 
+    public int numberOfHostsIncludedNextAggregation() {
+        return this.nSamplesReceived;
+    }
+
+
+
     /**
      * Adds a sample to be considered in the next aggregation round.<br>
      * After an aggregation is performed, the samples are cleared.<br>
@@ -92,6 +105,7 @@ public class AggregationManager {
      * @param sample NodeSample containing the samples per protocol.<br>
      */
     public synchronized void addSample(String host, NodeSample sample) {
+        this.nSamplesReceived++;
         for(Entry<Short, ProtocolSample> entry : sample.getSamplesPerProtocol().entrySet()){
             this.protocolIdsToNames.put(entry.getKey(), entry.getValue().getProtocolName());
             for(MetricSample metricEntry : entry.getValue().getMetricSamples()){
@@ -151,6 +165,7 @@ public class AggregationManager {
 
         //Clear the metric sample counts
         this.metricSampleCounts.clear();
+        this.nSamplesReceived = 0;
 
         if(this.samples.isEmpty()){
             logger.warn("No samples to aggregate, returning empty result");

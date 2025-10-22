@@ -7,7 +7,7 @@ public abstract class OSMetric extends Metric<OSMetric>{
 
     OSMetrics osm;
 
-    public OSMetric(String name, String unit,MetricType mt, OSMetrics osm, OSMetrics.MetricType osmt) {
+    public OSMetric(String name, Unit unit,MetricType mt, OSMetrics osm, OSMetrics.MetricType osmt) {
         super(name, unit, mt);
         this.osm = osm;
         this.mt = osmt;

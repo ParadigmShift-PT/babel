@@ -21,8 +21,12 @@ public class Gauge extends Metric<Gauge> {
 
     public static class Builder extends MetricBuilder<Builder> {
 
-        public Builder(String name, String unit, String... labelNames) {
+        public Builder(String name, Unit unit, String... labelNames) {
             super(name, unit, MetricType.GAUGE, labelNames);
+        }
+
+        public Builder(String name, String unit, String... labelNames) {
+            super(name, Unit.of(unit), MetricType.GAUGE, labelNames);
         }
 
         @Override

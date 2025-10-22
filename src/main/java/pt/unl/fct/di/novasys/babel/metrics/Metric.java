@@ -7,10 +7,7 @@ import pt.unl.fct.di.novasys.babel.metrics.exceptions.UnlabelledMetricException;
 import pt.unl.fct.di.novasys.babel.metrics.exporters.CollectOptions;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -18,34 +15,89 @@ public abstract class Metric<T extends Metric<T>>{
 
     private static final Logger logger = LogManager.getLogger(Metric.class);
 
-    public enum MetricType implements Serializable {
-        COUNTER ("counter"),
-        GAUGE ("gauge"),
-        HISTOGRAM ("histogram"),
-        RECORD("record"),
-        STATSGAUGE("statsgauge");
+    public record MetricType(String type) implements Serializable {
+            private static final Map<String, MetricType> REGISTRY = new HashMap<>(5);
 
-        private final String type;
 
-        MetricType(String type) {
-            this.type = type;
-        }
+            public static final String COUNTER_NAME = "counter";
+            public static final String GAUGE_NAME = "gauge";
+            public static final String HISTOGRAM_NAME = "histogram";
+            public static final String RECORD_NAME = "record";
+            public static final String STATSGAUGE_NAME = "statsgauge";
 
-        public String getType() {
-            return type;
-        }
+
+            public static final MetricType COUNTER = new MetricType(COUNTER_NAME);
+            public static final MetricType GAUGE = new MetricType(GAUGE_NAME);
+            public static final MetricType HISTOGRAM = new MetricType(HISTOGRAM_NAME);
+            public static final MetricType RECORD = new MetricType(RECORD_NAME);
+            public static final MetricType STATSGAUGE = new MetricType(STATSGAUGE_NAME);
+
+            public MetricType(String type) {
+                this.type = type;
+                REGISTRY.put(type.toLowerCase(Locale.ROOT), this);
+            }
+
+            public static MetricType of(String type) {
+                return REGISTRY.computeIfAbsent(type.toLowerCase(Locale.ROOT), MetricType::new);
+            }
+
+            @Override
+            public String toString() {
+                return type;
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                MetricType that = (MetricType) o;
+                return Objects.equals(type, that.type);
+            }
     }
 
-    public static class Unit {
-        public static final String BYTES = "bytes";
-        public static final String KBYTES = "Kbytes";
-        public static final String SECONDS = "seconds";
-        public static final String PERCENTAGE = "%";
-        public static final String NONE = "";
+    public record Unit(String type) implements Serializable{
+        private static final Map<String, Unit> REGISTRY = new HashMap<>(5);
+
+        public static final String BYTES_STRING = "bytes";
+        public static final String KBYTES_STRING = "Kbytes";
+
+        public static final String SECONDS_STRING = "s";
+        public static final String MILLISECONDS_STRING = "ms";
+        public static final String PERCENTAGE_STRING = "%";
+        public static final String EMPTY = "";
+
+        public static final Unit BYTES = new Unit(BYTES_STRING);
+        public static final Unit KBYTES = new Unit(KBYTES_STRING);
+        public static final Unit SECONDS = new Unit(SECONDS_STRING);
+        public static final Unit MILLISECONDS = new Unit(MILLISECONDS_STRING);
+        public static final Unit PERCENTAGE = new Unit(PERCENTAGE_STRING);
+        public static final Unit NONE = new Unit(EMPTY);
+
+        public Unit(String type) {
+            this.type = type;
+            REGISTRY.put(type.toLowerCase(Locale.ROOT), this);
+        }
+
+        public static Unit of(String type) {
+            return REGISTRY.computeIfAbsent(type.toLowerCase(Locale.ROOT), Unit::new);
+        }
+
+        @Override
+        public String toString() {
+            return type;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Unit that = (Unit) o;
+            return Objects.equals(type, that.type);
+        }
     }
 
     private final String name;
-    private final String unit;
+    private final Unit unit;
     private final MetricType type;
     private String description;
     private AtomicBoolean disabled = new AtomicBoolean(false);
@@ -54,7 +106,7 @@ public abstract class Metric<T extends Metric<T>>{
     private final boolean hasLabels;
     private CollectOptions collectOptions = CollectOptions.DEFAULT_COLLECT_OPTIONS;
 
-    protected Metric(String name, String unit, MetricType metricType, String... labelNames){
+    protected Metric(String name, Unit unit, MetricType metricType, String... labelNames){
         this.name = name.replace(" ", "_");
         this.unit = unit;
         this.type = metricType;
@@ -65,6 +117,7 @@ public abstract class Metric<T extends Metric<T>>{
             this.labelValues = new ConcurrentHashMap<>();
         }
     }
+
 
     protected Metric(MetricBuilder<?> builder){
         this(builder.name, builder.unit, builder.type, builder.labelNames);
@@ -89,13 +142,13 @@ public abstract class Metric<T extends Metric<T>>{
 
     protected abstract static class MetricBuilder<A extends MetricBuilder<A>> {
         private final String name;
-        private final String unit;
+        private final Unit unit;
         private final MetricType type;
         private final String[] labelNames;
         private String description = "";
         private CollectOptions collectOptions;
 
-        public MetricBuilder(String name, String unit, MetricType metricType, String... labelNames) {
+        public MetricBuilder(String name, Unit unit, MetricType metricType, String... labelNames) {
             this.name = name;
             this.unit = unit;
             this.type = metricType;
@@ -122,7 +175,7 @@ public abstract class Metric<T extends Metric<T>>{
         return name;
     }
 
-    public String getUnit() {
+    public Unit getUnit() {
         return unit;
     }
 

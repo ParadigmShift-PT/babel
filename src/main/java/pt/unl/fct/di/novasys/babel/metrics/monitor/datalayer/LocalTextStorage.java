@@ -5,6 +5,7 @@ import pt.unl.fct.di.novasys.babel.metrics.formatting.SimpleFormatter;
 import pt.unl.fct.di.novasys.babel.metrics.formatting.IdentifiedNodeSampleFormatter;
 
 import java.io.FileWriter;
+import java.io.File;
 import java.io.IOException;
 import java.util.Map;
 
@@ -26,6 +27,23 @@ public class LocalTextStorage implements Storage{
         }
 
         public Builder setPath(String path) {
+            if(path == null || path.isEmpty()) {
+                throw new IllegalArgumentException("Path cannot be null or empty");
+            }
+            if(path.endsWith("/")) {
+                throw new IllegalArgumentException("Path cannot be a directory, must be a file!");
+            }
+
+            if(path.contains("/")){
+                String dir = path.substring(0, path.lastIndexOf("/"));
+                File directory = new File(dir);
+                if(!directory.exists()){
+                    if(!directory.mkdirs()){
+                        throw new RuntimeException("Could not create directory: " + dir);
+                    }
+                }
+            }
+
             this.path = path;
             return this;
         }

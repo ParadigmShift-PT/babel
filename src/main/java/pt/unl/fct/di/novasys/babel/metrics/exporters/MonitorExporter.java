@@ -63,6 +63,10 @@ public class MonitorExporter extends ProtocolExporter {
 		registerChannelEventHandler(channelId, InConnectionDown.EVENT_ID, this::uponInConnectionDown);
 
 		this.exportMetricsTimerID = setupPeriodicTimer(new ExportMetricsTimer(), this.exportPeriod, this.exportPeriod);
+
+
+
+        openConnection(this.monitor);
 		
 	}
 
@@ -74,7 +78,7 @@ public class MonitorExporter extends ProtocolExporter {
 		}
 		NodeSample sample = collectMetrics();
 		SendMetricsMessage msg = new SendMetricsMessage(sample);
-		openConnection(this.monitor);
+
 		logger.debug("Sending metrics to {}", this.monitor);
 		sendMessage(msg, SimpleMonitor.PROTOCOL_ID, this.monitor);
 		logger.debug("Sent metrics sucessfully");

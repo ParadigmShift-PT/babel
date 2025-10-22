@@ -206,8 +206,12 @@ public class StatsGauge extends Metric<Gauge> {
         private int[] percentiles;
 
 
-        public Builder(String name, String unit) {
+        public Builder(String name, Unit unit) {
             super(name, unit, MetricType.STATSGAUGE);
+        }
+
+        public Builder(String name, String unit) {
+            super(name, Unit.of(unit), MetricType.STATSGAUGE);
         }
 
         public Builder statTypes(StatType... statTypes) {

@@ -9,7 +9,6 @@ import pt.unl.fct.di.novasys.babel.metrics.OSMetric;
 import pt.unl.fct.di.novasys.babel.metrics.Sample;
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.NoProcfsException;
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.OSMetricsConfigException;
-import pt.unl.fct.di.novasys.babel.metrics.exporters.CollectOptions;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -29,13 +28,13 @@ public class OSMetrics {
 
     private static final String[] MEMORY_LABEL_NAMES = new String[]{"memory"};
 
-    Map<MetricType, String> units;
+    Map<MetricType, Metric.Unit> units;
     Map<MetricType, String> names;
 
 
 
-    private Map<MetricType, String> getMetricUnits() {
-        Map<MetricType, String> units = new HashMap<>();
+    private Map<MetricType, Metric.Unit> getMetricUnits() {
+        Map<MetricType, Metric.Unit> units = new HashMap<>();
 
         units.put(MetricType.SYSTEM_CPU_USAGE, Metric.Unit.PERCENTAGE);
         units.put(MetricType.SYSTEM_LOAD_AVERAGE, Metric.Unit.NONE);
@@ -88,7 +87,7 @@ public class OSMetrics {
 
 
     public OSMetric getOSMetric(MetricType mt, OSMetrics osm) {
-        String unit = units.get(mt);
+        Metric.Unit unit = units.get(mt);
         String name = names.get(mt);
 
         String[] networkLabelNames = new String[]{"interface"};

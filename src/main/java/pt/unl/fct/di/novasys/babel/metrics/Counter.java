@@ -20,8 +20,11 @@ public class Counter extends Metric<Counter> {
 
     public static class Builder extends MetricBuilder<Builder>{
 
-        public Builder(String name, String unit, String... labelNames) {
+        public Builder(String name, Unit unit, String... labelNames) {
             super(name, unit, MetricType.COUNTER, labelNames);
+        }
+        public Builder(String name, String unit, String... labelNames) {
+            super(name, Unit.of(unit), MetricType.COUNTER, labelNames);
         }
 
         @Override

@@ -5,6 +5,7 @@ import pt.unl.fct.di.novasys.babel.metrics.exceptions.NoSuchProtocolRegistry;
 
 import java.util.Map;
 
+import static pt.unl.fct.di.novasys.babel.metrics.Metric.*;
 import static pt.unl.fct.di.novasys.babel.metrics.MetricsManager.OS_METRIC_PROTOCOL_ID;
 
 public class PrometheusFormatter implements NodeSampleFormatter {
@@ -75,7 +76,7 @@ public class PrometheusFormatter implements NodeSampleFormatter {
         }else{
             //As defined in OpenMetrics, counter metric names must have the _total suffix. If you create a counter without the _total suffix the suffix will be appended automatically.
             // TODO: can we do this only for metrics with no unit?
-            if(metricSample.getMetricType() == Metric.MetricType.COUNTER && !metricSample.getMetricName().endsWith("_total")){
+            if(metricSample.getMetricType() == MetricType.COUNTER && !metricSample.getMetricName().endsWith("_total")){
                 nameSb.append("_total");
             }
         }
@@ -95,7 +96,7 @@ public class PrometheusFormatter implements NodeSampleFormatter {
         sb.append("# TYPE ");
         sb.append(nameSb);
         sb.append(" ");
-        sb.append(metricSample.getMetricType().getType());
+        sb.append(metricSample.getMetricType().type());
         sb.append("\n");
 
 
@@ -109,16 +110,15 @@ public class PrometheusFormatter implements NodeSampleFormatter {
             return sb;
         }
 
-        switch (metricSample.getMetricType()){
-            case COUNTER:
-
-            case GAUGE:
+        switch (metricSample.getMetricType().toString()){
+            case MetricType.COUNTER_NAME:
+            case MetricType.GAUGE_NAME:
                 for(int i = 0; i < metricSample.getNSamples(); i++){
                     sb.append(formatSample(metricName, metricSample.getLabelNames(), timestamp, metricSample.getSamples()[i]));
                     sb.append("\n");
                 }
                 break;
-            case HISTOGRAM:
+            case MetricType.HISTOGRAM_NAME:
                 /**
                  * http_request_duration_seconds_bucket{method="GET",status="200",le="0.1"} 100
                  * http_request_duration_seconds_bucket{method="GET",status="200",le="0.2"} 150

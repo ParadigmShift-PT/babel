@@ -42,5 +42,4 @@ public interface Connection<T> {
     long getReceivedControlMessages();
 
     long getConnectionId();
-
 }

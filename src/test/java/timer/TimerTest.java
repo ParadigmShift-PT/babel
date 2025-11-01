@@ -1,6 +1,6 @@
 package timer;
 
-import pt.unl.fct.di.novasys.babel.core.Babel;
+import pt.unl.fct.di.novasys.babel.core.BabelRuntime;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -13,7 +13,7 @@ public class TimerTest {
     private static final Logger logger = LogManager.getLogger(TimerTest.class);
 
     public static void main(String[] args) throws Exception {
-        Babel babel = Babel.getInstance();
+        BabelRuntime babel = BabelRuntime.getInstance();
         logger.info("Hello, I am alive");
 
         TimerProto proto = new TimerProto();

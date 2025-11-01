@@ -15,7 +15,7 @@ import java.util.Properties;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import pt.unl.fct.di.novasys.babel.core.Babel;
+import pt.unl.fct.di.novasys.babel.core.BabelRuntime;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 
 /**
@@ -47,12 +47,12 @@ public class MulticastDiscoveryProtocol extends LocalDiscoveryProtocol {
 	@Override
 	public void init(Properties props) throws HandlerRegistrationException, IOException {
 		super.init(props);
-		if (!props.containsKey(PAR_DISCOVERY_UNICAST_INTERFACE) && props.containsKey(Babel.PAR_DEFAULT_INTERFACE))
-			props.put(PAR_DISCOVERY_UNICAST_INTERFACE, props.get(Babel.PAR_DEFAULT_INTERFACE));
-		if (!props.containsKey(PAR_DISCOVERY_MULTICAST_INTERFACE) && props.containsKey(Babel.PAR_DEFAULT_INTERFACE))
-			props.put(PAR_DISCOVERY_MULTICAST_INTERFACE, props.get(Babel.PAR_DEFAULT_INTERFACE));
-		if (!props.containsKey(PAR_DISCOVERY_UNICAST_ADDRESS) && props.containsKey(Babel.PAR_DEFAULT_ADDRESS))
-			props.put(PAR_DISCOVERY_UNICAST_ADDRESS, props.get(Babel.PAR_DEFAULT_ADDRESS));
+		if (!props.containsKey(PAR_DISCOVERY_UNICAST_INTERFACE) && props.containsKey(BabelRuntime.PAR_DEFAULT_INTERFACE))
+			props.put(PAR_DISCOVERY_UNICAST_INTERFACE, props.get(BabelRuntime.PAR_DEFAULT_INTERFACE));
+		if (!props.containsKey(PAR_DISCOVERY_MULTICAST_INTERFACE) && props.containsKey(BabelRuntime.PAR_DEFAULT_INTERFACE))
+			props.put(PAR_DISCOVERY_MULTICAST_INTERFACE, props.get(BabelRuntime.PAR_DEFAULT_INTERFACE));
+		if (!props.containsKey(PAR_DISCOVERY_UNICAST_ADDRESS) && props.containsKey(BabelRuntime.PAR_DEFAULT_ADDRESS))
+			props.put(PAR_DISCOVERY_UNICAST_ADDRESS, props.get(BabelRuntime.PAR_DEFAULT_ADDRESS));
 
 		int targetPort = DEFAULT_MULTICAST_PORT;
 		if (props.containsKey(PAR_DISCOVERY_MULTICAST_PORT)) {

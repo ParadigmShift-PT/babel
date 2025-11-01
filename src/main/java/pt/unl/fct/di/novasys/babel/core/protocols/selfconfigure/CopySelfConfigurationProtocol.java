@@ -22,7 +22,7 @@ import org.apache.commons.lang3.tuple.Triple;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import pt.unl.fct.di.novasys.babel.core.Babel;
+import pt.unl.fct.di.novasys.babel.core.BabelRuntime;
 import pt.unl.fct.di.novasys.babel.core.SelfConfigurableProtocol;
 import pt.unl.fct.di.novasys.babel.core.protocols.discovery.requests.FoundServiceReply;
 import pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.messages.ParameterMessage;
@@ -79,10 +79,10 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
 
     @Override
     public void init(Properties props) throws HandlerRegistrationException, IOException {
-        if (!props.containsKey(PAR_SELF_CONFIGURE_INTERFACE) && props.containsKey(Babel.PAR_DEFAULT_INTERFACE))
-            props.put(PAR_SELF_CONFIGURE_INTERFACE, props.get(Babel.PAR_DEFAULT_INTERFACE));
-        if (!props.containsKey(PAR_SELF_CONFIGURE_ADDRESS) && props.containsKey(Babel.PAR_DEFAULT_ADDRESS))
-            props.put(PAR_SELF_CONFIGURE_ADDRESS, props.get(Babel.PAR_DEFAULT_ADDRESS));
+        if (!props.containsKey(PAR_SELF_CONFIGURE_INTERFACE) && props.containsKey(BabelRuntime.PAR_DEFAULT_INTERFACE))
+            props.put(PAR_SELF_CONFIGURE_INTERFACE, props.get(BabelRuntime.PAR_DEFAULT_INTERFACE));
+        if (!props.containsKey(PAR_SELF_CONFIGURE_ADDRESS) && props.containsKey(BabelRuntime.PAR_DEFAULT_ADDRESS))
+            props.put(PAR_SELF_CONFIGURE_ADDRESS, props.get(BabelRuntime.PAR_DEFAULT_ADDRESS));
         if (!props.containsKey(PAR_SELF_CONFIGURE_PORT))
             props.put(PAR_SELF_CONFIGURE_PORT, DEFAULT_PORT);
         if (props.containsKey(PAR_SELF_CONFIGURE_CONFIRMATIONS))

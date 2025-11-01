@@ -1,4 +1,4 @@
-import pt.unl.fct.di.novasys.babel.core.Babel;
+import pt.unl.fct.di.novasys.babel.core.BabelRuntime;
 import pt.unl.fct.di.novasys.babel.core.GenericProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.exceptions.InvalidParameterException;
@@ -16,7 +16,7 @@ import java.util.Properties;
 public class PhiTest {
 
     public static void main(String[] args) throws InvalidParameterException, IOException, ProtocolAlreadyExistsException, HandlerRegistrationException {
-    	Babel babel = Babel.getInstance();
+    	BabelRuntime babel = BabelRuntime.getInstance();
     	Properties configProps = babel.loadConfig(Arrays.copyOfRange(args, 0, args.length), null);
         PhiProto phiProto = new PhiProto(configProps);
         babel.registerProtocol(phiProto);

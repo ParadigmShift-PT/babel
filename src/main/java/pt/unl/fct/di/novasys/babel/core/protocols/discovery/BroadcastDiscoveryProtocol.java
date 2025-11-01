@@ -13,7 +13,7 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import pt.unl.fct.di.novasys.babel.core.Babel;
+import pt.unl.fct.di.novasys.babel.core.BabelRuntime;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 
 /**
@@ -40,8 +40,8 @@ public class BroadcastDiscoveryProtocol extends LocalDiscoveryProtocol {
 	@Override
 	public void init(Properties props) throws HandlerRegistrationException, IOException {
 		super.init(props);
-		if (!props.containsKey(PAR_DISCOVERY_BROADCAST_INTERFACE) && props.containsKey(Babel.PAR_DEFAULT_INTERFACE))
-			props.put(PAR_DISCOVERY_BROADCAST_INTERFACE, props.get(Babel.PAR_DEFAULT_INTERFACE));
+		if (!props.containsKey(PAR_DISCOVERY_BROADCAST_INTERFACE) && props.containsKey(BabelRuntime.PAR_DEFAULT_INTERFACE))
+			props.put(PAR_DISCOVERY_BROADCAST_INTERFACE, props.get(BabelRuntime.PAR_DEFAULT_INTERFACE));
 
 		this.bcastPort = DEFAULT_PORT;
 		if (props.containsKey(PAR_DISCOVERY_BROADCAST_PORT))

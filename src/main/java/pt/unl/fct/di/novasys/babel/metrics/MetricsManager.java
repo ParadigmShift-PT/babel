@@ -2,7 +2,7 @@ package pt.unl.fct.di.novasys.babel.metrics;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import pt.unl.fct.di.novasys.babel.core.Babel;
+import pt.unl.fct.di.novasys.babel.core.BabelRuntime;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.exceptions.ProtocolAlreadyExistsException;
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.DuplicatedProtocolMetric;
@@ -378,13 +378,13 @@ public class MetricsManager {
             return OS_PROTO_NAME;
         }
 
-        return Babel.getInstance().getProtoNameById(protocolID);
+        return BabelRuntime.getInstance().getProtoNameById(protocolID);
     }
 
     public void startMonitorExporter(Host self, Host monitor, long interval, ExporterCollectOptions eco) {
         MonitorExporter exporter = new MonitorExporter(self, monitor, interval, eco);
         try {
-            Babel.getInstance().registerProtocol(exporter);
+            BabelRuntime.getInstance().registerProtocol(exporter);
             exporter.init(new Properties());
         } catch (ProtocolAlreadyExistsException | HandlerRegistrationException | IOException e) {
             throw new RuntimeException(e);
@@ -413,7 +413,7 @@ public class MetricsManager {
         }
         this.simpleMonitor = new SimpleMonitor(myself, storage);
         try {
-            Babel.getInstance().registerProtocol(this.simpleMonitor);
+            BabelRuntime.getInstance().registerProtocol(this.simpleMonitor);
             this.simpleMonitor.init(new Properties());
         } catch (HandlerRegistrationException | ProtocolAlreadyExistsException | IOException e) {
             throw new RuntimeException(e);

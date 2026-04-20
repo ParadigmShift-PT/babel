@@ -87,7 +87,7 @@
         <repository>
             <id>paradigmshift-repository</id>
             <name>ParadigmShift Repository</name>
-            <url>https://maven.paradigmshift.pt/</url>
+            <url>https://maven.paradigmshift.pt/releases</url>
         </repository>
     </repositories>
 

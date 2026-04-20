@@ -3,20 +3,21 @@ package pt.unl.fct.di.novasys.babel.handlers;
 import pt.unl.fct.di.novasys.babel.generic.ProtoReply;
 
 /**
- * Represents an operation that accepts a single input argument and returns no
- * result. Unlike most other functional interfaces, {@code Consumer} is expected
- * to operate via side-effects.
+ * Functional interface for handling inter-protocol replies.
  *
- * <p>This is a <a href="package-summary.html">functional interface</a>
+ * <p>Registered via {@code GenericProtocol.registerReplyHandler}. Invoked on this
+ * protocol's thread when a previously issued request receives a reply of type {@code T}.
  *
+ * @param <T> the concrete reply type
  */
 @FunctionalInterface
 public interface ReplyHandler<T extends ProtoReply> {
 
     /**
-     * Performs this operation on the ProtocolMessage.
+     * Called when a reply of type {@code T} is received from another protocol.
      *
      * @param reply the received reply
+     * @param from  the protocol ID of the replier
      */
     void uponReply(T reply, short from);
 

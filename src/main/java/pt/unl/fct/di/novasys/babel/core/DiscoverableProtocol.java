@@ -39,7 +39,7 @@ public abstract class DiscoverableProtocol extends GenericProtocol {
 
     /**
      * This method is mandatory to be implemented by any protocol that extends the
-     * DiscoverabbleProtocol and it provides information to the Babel core if there
+     * DiscoverableProtocol and it provides information to the Babel core if there
      * is enough information within the protocol to allow the core to start the
      * protocol execution thread. No event will be processed by the protocol
      * until this becomes true.

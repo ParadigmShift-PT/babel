@@ -3,20 +3,21 @@ package pt.unl.fct.di.novasys.babel.handlers;
 import pt.unl.fct.di.novasys.babel.generic.ProtoNotification;
 
 /**
- * Represents an operation that accepts a single input argument and returns no
- * result. Unlike most other functional interfaces, {@code Consumer} is expected
- * to operate via side-effects.
+ * Functional interface for handling protocol notifications.
  *
- * <p>This is a <a href="package-summary.html">functional interface</a>
+ * <p>Registered via {@code GenericProtocol.subscribeNotification}. Invoked on the
+ * subscriber's thread when another protocol emits a notification of type {@code T}.
  *
+ * @param <T> the concrete notification type
  */
 @FunctionalInterface
 public interface NotificationHandler<T extends ProtoNotification> {
 
     /**
-     * Performs this operation on the ProtocolNotification.
+     * Called when a notification of type {@code T} is delivered to this protocol.
      *
      * @param notification the received notification
+     * @param emitter      the protocol ID of the emitter
      */
     void uponNotification(T notification, short emitter);
 

@@ -1,48 +1,85 @@
-# Babel Self-Discovery, Self-Configuration and Security Core
+# Babel Core
 
-A variant of the Java framework for developing distributed protocols. Uses [a fork of Network-layer](https://codelab.fct.unl.pt/di/research/tardis/wp6/network-layer-cryptography-support) for network communication that has been enriched to support several different secure channels (providing different guarantees).
+A Java framework for developing distributed protocols. Protocols are first-class composition
+units — each extends `GenericProtocol` and communicates with peers and with other protocols
+via typed messages, notifications, timers, and requests, all dispatched on a per-protocol
+event loop managed by the Babel runtime.
 
-This variant was developed in the context of the TaRDIS European project to support the development of distributed protocols to support swarm systems with self-discovery, self-configuration, and security features.
+**Group ID:** `pt.paradigmshift.babel`  
+**Artifact ID:** `babel-core`  
+**Current version:** `1.0.0`
 
-The current core (version 0.5.15) supports Configurable discovery mechanisms for protocols that extend the DiscoverableProtocol class (instead of the GenericProtocol).
+---
 
-Currently Multicast and Broadcast discovery is supported. Copy of the configuration being used for distinct protocols in swarm elements operating within the same local network is supported with optional confirmation requiring multiple inputs from different swarm participants. Obtaining protocol initial configuration from special TXT records associated with a domain through DNS servers is also supported.
+## Origin
 
-Self management of protocols is supported by having protocols extend a specific interface and providing specialized setters and getters for protocol parameters that can be managed autonomically throughout the life cycle of the swarm system.
+This library is a fork of the Babel framework originally developed at
+[NOVA School of Science and Technology (FCT-NOVA)](https://www.fct.unl.pt)
+as part of the [TaRDIS](https://tardis-project.eu) European research project
+on swarm systems (work package 6):
 
-Cryptographic material management, utilities, and secure channels backed by the fork of Network-layer is provided, being these security features under testing.
+> **Original repository:**
+> https://codelab.fct.unl.pt/di/research/tardis/wp6/babel-swarm/babel-core-swarm
+>
+> **Original authors:** Rafael Matos, Felipe Rossi, Tomás Galvão, João Leitão
 
-## Authors
+The fork was created to serve as the production runtime for the StoneFlux platform
+and is maintained by [ParadigmShift](https://www.paradigmshift.pt).
+All original authorship is acknowledged and preserved. Additions and modifications
+made after the fork are copyright ParadigmShift.
 
-- Rafael Matos (rd.matos@campus.fct.unl.pt)
-- Felipe Rossi (fp.carmo@campus.fct.unl.pt)
-- Tomás Galvão (t.galvao@campus.fct.unl.pt)
-- João Leitão (jc.leitao@fct.unl.pt)
+---
 
-# Installation
+## Key abstractions
 
-### Dependencies
+| Abstraction | Base class | Purpose |
+|---|---|---|
+| Protocol | `GenericProtocol` | Core unit of composition; owns an event loop |
+| Discoverable protocol | `DiscoverableProtocol` | Protocol with multicast/broadcast peer discovery |
+| Self-configurable protocol | `SelfConfigurableProtocol` | Protocol with runtime parameter management |
+| Message | `ProtoMessage` | Typed network message sent to a remote peer |
+| Notification | `ProtoNotification` | Broadcast to all subscribed protocols in the same node |
+| Request / Reply | `ProtoRequest` / `ProtoReply` | Typed call between protocols on the same node |
+| Timer | `ProtoTimer` | Scheduled callback on the owning protocol's thread |
 
-Copy and paste the following block inside your `pom.xml dependencies` block (this will use the most recent version of this dependency, use <version>0.5.15</version> for this version).
+### Channels (via `babel-network-layer`)
+
+All channel types from [`babel-network-layer`](https://maven.paradigmshift.pt) are usable
+directly from Babel through the corresponding `*ChannelInitializer` classes.
+
+---
+
+## Usage
+
+Add to your `pom.xml`:
 
 ```xml
-<dependency>
-    <groupId>pt.unl.fct.di.novasys.babel</groupId>
-    <artifactId>babel-sc-core</artifactId>
-    <version>[0.5.15,)</version>
-</dependency>
+<repositories>
+    <repository>
+        <id>paradigmshift-repository</id>
+        <name>ParadigmShift Repository</name>
+        <url>https://maven.paradigmshift.pt/</url>
+    </repository>
+</repositories>
+
+<dependencies>
+    <dependency>
+        <groupId>pt.paradigmshift.babel</groupId>
+        <artifactId>babel-core</artifactId>
+        <version>1.0.0</version>
+    </dependency>
+</dependencies>
 ```
 
-If using Maven Shade plugin, add the following to its configuration, this avoids signature issues due to the inclusion of the Bouncy Castle dependencies. In particular, this ensures that the Bouncy Castle signatures do not get included in the jar, as the resulting jar of your project will be different from the one signed by them, causing the JVM to refuse to run the program.
+If you use `maven-shade-plugin`, exclude Bouncy Castle signatures to prevent the JVM
+from refusing to load the resulting JAR:
 
 ```xml
 <plugin>
     <groupId>org.apache.maven.plugins</groupId>
     <artifactId>maven-shade-plugin</artifactId>
-    ...
     <executions>
         <execution>
-            ...
             <configuration>
                 <filters>
                     <filter>
@@ -54,22 +91,67 @@ If using Maven Shade plugin, add the following to its configuration, this avoids
                         </excludes>
                     </filter>
                 </filters>
-                ...
             </configuration>
         </execution>
     </executions>
 </plugin>
 ```
 
-### Repository Setup
+### Minimal protocol
 
-If you haven't already done so, you will need to add the following to your ```pom.xml``` file.
+```java
+public class MyProtocol extends GenericProtocol {
 
-```xml
-<repositories>
-    <repository>
-        <id>novasys-mvn</id>
-        <url>https://novasys.di.fct.unl.pt/packages/mvn</url>
-    </repository>
-</repositories>
+    public static final short PROTO_ID = 100;
+
+    public MyProtocol() throws HandlerRegistrationException {
+        super("MyProtocol", PROTO_ID);
+        registerMessageHandler(MyMessage.serializer, this::uponMyMessage,
+                MyMessage.MSG_ID);
+        registerTimerHandler(MyTimer.TIMER_ID, this::uponMyTimer);
+    }
+
+    @Override
+    public void init(Properties props) {
+        setupPeriodicTimer(new MyTimer(), 0, 5000);
+    }
+
+    private void uponMyMessage(MyMessage msg, Host from, short srcProto, int channelId) {
+        // handle inbound message
+    }
+
+    private void uponMyTimer(MyTimer timer, long uId) {
+        sendMessage(new MyMessage(...), peer, PROTO_ID, channelId);
+    }
+}
 ```
+
+---
+
+## Building
+
+Requires Java 17 and Maven 3.6+.
+
+```bash
+mvn verify    # compile + test
+mvn package   # produces JAR, sources JAR, and Javadoc JAR
+mvn deploy    # publish to maven.paradigmshift.pt (requires REPOSILITE_TOKEN)
+```
+
+## Releasing
+
+Push a version tag — the GitHub Actions CI workflow builds, tests, and deploys automatically:
+
+```bash
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+---
+
+## License
+
+Copyright (c) 2026 ParadigmShift, Lda. See [LICENSE](LICENSE) for full terms.
+
+Commercial use outside of ParadigmShift requires a written licence.  
+Contact: [info@paradigmshift.pt](mailto:info@paradigmshift.pt)

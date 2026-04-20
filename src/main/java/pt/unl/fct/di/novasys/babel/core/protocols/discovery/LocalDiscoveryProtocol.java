@@ -213,7 +213,7 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
                         .manyFromDatagram(Arrays.copyOfRange(packet.getData(), 0, packet.getLength()));
 
                 if (messages.size() > 0) {
-                    if (messages.getFirst().isProbe()) {
+                    if (messages.get(0).isProbe()) {
                         // Prepare responses for all services that requested a contact that we are
                         // running
                         List<ServiceMessage> replies = new ArrayList<ServiceMessage>();

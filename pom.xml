@@ -1,142 +1,107 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
 
-	<groupId>pt.unl.fct.di.novasys.babel</groupId>
-	<artifactId>babel-sc-core</artifactId>
-	<version>0.8.1</version>
+    <groupId>pt.paradigmshift.babel</groupId>
+    <artifactId>babel-core</artifactId>
+    <version>1.0.0</version>
+    <name>Babel Core</name>
+    <description>
+        Distributed protocol framework for swarm and peer-to-peer systems.
+        Provides the protocol runtime, event system, and timer infrastructure
+        for composing GenericProtocol instances in the Babel framework.
+    </description>
+    <url>https://www.paradigmshift.pt</url>
 
-	<properties>
-		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-	</properties>
-	<build>
-		<extensions>
-			<!-- Enabling the use of SSH -->
-			<extension>
-				<groupId>org.apache.maven.wagon</groupId>
-				<artifactId>wagon-ssh-external</artifactId>
-				<version>1.0-beta-6</version>
-			</extension>
-		</extensions>
-		<plugins>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.8.1</version>
-				<configuration>
-					<source>21</source>
-					<target>21</target>
-				</configuration>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-source-plugin</artifactId>
-				<version>3.3.1</version>
-				<executions>
-					<execution>
-						<id>generate-sources</id>
-						<phase>prepare-package</phase>
-						<goals>
-							<goal>jar-no-fork</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>3.6.3</version>
-				<executions>
-					<execution>
-						<id>attach-javadocs</id>
-						<phase>prepare-package</phase>
-						<goals>
-							<goal>jar</goal>
-							<goal>javadoc</goal>
-						</goals>
-					</execution>
-				</executions>
-			</plugin>
-		</plugins>
-	</build>
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
 
-	<repositories>
-		<repository>
-			<id>novasys-mvn</id>
-			<url>https://novasys.di.fct.unl.pt/packages/mvn</url>
-		</repository>
-	</repositories>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <configuration>
+                    <source>17</source>
+                    <target>17</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.3.1</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.6.3</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <source>17</source>
+                    <doclint>none</doclint>
+                    <quiet>true</quiet>
+                    <windowtitle>Babel Core API</windowtitle>
+                    <doctitle>Babel Core ${project.version} API</doctitle>
+                    <bottom>
+                        Copyright &amp;copy; 2026 ParadigmShift. All rights reserved.
+                        See LICENSE for terms of use.
+                    </bottom>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 
-	<profiles>
-		<profile>
-			<id>novasys-deploy</id>
-			<activation>
-				<property>
-					<name>novasys</name>
-				</property>
-			</activation>
-			<distributionManagement>
-				<repository>
-					<id>novasys-deploy</id>
-					<url>${NOVASYS_PACKAGE_MVN_PATH}</url>
-				</repository>
-				<snapshotRepository>
-					<id>novasys-deploy</id>
-					<url>${NOVASYS_PACKAGE_MVN_PATH}</url>
-				</snapshotRepository>
-			</distributionManagement>
-		</profile>
-		<profile>
-			<id>codelab-deploy</id>
-			<activation>
-				<property>
-					<name>codelab</name>
-				</property>
-			</activation>
-			<distributionManagement>
-				<repository>
-					<id>codelab-deploy</id>
-					<url>
-						${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/maven</url>
-				</repository>
-				<snapshotRepository>
-					<id>codelab-deploy</id>
-					<url>
-						${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/maven</url>
-				</snapshotRepository>
-			</distributionManagement>
-		</profile>
-	</profiles>
+    <distributionManagement>
+        <repository>
+            <id>paradigmshift-repository</id>
+            <url>https://maven.paradigmshift.pt/releases</url>
+        </repository>
+        <snapshotRepository>
+            <id>paradigmshift-repository</id>
+            <url>https://maven.paradigmshift.pt/snapshots</url>
+        </snapshotRepository>
+    </distributionManagement>
 
-	<dependencies>
+    <repositories>
+        <repository>
+            <id>paradigmshift-repository</id>
+            <name>ParadigmShift Repository</name>
+            <url>https://maven.paradigmshift.pt/</url>
+        </repository>
+    </repositories>
+
+    <dependencies>
         <dependency>
-            <groupId>pt.unl.fct.di.novasys</groupId>
-            <artifactId>network-layer-secure</artifactId>
-            <version>[2.10.5,)</version>
+            <groupId>pt.paradigmshift.babel</groupId>
+            <artifactId>babel-network-layer</artifactId>
+            <version>1.0.0</version>
         </dependency>
-        <!-- Bouncy Castle dependencies for cryptography https://www.bouncycastle.org/ -->
-        <dependency> <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcprov-jdk18on -->
-            <groupId>org.bouncycastle</groupId>
-            <artifactId>bcprov-jdk18on</artifactId>
-            <version>1.78.1</version>
-        </dependency> <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcutil-jdk18on -->
         <dependency>
-            <groupId>org.bouncycastle</groupId>
-            <artifactId>bcutil-jdk18on</artifactId>
-            <version>1.78.1</version>
-        </dependency> <!-- https://mvnrepository.com/artifact/org.bouncycastle/bcpkix-jdk18on -->
-        <dependency>
-            <groupId>org.bouncycastle</groupId>
-            <artifactId>bcpkix-jdk18on</artifactId>
-            <version>1.78.1</version>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.17.2</version>
         </dependency>
-		<dependency>
-			<groupId>com.fasterxml.jackson.core</groupId>
-			<artifactId>jackson-databind</artifactId>
-			<version>2.17.2</version>
-		</dependency>
     </dependencies>
 
 </project>

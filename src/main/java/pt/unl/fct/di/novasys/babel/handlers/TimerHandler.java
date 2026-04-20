@@ -3,21 +3,23 @@ package pt.unl.fct.di.novasys.babel.handlers;
 import pt.unl.fct.di.novasys.babel.generic.ProtoTimer;
 
 /**
- * Represents an operation that accepts a single input argument and returns no
- * result. Unlike most other functional interfaces, {@code Consumer} is expected
- * to operate via side-effects.
+ * Functional interface for handling protocol timers.
  *
- * <p>This is a <a href="package-summary.html">functional interface</a>
- * whose functional method is {@link #uponTimer}.
+ * <p>Registered via {@code GenericProtocol.registerTimerHandler}. Invoked on this
+ * protocol's thread when a timer of type {@code T} fires. The {@code uId} uniquely
+ * identifies the specific timer instance, which is useful for cancelling repeating
+ * timers via {@code GenericProtocol.cancelTimer}.
  *
+ * @param <T> the concrete timer type
  */
 @FunctionalInterface
 public interface TimerHandler<T extends ProtoTimer> {
 
     /**
-     * Performs this operation on the ProtocolTimer.
+     * Called when a timer of type {@code T} fires.
      *
-     * @param timer the received timer
+     * @param timer the timer that fired
+     * @param uId   the unique id of this timer instance (as returned by {@code setupTimer})
      */
     void uponTimer(T timer, long uId);
 

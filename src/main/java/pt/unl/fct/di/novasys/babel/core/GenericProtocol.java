@@ -1446,46 +1446,48 @@ public abstract class GenericProtocol {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Handling event: " + pe);
                 }
-                switch (pe) {
-                    case MessageInEvent castPe -> {
-                        metrics_babel.messagesInCount.inc();
-                        this.handleMessageIn(castPe);
-                    }
-                    case MessageFailedEvent castPe -> {
-                        metrics_babel.messagesFailedCount.inc();
-                        this.handleMessageFailed(castPe);
-                    }
-                    case MessageSentEvent castPe -> {
-                        metrics_babel.messagesSentCount.inc();
-                        this.handleMessageSent(castPe);
-                    }
-                    case TimerEvent castPe -> {
-                        metrics_babel.timersCount.inc();
-                        this.handleTimer(castPe);
-                    }
-                    case NotificationEvent castPe -> {
-                        metrics_babel.notificationsCount.inc();
-                        this.handleNotification(castPe);
-                    }
-                    case IPCEvent castPe -> {
-                        IPCEvent i = castPe;
-                        switch (i.getIpc().getType()) {
-                            case REPLY -> {
-                                metrics_babel.repliesCount.inc();
-                                handleReply((ProtoReply) i.getIpc(), i.getSenderID());
-                            }
-                            case REQUEST -> {
-                                metrics_babel.requestsCount.inc();
-                                handleRequest((ProtoRequest) i.getIpc(), i.getSenderID());
-                            }
-                            default -> throw new AssertionError("Ups");
+                
+                if (pe instanceof MessageInEvent castPe) {
+                    metrics_babel.messagesInCount.inc();
+                    this.handleMessageIn(castPe);
+
+                } else if (pe instanceof MessageFailedEvent castPe) {
+                    metrics_babel.messagesFailedCount.inc();
+                    this.handleMessageFailed(castPe);
+
+                } else if (pe instanceof MessageSentEvent castPe) {
+                    metrics_babel.messagesSentCount.inc();
+                    this.handleMessageSent(castPe);
+
+                } else if (pe instanceof TimerEvent castPe) {
+                    metrics_babel.timersCount.inc();
+                    this.handleTimer(castPe);
+
+                } else if (pe instanceof NotificationEvent castPe) {
+                    metrics_babel.notificationsCount.inc();
+                    this.handleNotification(castPe);
+
+                } else if (pe instanceof IPCEvent castPe) {
+                    IPCEvent i = castPe;
+
+                    switch (i.getIpc().getType()) {
+                        case REPLY -> {
+                            metrics_babel.repliesCount.inc();
+                            handleReply((ProtoReply) i.getIpc(), i.getSenderID());
                         }
+                        case REQUEST -> {
+                            metrics_babel.requestsCount.inc();
+                            handleRequest((ProtoRequest) i.getIpc(), i.getSenderID());
+                        }
+                        default -> throw new AssertionError("Ups");
                     }
-                    case CustomChannelEvent castPe -> {
-                        metrics_babel.customChannelEventsCount.inc();
-                        this.handleChannelEvent(castPe);
-                    }
-                    default -> throw new AssertionError("Unexpected event received by babel. protocol "
+
+                } else if (pe instanceof CustomChannelEvent castPe) {
+                    metrics_babel.customChannelEventsCount.inc();
+                    this.handleChannelEvent(castPe);
+
+                } else {
+                    throw new AssertionError("Unexpected event received by babel. protocol "
                             + protoId + " (" + protoName + ")");
                 }
             } catch (Exception e) {

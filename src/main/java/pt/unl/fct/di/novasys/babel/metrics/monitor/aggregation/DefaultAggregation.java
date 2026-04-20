@@ -169,7 +169,7 @@ public class DefaultAggregation extends Aggregation {
             throw new IllegalArgumentException("DefaultAggregation can only aggregate one metric");
         }
 
-        MetricIdentifier mid = aggregationInput.getMetrics().getFirst();
+        MetricIdentifier mid = aggregationInput.getMetrics().get(0);
 
         List<MetricSample> metricSampleMap = aggregationInput.getSamples(mid.getProtocolId(), mid.getMetricName());
 
@@ -179,7 +179,7 @@ public class DefaultAggregation extends Aggregation {
 
 
         int nHosts = metricSampleMap.size();
-        MetricSample sample = metricSampleMap.getFirst();
+        MetricSample sample = metricSampleMap.get(0);
         String[] labelNames = sample.getLabelNames();
         Iterator<MetricSample> it = metricSampleMap.iterator();
 

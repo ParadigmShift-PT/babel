@@ -14,7 +14,7 @@ event loop managed by the Babel runtime.
 ## Origin
 
 This library is a fork of the Babel framework originally developed at
-[NOVA School of Science and Technology (FCT-NOVA)](https://www.fct.unl.pt)
+[NOVA School of Science and Technology (NOVA FCT)](https://www.fct.unl.pt)
 as part of the [TaRDIS](https://tardis-project.eu) European research project
 on swarm systems (work package 6):
 

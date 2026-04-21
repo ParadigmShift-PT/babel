@@ -19,6 +19,11 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Base class for all metric exporters. Manages exporter configuration (loaded from a properties
+ * file or supplied {@link Properties}), collect options, and enabled/disabled lifecycle.
+ * Concrete subclasses implement {@link #loadDefaults()} and the export logic.
+ */
 public abstract class Exporter {
 
     private static final Logger logger = LogManager.getLogger(Exporter.class);
@@ -39,6 +44,10 @@ public abstract class Exporter {
 
 
 
+    /**
+     * Fluent builder base for {@link Exporter} subclasses. Subclasses must override {@link #self()}
+     * to return {@code this} and {@link #build()} to instantiate the concrete exporter.
+     */
     public abstract static class ExporterBuilder<T extends ExporterBuilder<T>> {
         private final String exporterName;
         private String exporterConfigPath = "";
@@ -47,6 +56,11 @@ public abstract class Exporter {
         private String exporterCollectOptionsPath  = "";
 //        private EpochUpdate defaultEpochUpdate = EpochUpdate.tickEpoch();
 
+        /**
+         * Creates a builder for an exporter with the given name.
+         *
+         * @param exporterName logical name for the exporter, used in config file lookup and logging
+         */
         public ExporterBuilder(String exporterName) {
             this.exporterName = exporterName;
         }
@@ -57,29 +71,66 @@ public abstract class Exporter {
          */
         public abstract T self();
 
+        /**
+         * Supplies exporter configuration properties directly (used when no config file path is set).
+         *
+         * @param exporterConfigs properties containing exporter-specific configuration keys
+         * @return this builder
+         */
         public T exporterConfigs(Properties exporterConfigs){
             this.exporterConfigs = exporterConfigs;
             return self();
         }
 
+        /**
+         * Sets the filesystem path to a {@code .conf} file from which exporter configuration is loaded.
+         * Takes precedence over any properties supplied via {@link #exporterConfigs}.
+         *
+         * @param configPath path to the exporter configuration file
+         * @return this builder
+         */
         public T exporterConfigPath(String configPath){
             this.exporterConfigPath = configPath;
             return self();
         }
 
+        /**
+         * Sets the collect options that control which protocols and metrics are gathered by this exporter.
+         *
+         * @param exporterCollectOptions the collect options to apply
+         * @return this builder
+         */
         public T exporterCollectOptions(ExporterCollectOptions exporterCollectOptions){
             this.exporterCollectOptions = exporterCollectOptions;
             return self();
         }
 
+        /**
+         * Sets the filesystem path to a JSON file from which collect options are loaded,
+         * overriding any collect options supplied via {@link #exporterCollectOptions}.
+         *
+         * @param exporterCollectOptionsPath path to the JSON collect-options file
+         * @return this builder
+         */
         public T exporterCollectOptionsPath(String exporterCollectOptionsPath){
             this.exporterCollectOptionsPath = exporterCollectOptionsPath;
             return self();
         }
 
+        /**
+         * Builds and returns the concrete {@link Exporter} instance.
+         *
+         * @return a fully configured exporter
+         */
         public abstract Exporter build();
     }
 
+    /**
+     * Constructs an exporter from the supplied builder, loading configuration from a file or from
+     * the provided properties, and resolving collect options from a JSON path or the builder value.
+     *
+     * @param exporterBuilder the fully configured builder
+     */
     public Exporter(ExporterBuilder exporterBuilder){
         this.exporterName = exporterBuilder.exporterName;
         this.configPath = exporterBuilder.exporterConfigPath.endsWith("/") ? exporterBuilder.exporterConfigPath : exporterBuilder.exporterConfigPath + "/";
@@ -97,6 +148,11 @@ public abstract class Exporter {
         }
     }
 
+    /**
+     * Returns the logical name of this exporter.
+     *
+     * @return the exporter name supplied at construction time
+     */
     public String getExporterName() {
         return exporterName;
     }
@@ -112,10 +168,20 @@ public abstract class Exporter {
         this.disabled.set(true);
     }
 
+    /**
+     * Returns {@code true} if the exporter has been disabled via {@link #disable()}.
+     *
+     * @return {@code true} when disabled, {@code false} when still active
+     */
     public boolean isDisabled(){
         return disabled.get();
     }
 
+    /**
+     * Returns {@code true} if the exporter has not yet been disabled.
+     *
+     * @return {@code true} when active, {@code false} when disabled
+     */
     public boolean isEnabled(){
         return !disabled.get();
     }
@@ -156,6 +222,12 @@ public abstract class Exporter {
         return properties;
     }
 
+    /**
+     * Returns the configuration value associated with {@code key}, or {@code null} if absent.
+     *
+     * @param key the configuration property key
+     * @return the property value, or {@code null} if not set
+     */
     public String getProperty(String key){
         return exporterConfigs.getProperty(key);
     }
@@ -314,6 +386,11 @@ public abstract class Exporter {
     }
 
 
+    /**
+     * Returns the collect options that govern which protocols and metrics this exporter gathers.
+     *
+     * @return the configured {@link ExporterCollectOptions}
+     */
     public ExporterCollectOptions getExporterCollectOptions(){
         return this.exporterCollectOptions;
     }

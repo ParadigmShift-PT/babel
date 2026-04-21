@@ -26,6 +26,15 @@ public class SimpleFormatter implements NodeSampleFormatter, IdentifiedNodeSampl
         return NAME;
     }
 
+    /**
+     * Formats a single node's sample as a plain-text string, prefixed with the node identifier.
+     * Produces lines of the form {@code NODE=<host> <timestamp> <protocol> <metric> <value> [unit]},
+     * or {@code GLOBAL <timestamp> <protocol> <metric> <value>} for the global host.
+     *
+     * @param host   the node identifier string
+     * @param sample the metrics snapshot collected from that node
+     * @return a plain-text formatted string for the node's sample
+     */
     @Override
     public String format(String host, NodeSample sample){
         StringBuilder sbhost = new StringBuilder();
@@ -47,6 +56,13 @@ public class SimpleFormatter implements NodeSampleFormatter, IdentifiedNodeSampl
         return sb.toString();
     }
 
+    /**
+     * Formats all per-node samples in a single plain-text string by concatenating
+     * the output of {@link #format(String, NodeSample)} for each entry.
+     *
+     * @param samples a map from node identifier to its collected {@link NodeSample}
+     * @return a plain-text formatted string for all node samples
+     */
     @Override
     public String format(Map<String, NodeSample> samples) {
         StringBuilder sb = new StringBuilder();
@@ -59,6 +75,13 @@ public class SimpleFormatter implements NodeSampleFormatter, IdentifiedNodeSampl
     }
 
 
+    /**
+     * Formats a {@link NodeSample} as a plain-text string without a host prefix.
+     *
+     * @param sample the node sample to format
+     * @return a plain-text formatted string for the sample
+     * @throws NoSuchProtocolRegistry if a referenced protocol registry cannot be found
+     */
     @Override
     public String format(NodeSample sample) throws NoSuchProtocolRegistry {
         StringBuilder sb = new StringBuilder();

@@ -3,6 +3,11 @@ package pt.unl.fct.di.novasys.babel.metrics;
 import pt.unl.fct.di.novasys.babel.metrics.exceptions.LabeledMetricException;
 import java.util.Arrays;
 
+/**
+ * A histogram metric that distributes observed values into configurable buckets and
+ * tracks the cumulative count and sum of all observations.
+ * An implicit {@code +Inf} bucket is always appended to the provided bucket bounds.
+ */
 public class Histogram extends Metric<Histogram> {
     private final Object lock = new Object();
 
@@ -71,15 +76,32 @@ public class Histogram extends Metric<Histogram> {
         }
     }
 
+    /** Builder for {@link Histogram} metrics. */
     public static class Builder extends MetricBuilder<Builder> {
 
         double[] buckets;
 
+        /**
+         * Creates a histogram builder with the given name, unit, bucket upper bounds, and optional label names.
+         *
+         * @param name       the metric name
+         * @param unit       the measurement unit
+         * @param buckets    array of upper-bound values for each bucket (a {@code +Inf} bucket is appended automatically)
+         * @param labelNames optional dimension label names for a labeled histogram
+         */
         public Builder(String name, Unit unit, double[] buckets, String... labelNames) {
             super(name, unit, MetricType.HISTOGRAM, labelNames);
             this.buckets = buckets;
         }
 
+        /**
+         * Creates a histogram builder with the given name, unit string, bucket upper bounds, and optional label names.
+         *
+         * @param name       the metric name
+         * @param unit       the measurement unit as a string
+         * @param buckets    array of upper-bound values for each bucket
+         * @param labelNames optional dimension label names for a labeled histogram
+         */
         public Builder(String name, String unit, double[] buckets, String... labelNames) {
             super(name, Unit.of(unit), MetricType.HISTOGRAM, labelNames);
             this.buckets = buckets;
@@ -90,6 +112,11 @@ public class Histogram extends Metric<Histogram> {
             return this;
         }
 
+        /**
+         * Builds and returns a new {@link Histogram} instance.
+         *
+         * @return a new {@link Histogram}
+         */
         @Override
         public Histogram build() {
             return new Histogram(this);

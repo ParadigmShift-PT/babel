@@ -11,6 +11,11 @@ import org.apache.logging.log4j.Logger;
 import io.netty.buffer.ByteBuf;
 import pt.unl.fct.di.novasys.network.ISerializer;
 
+/**
+ * Immutable container pairing cipher-text bytes with the {@link AlgorithmParameters}
+ * (e.g. IV or GCM tag length) needed to initialise a matching decryption cipher.
+ * A static {@link #serializer} handles Netty {@link ByteBuf} encoding and decoding.
+ */
 public record CipherData(byte[] encryptedData, AlgorithmParameters parameters) {
 
     private static final Logger logger = LogManager.getLogger(CipherData.class);

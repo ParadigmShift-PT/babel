@@ -20,6 +20,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
+/**
+ * A shared, singleton bi-directional TCP channel that multiplexes connections for multiple
+ * Babel protocols over a single server socket. Each protocol registers itself via
+ * {@link #getInstance} and receives its own {@link ProtoConnections} instance that tracks
+ * inbound and outbound connections independently.
+ */
 public class MultiChannel extends SingleThreadedBiChannel<BabelMessage, BabelMessage> implements AttributeValidator {
 
     private static final Logger logger = LogManager.getLogger(MultiChannel.class);
@@ -38,6 +44,18 @@ public class MultiChannel extends SingleThreadedBiChannel<BabelMessage, BabelMes
 
     private static MultiChannel multiChannelInstance = null;
 
+    /**
+     * Returns the singleton {@code MultiChannel}, creating it on the first call and registering
+     * subsequent protocols as additional listeners. Each {@code protoId} may only be registered once.
+     *
+     * @param serializer the Babel message serializer shared by all protocols on this channel
+     * @param list       the {@link ChannelListener} that receives events for {@code protoId}
+     * @param protoId    the numeric Babel protocol ID to register
+     * @param properties channel configuration; must contain {@code address} and may contain
+     *                   {@code port} (default 12727) and {@code nThreads}
+     * @return the shared {@code MultiChannel} instance
+     * @throws IOException if the server socket cannot be bound on the first call
+     */
     public static MultiChannel getInstance(ISerializer<BabelMessage> serializer,
                                            ChannelListener<BabelMessage> list,
                                            short protoId,
@@ -176,6 +194,13 @@ public class MultiChannel extends SingleThreadedBiChannel<BabelMessage, BabelMes
         throw new NotImplementedException("Pls fix me");
     }
 
+    /**
+     * Validates that the connecting peer's attributes carry the expected TCP magic number,
+     * ensuring that only compatible {@code MultiChannel} peers are accepted.
+     *
+     * @param attributes the attribute set advertised by the connecting peer
+     * @return {@code true} if the magic number matches {@code 0x2727}, {@code false} otherwise
+     */
     @Override
     public boolean validateAttributes(Attributes attributes) {
         Short channel = attributes.getShort(CHANNEL_MAGIC_ATTRIBUTE);

@@ -8,6 +8,13 @@ import pt.unl.fct.di.novasys.babel.core.protocols.discovery.requests.RequestDisc
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.babel.internal.InternalEvent;
 
+/**
+ * Abstract base class for Babel discovery protocols.
+ *
+ * <p>Subclasses implement the transport-specific announcement mechanism (broadcast, multicast, etc.)
+ * and are responsible for delivering contact addresses to {@link pt.unl.fct.di.novasys.babel.core.DiscoverableProtocol}
+ * instances that need them before they can start.
+ */
 public abstract class DiscoveryProtocol extends GenericProtocol {
 
 	static {
@@ -18,6 +25,13 @@ public abstract class DiscoveryProtocol extends GenericProtocol {
 	public static final String PAR_DISCOVERY_UNICAST_ADDRESS = "babel.discovery.unicast.address";
 	public static final String PAR_DISCOVERY_UNICAST_PORT = "babel.discovery.unicast.port";
 
+	/**
+	 * Creates a DiscoveryProtocol with the default (unbounded) event queue and registers
+	 * the {@link RequestDiscovery} handler.
+	 *
+	 * @param protoName the human-readable protocol name
+	 * @param protoId   the unique short protocol identifier
+	 */
 	public DiscoveryProtocol(String protoName, short protoId) {
 		super(protoName, protoId);
 		try {
@@ -27,6 +41,14 @@ public abstract class DiscoveryProtocol extends GenericProtocol {
 		}
 	}
 
+	/**
+	 * Creates a DiscoveryProtocol with a custom event-queue policy and registers
+	 * the {@link RequestDiscovery} handler.
+	 *
+	 * @param protoName the human-readable protocol name
+	 * @param protoId   the unique short protocol identifier
+	 * @param policy    the blocking queue used as the protocol's event queue
+	 */
 	public DiscoveryProtocol(String protoName, short protoId, BlockingQueue<InternalEvent> policy) {
 		super(protoName, protoId, policy);
 		try {

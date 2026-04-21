@@ -93,7 +93,7 @@ public abstract class GenericProtocol {
     private final short protoId;
 
     private boolean protocolThreadedStarted;
-    
+
     private int defaultChannel;
 
     // TODO if some other protocol removes this identity/secret, this variable
@@ -108,7 +108,10 @@ public abstract class GenericProtocol {
     private final Map<Short, ReplyHandler<? extends ProtoReply>> replyHandlers;
     private final Map<Short, NotificationHandler<? extends ProtoNotification>> notificationHandlers;
 
+    /** Shared singleton reference to the Babel runtime used by all protocol instances. */
     public static final Babel babel = Babel.getInstance();
+
+    /** Shared singleton reference to the Babel security subsystem used by all protocol instances. */
     public static final BabelSecurity babelSecurity = BabelSecurity.getInstance();
 
     private final ProtocolMetricsBabelMetrics metrics_babel;
@@ -132,7 +135,7 @@ public abstract class GenericProtocol {
         this.queue = policy;
         this.protoId = protoId;
         this.protoName = protoName;
-        
+
         this.protocolThreadedStarted = false;
 
         //TODO change to event loop (simplifies the deliver->poll->handle process)
@@ -160,7 +163,7 @@ public abstract class GenericProtocol {
     public final boolean hasProtocolThreadStarted() {
     	return this.protocolThreadedStarted;
     }
-    
+
     /**
      * Create a generic protocol with the provided name and numeric identifier
      * and network service
@@ -198,7 +201,7 @@ public abstract class GenericProtocol {
     public final void startEventThread() {
     	if(this.protocolThreadedStarted)
     		return;
-    	
+
         try {
             this.executionThread.start();
             this.protocolThreadedStarted = true;
@@ -209,11 +212,16 @@ public abstract class GenericProtocol {
 
     /**
      * Initializes the protocol with the given properties
-     * 
+     *
      * @param props properties
      */
     public abstract void init(Properties props) throws HandlerRegistrationException, IOException;
 
+    /**
+     * Returns the number of milliseconds elapsed since the Babel runtime was started.
+     *
+     * @return milliseconds since Babel started
+     */
     protected long getMillisSinceBabelStart(){
         return babel.getMillisSinceStart();
     }
@@ -645,6 +653,13 @@ public abstract class GenericProtocol {
 
     /* ------------------------- NETWORK/CHANNELS ---------------------- */
 
+    /**
+     * Returns the handler set for the given channel, throwing if the channel has not been registered with this protocol.
+     *
+     * @param channelId the channel to look up
+     * @return the {@link ChannelHandlers} associated with the channel
+     * @throws AssertionError if the channel does not exist
+     */
     protected final ChannelHandlers getChannelOrThrow(int channelId) {
         ChannelHandlers handlers = channels.get(channelId);
         if (handlers == null)
@@ -807,6 +822,12 @@ public abstract class GenericProtocol {
         return channelId;
     }
 
+    /**
+     * Registers an already-created channel with this protocol, making it eligible to receive events from that channel.
+     * Sets the channel as the default if no default has been assigned yet.
+     *
+     * @param channelId the id of the channel to register
+     */
     protected final void registerSharedChannel(int channelId) {
         babel.registerChannelInterest(channelId, this.protoId, this);
         channels.put(channelId, new ChannelHandlers());
@@ -828,7 +849,7 @@ public abstract class GenericProtocol {
     /**
      * Returns the default channel for the {@link #sendMessage(ProtoMessage, Host)}, {@link #openConnection(Host)}
      * and {@link #closeConnection(Host)} methods.
-     * 
+     *
      * @return channel id
      */
     protected final int getDefaultChannel() {
@@ -1241,10 +1262,23 @@ public abstract class GenericProtocol {
 
     /* -------------------------- IDENTITY MANAGEMENT ----------------------- */
 
+    /**
+     * Generates a new asymmetric identity for this protocol using the protocol name as an alias prefix,
+     * persisting it to disk, and sets it as the default identity if none has been set yet.
+     *
+     * @return the cryptographic helper for the newly generated identity
+     */
     protected final IdentityCrypt generateIdentity() {
         return generateIdentity(true);
     }
 
+    /**
+     * Generates a new asymmetric identity for this protocol using the protocol name as an alias prefix,
+     * optionally persisting it to disk, and sets it as the default identity if none has been set yet.
+     *
+     * @param persistOnDisk whether to persist the generated key material to disk
+     * @return the cryptographic helper for the newly generated identity
+     */
     protected final IdentityCrypt generateIdentity(boolean persistOnDisk) {
         var idCrypt = babelSecurity.generateIdentityWithAliasPrefix(persistOnDisk, protoName);
         if (defaultIdentity == null) {
@@ -1254,10 +1288,25 @@ public abstract class GenericProtocol {
         return idCrypt;
     }
 
+    /**
+     * Generates a new asymmetric identity for this protocol under the given alias,
+     * persisting it to disk, and sets it as the default identity if none has been set yet.
+     *
+     * @param alias the keystore alias to assign to the generated identity
+     * @return the cryptographic helper for the newly generated identity
+     */
     protected final IdentityCrypt generateIdentity(String alias) {
         return generateIdentity(true, alias);
     }
 
+    /**
+     * Generates a new asymmetric identity for this protocol under the given alias,
+     * optionally persisting it to disk, and sets it as the default identity if none has been set yet.
+     *
+     * @param persistOnDisk whether to persist the generated key material to disk
+     * @param alias         the keystore alias to assign to the generated identity
+     * @return the cryptographic helper for the newly generated identity
+     */
     protected final IdentityCrypt generateIdentity(boolean persistOnDisk, String alias) {
         var idCrypt = babelSecurity.generateIdentity(persistOnDisk, alias);
         if (defaultIdentity == null && idCrypt != null) {
@@ -1267,10 +1316,27 @@ public abstract class GenericProtocol {
         return idCrypt;
     }
 
+    /**
+     * Generates a new asymmetric identity from the given key pair using the protocol name as an alias prefix,
+     * persisting it to disk, and sets it as the default identity if none has been set yet.
+     *
+     * @param keyPair the key pair to import as the new identity
+     * @return the cryptographic helper for the generated identity
+     * @throws NoSuchAlgorithmException if the key pair algorithm is not supported
+     */
     protected final IdentityCrypt generateIdentity(KeyPair keyPair) throws NoSuchAlgorithmException {
         return generateIdentity(true, keyPair);
     }
 
+    /**
+     * Generates a new asymmetric identity from the given key pair using the protocol name as an alias prefix,
+     * optionally persisting it to disk, and sets it as the default identity if none has been set yet.
+     *
+     * @param persistOnDisk whether to persist the generated key material to disk
+     * @param keyPair       the key pair to import as the new identity
+     * @return the cryptographic helper for the generated identity
+     * @throws NoSuchAlgorithmException if the key pair algorithm is not supported
+     */
     protected final IdentityCrypt generateIdentity(boolean persistOnDisk, KeyPair keyPair) throws NoSuchAlgorithmException {
         var idCrypt = babelSecurity.generateIdentityWithAliasPrefix(persistOnDisk, protoName, keyPair);
         if (defaultIdentity == null && idCrypt != null) {
@@ -1280,6 +1346,16 @@ public abstract class GenericProtocol {
         return idCrypt;
     }
 
+    /**
+     * Generates a new asymmetric identity from the given key pair under the given alias,
+     * optionally persisting it to disk, and sets it as the default identity if none has been set yet.
+     *
+     * @param persistOnDisk whether to persist the generated key material to disk
+     * @param alias         the keystore alias to assign to the generated identity
+     * @param keyPair       the key pair to import as the new identity
+     * @return the cryptographic helper for the generated identity
+     * @throws NoSuchAlgorithmException if the key pair algorithm is not supported
+     */
     protected final IdentityCrypt generateIdentity(boolean persistOnDisk, String alias, KeyPair keyPair) throws NoSuchAlgorithmException {
         var idCrypt = babelSecurity.generateIdentity(persistOnDisk, alias, keyPair);
         if (defaultIdentity == null) {
@@ -1289,6 +1365,13 @@ public abstract class GenericProtocol {
         return idCrypt;
     }
 
+    /**
+     * Sets the protocol's default identity to the existing identity stored under the given alias.
+     *
+     * @param alias the keystore alias of the identity to set as default
+     * @return the identity pair for the resolved identity
+     * @throws NoSuchElementException if no identity with the given alias exists
+     */
     protected final IdentityPair setDefaultProtoIdentity(String alias) throws NoSuchElementException {
         var id = babelSecurity.getAliasIdentity(alias);
         if (id == null)
@@ -1300,6 +1383,13 @@ public abstract class GenericProtocol {
         return defaultIdentity;
     }
 
+    /**
+     * Sets the protocol's default identity to the existing identity identified by the given raw public key bytes.
+     *
+     * @param identity the raw public key bytes of the identity to set as default
+     * @return the identity pair for the resolved identity
+     * @throws NoSuchElementException if no identity matching the given bytes exists
+     */
     protected final IdentityPair setDefaultProtoIdentity(byte[] identity) throws NoSuchElementException {
         var alias = babelSecurity.getIdentityAlias(identity);
         if (alias == null)
@@ -1311,6 +1401,11 @@ public abstract class GenericProtocol {
         return defaultIdentity;
     }
 
+    /**
+     * Returns the protocol's default identity, generating and persisting a new one if none exists yet.
+     *
+     * @return the default identity pair for this protocol
+     */
     protected final IdentityPair getOrGenerateDefaultProtoIdentity() {
         try {
             return getDefaultProtoIdentity();
@@ -1322,6 +1417,15 @@ public abstract class GenericProtocol {
         }
     }
 
+    /**
+     * Returns the cryptographic helper for the protocol's default identity,
+     * loading it from the security store if necessary.
+     *
+     * @return the {@link IdentityCrypt} for the default identity
+     * @throws NoSuchAlgorithmException     if the identity's algorithm is not supported
+     * @throws UnrecoverableEntryException  if the keystore entry cannot be recovered
+     * @throws NoSuchElementException       if no default identity has been set or generated
+     */
     protected final IdentityCrypt getDefaultProtoIdentityCrypt()
             throws NoSuchAlgorithmException, UnrecoverableEntryException, NoSuchElementException {
         if (defaultIdentityCrypt == null)
@@ -1330,6 +1434,13 @@ public abstract class GenericProtocol {
         return defaultIdentityCrypt;
     }
 
+    /**
+     * Returns the protocol's default identity.
+     * If no default has been explicitly set, resolves the first identity whose alias starts with the protocol name.
+     *
+     * @return the default identity pair
+     * @throws NoSuchElementException if no identity with the protocol name prefix exists
+     */
     protected final IdentityPair getDefaultProtoIdentity() throws NoSuchElementException {
         if (defaultIdentity == null) {
             defaultIdentity = babelSecurity.getAllIdentitiesWithPrefix(protoName).stream()
@@ -1342,11 +1453,30 @@ public abstract class GenericProtocol {
 
     /* -------------------------- SECRET MANAGEMENT ----------------------- */
 
+    /**
+     * Derives a symmetric secret key from a password using the protocol name as an alias prefix,
+     * persisting it to disk, and sets it as the default secret if none has been set yet.
+     *
+     * @param password the password to derive the secret from
+     * @return the cryptographic helper for the derived secret
+     * @throws NoSuchAlgorithmException if the derivation algorithm is not supported
+     * @throws InvalidKeySpecException  if the password cannot be converted to a key
+     */
     protected final SecretCrypt generateSecretFromPassword(String password)
             throws NoSuchAlgorithmException, InvalidKeySpecException {
         return generateSecretFromPassword(true, password);
     }
 
+    /**
+     * Derives a symmetric secret key from a password using the protocol name as an alias prefix,
+     * optionally persisting it to disk, and sets it as the default secret if none has been set yet.
+     *
+     * @param persistOnDisk whether to persist the derived key material to disk
+     * @param password      the password to derive the secret from
+     * @return the cryptographic helper for the derived secret
+     * @throws NoSuchAlgorithmException if the derivation algorithm is not supported
+     * @throws InvalidKeySpecException  if the password cannot be converted to a key
+     */
     protected final SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String password)
             throws NoSuchAlgorithmException, InvalidKeySpecException {
         var secret = babelSecurity.generateSecretFromPasswordWithAliasPrefix(persistOnDisk, protoName, password);
@@ -1355,18 +1485,50 @@ public abstract class GenericProtocol {
         return secret;
     }
 
+    /**
+     * Derives a symmetric secret key from a password under the given alias,
+     * persisting it to disk, and sets it as the default secret if none has been set yet.
+     *
+     * @param password the password to derive the secret from
+     * @param alias    the keystore alias to assign to the derived secret
+     * @return the cryptographic helper for the derived secret
+     */
     protected final SecretCrypt generateSecretFromPassword(String password, String alias) {
         return generateSecretFromPassword(true, password, alias);
     }
 
+    /**
+     * Derives a symmetric secret key from a password under the given alias,
+     * optionally persisting it to disk, and sets it as the default secret if none has been set yet.
+     *
+     * @param persistOnDisk whether to persist the derived key material to disk
+     * @param password      the password to derive the secret from
+     * @param alias         the keystore alias to assign to the derived secret
+     * @return the cryptographic helper for the derived secret
+     */
     protected final SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String password, String alias) {
         return generateSecretFromPassword(persistOnDisk, password, alias);
     }
 
+    /**
+     * Generates a random symmetric secret key using the protocol name as an alias prefix,
+     * persisting it to disk, and sets it as the default secret if none has been set yet.
+     *
+     * @return the cryptographic helper for the generated secret
+     * @throws NoSuchAlgorithmException if the key generation algorithm is not supported
+     */
     protected final SecretCrypt generateSecret() throws NoSuchAlgorithmException {
         return generateSecret(true);
     }
 
+    /**
+     * Generates a random symmetric secret key using the protocol name as an alias prefix,
+     * optionally persisting it to disk, and sets it as the default secret if none has been set yet.
+     *
+     * @param persistOnDisk whether to persist the generated key material to disk
+     * @return the cryptographic helper for the generated secret
+     * @throws NoSuchAlgorithmException if the key generation algorithm is not supported
+     */
     protected final SecretCrypt generateSecret(boolean persistOnDisk) throws NoSuchAlgorithmException {
         var secret = babelSecurity.generateSecretWithAliasPrefix(persistOnDisk, protoName);
         if (defaultSecret == null)
@@ -1374,10 +1536,27 @@ public abstract class GenericProtocol {
         return secret;
     }
 
+    /**
+     * Generates a random symmetric secret key under the given alias,
+     * persisting it to disk, and sets it as the default secret if none has been set yet.
+     *
+     * @param alias the keystore alias to assign to the generated secret
+     * @return the cryptographic helper for the generated secret
+     * @throws NoSuchAlgorithmException if the key generation algorithm is not supported
+     */
     protected final SecretCrypt generateSecret(String alias) throws NoSuchAlgorithmException {
         return generateSecret(true);
     }
 
+    /**
+     * Generates a random symmetric secret key under the given alias,
+     * optionally persisting it to disk, and sets it as the default secret if none has been set yet.
+     *
+     * @param persistOnDisk whether to persist the generated key material to disk
+     * @param alias         the keystore alias to assign to the generated secret
+     * @return the cryptographic helper for the generated secret
+     * @throws NoSuchAlgorithmException if the key generation algorithm is not supported
+     */
     protected final SecretCrypt generateSecret(boolean persistOnDisk, String alias) throws NoSuchAlgorithmException {
         var secret = babelSecurity.generateSecret(persistOnDisk, alias);
         if (defaultSecret == null)
@@ -1385,10 +1564,27 @@ public abstract class GenericProtocol {
         return secret;
     }
 
+    /**
+     * Imports an existing {@link SecretKey} into the security store using the protocol name as an alias prefix,
+     * persisting it to disk, and sets it as the default secret if none has been set yet.
+     *
+     * @param secretKey the secret key to import
+     * @return the cryptographic helper wrapping the imported secret
+     * @throws NoSuchAlgorithmException if the key algorithm is not supported
+     */
     protected final SecretCrypt addSecret(SecretKey secretKey) throws NoSuchAlgorithmException {
         return addSecret(true, secretKey);
     }
 
+    /**
+     * Imports an existing {@link SecretKey} into the security store using the protocol name as an alias prefix,
+     * optionally persisting it to disk, and sets it as the default secret if none has been set yet.
+     *
+     * @param persistOnDisk whether to persist the key material to disk
+     * @param secretKey     the secret key to import
+     * @return the cryptographic helper wrapping the imported secret
+     * @throws NoSuchAlgorithmException if the key algorithm is not supported
+     */
     protected final SecretCrypt addSecret(boolean persistOnDisk, SecretKey secretKey) throws NoSuchAlgorithmException {
         var secret = babelSecurity.addSecretWithAliasPrefix(persistOnDisk, protoName, secretKey);
         if (defaultSecret == null)
@@ -1396,10 +1592,29 @@ public abstract class GenericProtocol {
         return secret;
     }
 
+    /**
+     * Imports an existing {@link SecretKey} into the security store under the given alias,
+     * persisting it to disk, and sets it as the default secret if none has been set yet.
+     *
+     * @param alias     the keystore alias to assign to the imported secret
+     * @param secretKey the secret key to import
+     * @return the cryptographic helper wrapping the imported secret
+     * @throws NoSuchAlgorithmException if the key algorithm is not supported
+     */
     protected final SecretCrypt addSecret(String alias, SecretKey secretKey) throws NoSuchAlgorithmException {
         return addSecret(true, alias, secretKey);
     }
 
+    /**
+     * Imports an existing {@link SecretKey} into the security store under the given alias,
+     * optionally persisting it to disk, and sets it as the default secret if none has been set yet.
+     *
+     * @param persistOnDisk whether to persist the key material to disk
+     * @param alias         the keystore alias to assign to the imported secret
+     * @param secretKey     the secret key to import
+     * @return the cryptographic helper wrapping the imported secret
+     * @throws NoSuchAlgorithmException if the key algorithm is not supported
+     */
     protected final SecretCrypt addSecret(boolean persistOnDisk, String alias, SecretKey secretKey)
             throws NoSuchAlgorithmException {
         var secret = babelSecurity.addSecret(persistOnDisk, alias, secretKey);
@@ -1408,6 +1623,13 @@ public abstract class GenericProtocol {
         return secret;
     }
 
+    /**
+     * Sets the protocol's default secret to the existing secret stored under the given alias.
+     *
+     * @param alias the keystore alias of the secret to set as default
+     * @return the {@link SecretCrypt} for the resolved secret
+     * @throws NoSuchElementException if no secret with the given alias exists or it cannot be recovered
+     */
     protected final SecretCrypt setDefaultProtoSecret(String alias) throws NoSuchElementException {
         try {
             var secret = babelSecurity.getSecretCrypt(alias);
@@ -1421,6 +1643,12 @@ public abstract class GenericProtocol {
         }
     }
 
+    /**
+     * Returns the protocol's default secret.
+     *
+     * @return the default {@link SecretCrypt} for this protocol
+     * @throws NoSuchElementException if no default secret has been set or generated
+     */
     protected final SecretCrypt getDefaultProtoSecret() throws NoSuchElementException {
         if (defaultSecret == null)
             throw new NoSuchElementException("Protocol %s has no default secret".formatted(protoName));
@@ -1446,7 +1674,7 @@ public abstract class GenericProtocol {
                 if (logger.isDebugEnabled()) {
                     logger.debug("Handling event: " + pe);
                 }
-                
+
                 if (pe instanceof MessageInEvent castPe) {
                     metrics_babel.messagesInCount.inc();
                     this.handleMessageIn(castPe);
@@ -1609,6 +1837,13 @@ public abstract class GenericProtocol {
 
         private final String protoName;
 
+        /**
+         * Creates all counters for the given protocol but does not register them with the metrics manager.
+         * Call {@link #registerMetrics()} to make them visible.
+         *
+         * @param protoId   the numeric identifier of the owning protocol
+         * @param protoName the name of the owning protocol
+         */
         public ProtocolMetricsBabelMetrics(short protoId, String protoName) {
             this.protoId = protoId;
             this.protoName = protoName;
@@ -1623,6 +1858,9 @@ public abstract class GenericProtocol {
             this.customChannelEventsCount = new Counter.Builder("babel_custom_channel_events_total", Metric.Unit.NONE).build();
         }
 
+        /**
+         * Resets all event counters to zero.
+         */
         public void reset() {
             totalEventsCount.reset();
             messagesFailedCount.reset();
@@ -1636,7 +1874,10 @@ public abstract class GenericProtocol {
         }
 
 
-        //Metrics are not registered by default
+        /**
+         * Registers all counters in this set with the {@link MetricsManager} so they are exported and tracked.
+         * Metrics are not registered by default; call this method to opt in.
+         */
         public void registerMetrics(){
             MetricsManager.getInstance().registerMetric(totalEventsCount, protoId, protoName);
             MetricsManager.getInstance().registerMetric(messagesInCount, protoId, protoName);

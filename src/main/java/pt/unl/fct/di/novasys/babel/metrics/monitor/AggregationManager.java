@@ -38,6 +38,9 @@ public class AggregationManager {
     private int nSamplesReceived;
 
 
+    /**
+     * Constructs a new, empty {@code AggregationManager} with no samples or aggregations registered.
+     */
     public AggregationManager() {
         this.samples = new ConcurrentHashMap<>();
         this.aggregationsToPerform = new LinkedList<>();
@@ -76,6 +79,11 @@ public class AggregationManager {
         return metricsNotAggregated;
     }
 
+    /**
+     * Returns the set of metrics that are associated with at least one registered aggregation.
+     *
+     * @return set of {@link MetricIdentifier} instances belonging to a registered aggregation
+     */
     public Set<MetricIdentifier> getMetricsBelongingToAggregation() {
         return metricsBelongingToAggregation;
     }
@@ -92,6 +100,12 @@ public class AggregationManager {
         return metricSampleCounts.getOrDefault(mi, 0);
     }
 
+    /**
+     * Returns the number of host samples that have been added since the last call to
+     * {@link #performAggregations()} and will be included in the next aggregation run.
+     *
+     * @return count of samples received for the upcoming aggregation
+     */
     public int numberOfHostsIncludedNextAggregation() {
         return this.nSamplesReceived;
     }

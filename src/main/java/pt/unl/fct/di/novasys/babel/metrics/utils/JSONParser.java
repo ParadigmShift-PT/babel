@@ -6,16 +6,35 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
 
+/**
+ * Minimal hand-written JSON parser that converts a JSON string or file into a tree of
+ * {@link java.util.Map}, {@link java.util.List}, {@link String}, {@link Boolean}, {@link Double},
+ * and {@link Integer} values without any external dependency.
+ */
 public class JSONParser {
 
-
-
+    /**
+     * Parses a JSON string and returns the root value as a Java object.
+     * Objects become {@code Map<String, Object>}, arrays become {@code List<Object>}, strings become
+     * {@code String}, booleans become {@code Boolean}, and numbers become {@code Double} or {@code Integer}.
+     *
+     * @param json the JSON string to parse
+     * @return the parsed value
+     * @throws RuntimeException if the input is not valid JSON
+     */
     public static Object parseJson(String json) {
         Tokenizer tokenizer = new Tokenizer(json);
         tokenizer.skipInitialWhitespace();  // Skip leading whitespace
         return parseValue(tokenizer); // Parse the root element, which can be either an object or an array
     }
 
+    /**
+     * Reads a JSON file and parses its contents, trimming each line before parsing.
+     *
+     * @param filePath path to the JSON file
+     * @return the parsed value (same types as {@link #parseJson(String)})
+     * @throws RuntimeException if the file cannot be read or its contents are not valid JSON
+     */
     public static Object parseJsonFile(String filePath) {
         // Use BufferedReader to read the file content
         StringBuilder jsonBuilder = new StringBuilder();

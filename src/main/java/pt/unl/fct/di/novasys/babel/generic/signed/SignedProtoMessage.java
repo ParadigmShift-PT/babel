@@ -32,12 +32,31 @@ public abstract class SignedProtoMessage extends ProtoMessage {
 	protected byte[] serializedMessage;
 	protected byte[] signature;
 	
+	/**
+	 * Constructs a new signed protocol message with the given type identifier.
+	 * The {@code serializedMessage} and {@code signature} byte arrays are initially {@code null}
+	 * and are populated on the first call to {@link #signMessage} or after network deserialization.
+	 *
+	 * @param id the numeric identifier that distinguishes this message type within its protocol
+	 */
 	public SignedProtoMessage(short id) {
 		super(id);
 		this.serializedMessage = null;
 		this.signature = null;
 	}
-	
+
+	/**
+	 * Signs this message using SHA256withRSA and the supplied private key, storing the resulting
+	 * signature in {@link #signature}. If the wire-format bytes ({@link #serializedMessage}) have
+	 * not yet been computed, they are generated via {@link SignedMessageSerializer#serializeBody}
+	 * before signing.
+	 *
+	 * @param key the RSA private key used to produce the signature
+	 * @throws NoSuchAlgorithmException   if SHA256withRSA is not available in the JVM
+	 * @throws InvalidKeyException        if {@code key} is not a valid RSA private key
+	 * @throws SignatureException         if the signing operation fails
+	 * @throws InvalidSerializerException if {@link #getSerializer()} returns {@code null}
+	 */
 	public final void signMessage(PrivateKey key) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException, InvalidSerializerException {
 		if(this.serializedMessage == null) {
 			SignedMessageSerializer<SignedProtoMessage> serializer = (SignedMessageSerializer<SignedProtoMessage>) this.getSerializer();
@@ -62,6 +81,20 @@ public abstract class SignedProtoMessage extends ProtoMessage {
 		this.signature = sig.sign();
 	}
 	
+	/**
+	 * Verifies the SHA256withRSA signature of this message against the supplied public key.
+	 * Both the wire-format bytes and a non-empty signature must already be present (i.e. the
+	 * message must have been received from the network and deserialized by a
+	 * {@link SignedMessageSerializer}).
+	 *
+	 * @param key the RSA public key corresponding to the signer's private key
+	 * @return {@code true} if the signature is valid, {@code false} otherwise
+	 * @throws InvalidFormatException      if the wire-format bytes are absent
+	 * @throws NoSignaturePresentException if no signature bytes are present
+	 * @throws NoSuchAlgorithmException    if SHA256withRSA is not available in the JVM
+	 * @throws InvalidKeyException         if {@code key} is not a valid RSA public key
+	 * @throws SignatureException          if the verification operation fails
+	 */
 	public final boolean checkSignature(PublicKey key) throws InvalidFormatException, NoSignaturePresentException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
 		if(this.serializedMessage == null || this.serializedMessage.length == 0)
 			throw new InvalidFormatException("Message serialization format is not present. Was this message received from the network?");
@@ -77,6 +110,13 @@ public abstract class SignedProtoMessage extends ProtoMessage {
 		return valid;
 	}
 	
+	/**
+	 * Returns the {@link SignedMessageSerializer} responsible for serializing and deserializing
+	 * this message type. Implementations must not return {@code null}; doing so causes
+	 * {@link #signMessage} to throw {@link InvalidSerializerException}.
+	 *
+	 * @return the serializer for this concrete message type
+	 */
 	public abstract SignedMessageSerializer<? extends SignedProtoMessage> getSerializer();
 
 }

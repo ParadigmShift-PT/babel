@@ -50,22 +50,47 @@ public class MessageFailedEvent extends InternalEvent {
                 '}';
     }
 
+    /**
+     * Returns the remote host to which delivery was attempted.
+     *
+     * @return destination host
+     */
     public final Host getTo() {
         return to;
     }
 
+    /**
+     * Returns the cryptographic peer identity of the intended recipient, if known.
+     *
+     * @return an {@code Optional} containing the recipient's raw ID bytes, or empty if not set
+     */
     public final Optional<byte[]> getToId() {
         return this.toId;
     }
 
+    /**
+     * Returns the ID of the channel on which the send failed.
+     *
+     * @return channel ID
+     */
     public int getChannelId() {
         return channelId;
     }
 
+    /**
+     * Returns the exception or error that caused the message delivery to fail.
+     *
+     * @return the failure cause
+     */
     public Throwable getCause() {
         return cause;
     }
 
+    /**
+     * Returns the message that failed to be delivered.
+     *
+     * @return the failed {@link BabelMessage}
+     */
     public BabelMessage getMsg() {
         return msg;
     }

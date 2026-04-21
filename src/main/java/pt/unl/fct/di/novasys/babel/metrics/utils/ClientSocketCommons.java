@@ -4,20 +4,41 @@ import java.io.IOException;
 import java.net.Socket;
 import java.util.Properties;
 
+/**
+ * Shared utilities for socket-based metric exporters: parsing host/port from properties
+ * and establishing TCP connections with basic error handling.
+ */
 public  class ClientSocketCommons {
     public static final String HOST = "HOST";
     public static final String PORT = "PORT";
 
+    /**
+     * Thrown when the {@code HOST} or {@code PORT} property is missing, empty, or not a valid port number.
+     */
     public static class IncorrectHostPortException extends Exception {
+        /**
+         * Constructs an {@code IncorrectHostPortException} with the given detail message.
+         *
+         * @param message the detail message
+         */
         public IncorrectHostPortException(String message) {
             super(message);
         }
     }
 
+    /**
+     * Simple holder for a resolved hostname and port number.
+     */
     public static class HostPort {
         public String host;
         public int port;
 
+        /**
+         * Constructs a {@code HostPort} with the given host string and port number.
+         *
+         * @param host the hostname or IP address
+         * @param port the port number
+         */
         public HostPort(String host, int port) {
             this.host = host;
             this.port = port;
@@ -61,6 +82,14 @@ public  class ClientSocketCommons {
     }
 
 
+    /**
+     * Opens a TCP socket connection to the given host and port, printing an error message to stderr
+     * if the initial connection attempt fails (does not retry).
+     *
+     * @param ip   the hostname or IP address to connect to
+     * @param port the port number
+     * @return the connected {@link Socket}, or {@code null} if the connection failed
+     */
     public static Socket connect(String ip, int port){
         Socket socket = null;
         try {

@@ -13,6 +13,11 @@ import java.util.Properties;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
+/**
+ * An {@link InstantExporter} that immediately forwards each {@link MetricSample} to a remote
+ * host over a TCP socket, serialising it with a configurable {@link MetricSampleFormatter}
+ * (default: JSON) and appending a configurable terminator string.
+ */
 public class InstantClientSocketExporter implements InstantExporter {
     public static final String HOST = "HOST";
     public static final String PORT = "PORT";
@@ -44,26 +49,47 @@ public class InstantClientSocketExporter implements InstantExporter {
 
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public String getExporterName() {
         return exporterName;
     }
 
 
+    /**
+     * Returns the default properties for this exporter, setting the message terminator to {@code \n}.
+     *
+     * @return a {@link Properties} object containing default values
+     */
     protected Properties loadDefaults() {
        Properties defaults = new Properties();
        defaults.setProperty(TERMINATOR, "\n");
        return defaults;
     }
 
+    /**
+     * Replaces the formatter used to serialise metric samples before writing to the socket.
+     *
+     * @param formatter the new formatter to use
+     */
     public void setFormatter(MetricSampleFormatter formatter){
         this.formatter = formatter;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void addMetricSample(MetricSample ms) {
         toExport.add(ms);
     }
 
+    /**
+     * Connects to the configured remote host and continuously drains the internal queue,
+     * writing each serialised sample to the socket followed by the configured terminator.
+     * Reconnects automatically on I/O errors.
+     */
     public void run() {
         ClientSocketCommons.HostPort hostPort;
         try {

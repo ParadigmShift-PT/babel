@@ -86,6 +86,14 @@ public class OSMetrics {
     }
 
 
+    /**
+     * Creates and returns an {@link OSMetric} implementation for the given metric type,
+     * backed by the provided {@code OSMetrics} instance for data collection.
+     *
+     * @param mt  the type of OS metric to create
+     * @param osm the {@code OSMetrics} instance used to read raw system values
+     * @return an {@link OSMetric} that collects the requested measurement, or {@code null} if the type is unrecognised
+     */
     public OSMetric getOSMetric(MetricType mt, OSMetrics osm) {
         Metric.Unit unit = units.get(mt);
         String name = names.get(mt);
@@ -344,6 +352,13 @@ public class OSMetrics {
     private CPUUsageRecord last_system_cpu_usage = new CPUUsageRecord();
 
 
+    /**
+     * Constructs an {@code OSMetrics} instance, verifying that the {@code /proc} filesystem is available
+     * and resolving the current process PID via {@code /proc/self}.
+     *
+     * @throws NoProcfsException       if the {@code /proc} filesystem is not accessible
+     * @throws OSMetricsConfigException if the internal metric type/unit/name maps are out of sync
+     */
     public OSMetrics() throws NoProcfsException, OSMetricsConfigException {
         this.n_cpus = getNumCPUs();
 
@@ -369,6 +384,13 @@ public class OSMetrics {
     }
 
 
+    /**
+     * Expands an array of {@link MetricCategory} values into the full set of individual
+     * {@link MetricType} entries that belong to those categories.
+     *
+     * @param categoriesToCollect the categories whose constituent metric types should be included
+     * @return a set of {@link MetricType} values covering all requested categories
+     */
     public Set<MetricType> getMetricsFromCategories(MetricCategory[] categoriesToCollect) {
         Set<MetricType> metricsToCollect = new HashSet<>();
         for (MetricCategory category : categoriesToCollect) {
@@ -467,10 +489,20 @@ public class OSMetrics {
         }
     }
 
+    /**
+     * Holds a pair of memory values — total available memory and currently free (available) memory —
+     * both expressed in kilobytes as returned by {@code /proc/meminfo} or the JVM runtime.
+     */
     public static class MemInfo {
         public long memTotal;
         public long memAvailable;
 
+        /**
+         * Constructs a {@code MemInfo} with the given total and available memory values.
+         *
+         * @param memTotal     total memory in kilobytes
+         * @param memAvailable available (free) memory in kilobytes
+         */
         public MemInfo(long memTotal, long memAvailable) {
             this.memTotal = memTotal;
             this.memAvailable = memAvailable;
@@ -492,6 +524,12 @@ public class OSMetrics {
         return (int) ((memInfo.memTotal - memInfo.memAvailable) * 100 / memInfo.memTotal);
     }
 
+    /**
+     * Reads the total and available system memory from {@code /proc/meminfo}.
+     *
+     * @return a {@link MemInfo} with the total and available memory in kilobytes,
+     *         or a {@code MemInfo(-1, -1)} if reading fails
+     */
     public MemInfo getSystemMemoryAbsolute() {
         BufferedReader reader;
         try {
@@ -761,6 +799,13 @@ public class OSMetrics {
         }
     }
 
+    /**
+     * Returns the cumulative number of bytes read from disk by the system.
+     * Reads sector counts from {@code /proc/diskstats} for {@code nvme0n1} or {@code sda}
+     * and multiplies by the block size ({@value #BLKSIZE} bytes).
+     *
+     * @return number of bytes read from disk, or -1 if a failure occurred
+     */
     public long getSystemDiskReadBytes() {
         BufferedReader reader;
         try {
@@ -844,6 +889,12 @@ public class OSMetrics {
     }
 
 
+    /**
+     * Returns the cumulative number of bytes received from the network by the system, per interface.
+     * Reads from {@code /proc/net/dev}; the loopback interface is excluded.
+     *
+     * @return map from interface name to received byte count, or {@code null} if a failure occurred
+     */
     public Map<String, Long> getSystemNetworkReadBytes() {
         BufferedReader reader;
         try {
@@ -870,6 +921,12 @@ public class OSMetrics {
         }
     }
 
+    /**
+     * Returns the cumulative number of packets received from the network by the system, per interface.
+     * Reads from {@code /proc/net/dev}; the loopback interface is excluded.
+     *
+     * @return map from interface name to received packet count, or {@code null} if a failure occurred
+     */
     public Map<String, Long> getSystemNetworkReadPackets() {
         BufferedReader reader;
         try {
@@ -897,6 +954,12 @@ public class OSMetrics {
     }
 
 
+    /**
+     * Returns the cumulative number of bytes written to disk by the current process.
+     * Reads the {@code write_bytes} field from {@code /proc/self/io}.
+     *
+     * @return number of bytes written, or -1 if a failure occurred
+     */
     public long getProcessDiskWriteBytes() {
         BufferedReader reader;
         try {
@@ -915,6 +978,12 @@ public class OSMetrics {
         }
     }
 
+    /**
+     * Returns the cumulative number of write system calls issued by the current process.
+     * Reads the {@code syscw} field from {@code /proc/self/io}.
+     *
+     * @return number of write syscalls, or -1 if a failure occurred
+     */
     public long getProcessDiskWriteNum() {
         BufferedReader reader;
         try {
@@ -933,6 +1002,12 @@ public class OSMetrics {
         }
     }
 
+    /**
+     * Returns the cumulative number of bytes read from disk by the current process.
+     * Reads the {@code read_bytes} field from {@code /proc/self/io}.
+     *
+     * @return number of bytes read, or -1 if a failure occurred
+     */
     public long getProcessDiskReadBytes() {
         BufferedReader reader;
         try {
@@ -951,6 +1026,12 @@ public class OSMetrics {
         }
     }
 
+    /**
+     * Returns the cumulative number of read system calls issued by the current process.
+     * Reads the {@code syscr} field from {@code /proc/self/io}.
+     *
+     * @return number of read syscalls, or -1 if a failure occurred
+     */
     public long getProcessDiskReadNum() {
         BufferedReader reader;
         try {
@@ -969,6 +1050,13 @@ public class OSMetrics {
         }
     }
 
+    /**
+     * Converts a {@link MemInfo} into a two-element array of labelled {@link Sample} values:
+     * one for {@code total} memory and one for {@code available} memory.
+     *
+     * @param memInfo the memory information to convert
+     * @return an array of two {@link Sample} objects labelled {@code total} and {@code available}
+     */
     public Sample[] getMemorySample(MemInfo memInfo) {
         Sample[] samples = new Sample[2];
         samples[0] = new Sample(memInfo.memTotal, MEMORY_LABEL_NAMES, new String[]{"total"});

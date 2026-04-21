@@ -71,6 +71,15 @@ import pt.unl.fct.di.novasys.babel.internal.security.X509CertificateChainPredica
 import pt.unl.fct.di.novasys.network.security.X509IKeyManager;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
+/**
+ * Singleton security façade for Babel providing key management, digital signatures,
+ * symmetric encryption, and trust management.
+ * <p>
+ * Manages three logical stores (key store, trust store, secret store), each available in a
+ * persistent (disk-backed) and an ephemeral (in-memory) variant. Configuration is loaded
+ * via {@link #loadConfig(java.util.Properties)} before any store is first accessed.
+ * All cryptographic operations delegate to the BouncyCastle provider.
+ */
 // TODO documentation (also document properties)
 public class BabelSecurity {
 
@@ -80,6 +89,11 @@ public class BabelSecurity {
 
     private static BabelSecurity instance;
 
+    /**
+     * Returns the singleton instance of {@code BabelSecurity}, creating it on first call.
+     *
+     * @return the shared {@code BabelSecurity} instance
+     */
     public static synchronized BabelSecurity getInstance() {
         if (instance == null)
             instance = new BabelSecurity();
@@ -270,6 +284,12 @@ public class BabelSecurity {
 
     /* -------------- Lazy key store loaders -------------- */
 
+    /**
+     * Returns the persistent key store, loading or creating it from disk on first access.
+     * Generates a default identity entry when the loaded store is empty.
+     *
+     * @return the persistent {@link KeyStore} holding private key entries
+     */
     public synchronized KeyStore getKeyStore() {
         if (keyStore == null) {
             try {
@@ -290,6 +310,12 @@ public class BabelSecurity {
         return keyStore;
     }
 
+    /**
+     * Returns the in-memory ephemeral key store, creating it with an auto-generated identity on first access.
+     * Entries in this store are never persisted to disk.
+     *
+     * @return the ephemeral {@link KeyStore} holding transient private key entries
+     */
     public synchronized KeyStore getEphemeralKeyStore() {
         if (ephKeyStore == null) {
             try {
@@ -305,6 +331,12 @@ public class BabelSecurity {
         return ephKeyStore;
     }
 
+    /**
+     * Returns the {@link X509IKeyManager} backed by both the persistent and ephemeral key stores.
+     * The key manager is created lazily on first access.
+     *
+     * @return the {@link X509IKeyManager} for TLS/mTLS handshakes
+     */
     public synchronized X509IKeyManager getKeyManager() {
         if (keyManager == null) {
             try {
@@ -318,6 +350,11 @@ public class BabelSecurity {
         return keyManager;
     }
 
+    /**
+     * Returns the persistent trust store, loading or creating it from disk on first access.
+     *
+     * @return the persistent {@link KeyStore} holding trusted certificate entries
+     */
     public synchronized KeyStore getTrustStore() {
         if (trustStore == null) {
             try {
@@ -330,6 +367,12 @@ public class BabelSecurity {
         return trustStore;
     }
 
+    /**
+     * Returns the in-memory ephemeral trust store, creating it on first access.
+     * Trusted certificates added here are never persisted to disk.
+     *
+     * @return the ephemeral {@link KeyStore} holding transient trusted certificate entries
+     */
     public synchronized KeyStore getEphemeralTrustStore() {
         if (ephTrustStore == null) {
             try {
@@ -343,6 +386,13 @@ public class BabelSecurity {
         return ephTrustStore;
     }
 
+    /**
+     * Returns the {@link X509ITrustManager} configured with the current trust policy.
+     * Consults both persistent and ephemeral trust stores; discovered certs may be saved
+     * to the appropriate store depending on configuration.
+     *
+     * @return the {@link X509ITrustManager} used to validate peer certificates
+     */
     public synchronized X509ITrustManager getTrustManager() {
         if (trustManager == null) {
             try {
@@ -361,6 +411,11 @@ public class BabelSecurity {
         return trustManager;
     }
 
+    /**
+     * Returns the persistent secret store, loading or creating it from disk on first access.
+     *
+     * @return the persistent {@link KeyStore} holding symmetric secret key entries
+     */
     public synchronized KeyStore getSecretStore() {
         if (secretStore == null) {
             try {
@@ -373,6 +428,12 @@ public class BabelSecurity {
         return secretStore;
     }
 
+    /**
+     * Returns the in-memory ephemeral secret store, creating it on first access.
+     * Secret keys added here are never persisted to disk.
+     *
+     * @return the ephemeral {@link KeyStore} holding transient symmetric secret key entries
+     */
     public synchronized KeyStore getEphemeralSecretStore() {
         if (ephSecretStore == null) {
             try {
@@ -399,20 +460,42 @@ public class BabelSecurity {
 
     /* -------------- General utilities -------------- */
 
+    /**
+     * Generates a random initialisation vector (nonce) of the specified byte length.
+     *
+     * @param size the number of random bytes to generate
+     * @return a freshly generated IV byte array
+     */
     public byte[] generateIv(int size) {
         var iv = new byte[size];
         nonceRng.nextBytes(iv);
         return iv;
     }
 
+    /**
+     * Generates a random {@link IvParameterSpec} of the specified byte length.
+     *
+     * @param size the number of random bytes to use as the IV
+     * @return an {@link IvParameterSpec} wrapping the generated IV
+     */
     public IvParameterSpec generateIvParam(int size) {
         return new IvParameterSpec(generateIv(size));
     }
 
+    /**
+     * Returns the {@link SecureRandom} instance used for all key-generation operations.
+     *
+     * @return the shared cryptographically-strong random number generator
+     */
     public SecureRandom getSecureRandom() {
         return keyRng;
     }
 
+    /**
+     * Generates a new asymmetric key pair using the configured algorithm and key parameters.
+     *
+     * @return a freshly generated {@link KeyPair}
+     */
     public KeyPair generateKeyPair() {
         KeyPairGenerator keyPairGen;
         try {
@@ -453,12 +536,36 @@ public class BabelSecurity {
 
     /* ------- General cryptographic operations ------- */
 
+    /**
+     * Verifies a signature over one or more byte arrays using the supplied public key and the
+     * algorithm inferred from the key type.
+     *
+     * @param signature the signature bytes to verify
+     * @param publicKey the public key to verify against
+     * @param data      one or more byte arrays whose concatenation was signed
+     * @return {@code true} if the signature is valid
+     * @throws NoSuchAlgorithmException if no suitable signature algorithm is available
+     * @throws InvalidKeyException      if the public key is inappropriate
+     * @throws SignatureException       if the signature bytes are malformed
+     */
     public boolean verifySignature(byte[] signature, PublicKey publicKey, byte[]... data)
             throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
         Signature sig = initVerifySignature(publicKey, data);
         return sig.verify(signature);
     }
 
+    /**
+     * Verifies a signature over a {@link ByteBuffer} using the supplied public key and the
+     * algorithm inferred from the key type.
+     *
+     * @param signature the signature bytes to verify
+     * @param publicKey the public key to verify against
+     * @param data      the buffer containing the signed data
+     * @return {@code true} if the signature is valid
+     * @throws NoSuchAlgorithmException if no suitable signature algorithm is available
+     * @throws InvalidKeyException      if the public key is inappropriate
+     * @throws SignatureException       if the signature bytes are malformed
+     */
     public boolean verifySignature(byte[] signature, PublicKey publicKey, ByteBuffer data)
             throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
         Signature sig = initVerifySignature(publicKey, data);
@@ -500,12 +607,36 @@ public class BabelSecurity {
         return sig.verify(signature);
     }
 
+    /**
+     * Verifies a signature over one or more byte arrays using an explicit algorithm name and public key.
+     *
+     * @param algorithm the signature algorithm name (e.g. {@code "SHA256WithRSA"}, {@code "EdDSA"})
+     * @param signature the signature bytes to verify
+     * @param publicKey the public key to verify against
+     * @param data      one or more byte arrays whose concatenation was signed
+     * @return {@code true} if the signature is valid
+     * @throws NoSuchAlgorithmException if the requested algorithm is not available
+     * @throws InvalidKeyException      if the public key is inappropriate for the algorithm
+     * @throws SignatureException       if the signature bytes are malformed
+     */
     public boolean verifySignature(String algorithm, byte[] signature, PublicKey publicKey, byte[]... data)
             throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
         Signature sig = initVerifySignature(algorithm, publicKey, data);
         return sig.verify(signature);
     }
 
+    /**
+     * Verifies a signature over a {@link ByteBuffer} using an explicit algorithm name and public key.
+     *
+     * @param algorithm the signature algorithm name
+     * @param signature the signature bytes to verify
+     * @param publicKey the public key to verify against
+     * @param data      the buffer containing the signed data
+     * @return {@code true} if the signature is valid
+     * @throws NoSuchAlgorithmException if the requested algorithm is not available
+     * @throws InvalidKeyException      if the public key is inappropriate for the algorithm
+     * @throws SignatureException       if the signature bytes are malformed
+     */
     public boolean verifySignature(String algorithm, byte[] signature, PublicKey publicKey, ByteBuffer data)
             throws NoSuchAlgorithmException, InvalidKeyException, SignatureException {
         Signature sig = initVerifySignature(algorithm, publicKey, data);
@@ -570,11 +701,31 @@ public class BabelSecurity {
                 : initVerifySignature(cert.getPublicKey(), data);
     }
 
+    /**
+     * Creates a {@link Signature} object initialised for verification with the supplied public key
+     * and pre-fed with one or more data arrays; the algorithm is inferred from the key type.
+     *
+     * @param publicKey the public key to verify against
+     * @param data      one or more byte arrays to feed into the signature before returning it
+     * @return a {@link Signature} ready to call {@link Signature#verify(byte[])} on
+     * @throws NoSuchAlgorithmException if no suitable algorithm is available
+     * @throws InvalidKeyException      if the public key is inappropriate
+     */
     public Signature initVerifySignature(PublicKey publicKey, byte[]... data)
             throws NoSuchAlgorithmException, InvalidKeyException {
         return initVerifySignature(getSignatureAlgorithmFor(publicKey.getAlgorithm()), publicKey, data);
     }
 
+    /**
+     * Creates a {@link Signature} object initialised for verification with the supplied public key
+     * and pre-fed with {@code data}; the algorithm is inferred from the key type.
+     *
+     * @param publicKey the public key to verify against
+     * @param data      the buffer to feed into the signature before returning it
+     * @return a {@link Signature} ready to call {@link Signature#verify(byte[])} on
+     * @throws NoSuchAlgorithmException if no suitable algorithm is available
+     * @throws InvalidKeyException      if the public key is inappropriate
+     */
     public Signature initVerifySignature(PublicKey publicKey, ByteBuffer data)
             throws NoSuchAlgorithmException, InvalidKeyException {
         return initVerifySignature(getSignatureAlgorithmFor(publicKey.getAlgorithm()), publicKey, data);
@@ -606,6 +757,17 @@ public class BabelSecurity {
         return initVerifySignature(algorithm, cert.getPublicKey(), data);
     }
 
+    /**
+     * Creates a {@link Signature} object initialised for verification using an explicit algorithm,
+     * public key, and one or more pre-fed data arrays.
+     *
+     * @param algorithm the signature algorithm name
+     * @param publicKey the public key to verify against
+     * @param data      one or more byte arrays to feed into the signature before returning it
+     * @return a {@link Signature} ready to call {@link Signature#verify(byte[])} on
+     * @throws NoSuchAlgorithmException if the requested algorithm is not available
+     * @throws InvalidKeyException      if the public key is inappropriate for the algorithm
+     */
     public Signature initVerifySignature(String algorithm, PublicKey publicKey, byte[]... data)
             throws NoSuchAlgorithmException, InvalidKeyException {
         Signature sig;
@@ -624,6 +786,17 @@ public class BabelSecurity {
         return sig;
     }
 
+    /**
+     * Creates a {@link Signature} object initialised for verification using an explicit algorithm,
+     * public key, and a pre-fed {@link ByteBuffer}.
+     *
+     * @param algorithm the signature algorithm name
+     * @param publicKey the public key to verify against
+     * @param data      the buffer to feed into the signature before returning it
+     * @return a {@link Signature} ready to call {@link Signature#verify(byte[])} on
+     * @throws NoSuchAlgorithmException if the requested algorithm is not available
+     * @throws InvalidKeyException      if the public key is inappropriate for the algorithm
+     */
     public Signature initVerifySignature(String algorithm, PublicKey publicKey, ByteBuffer data)
             throws NoSuchAlgorithmException, InvalidKeyException {
         Signature sig;
@@ -645,6 +818,14 @@ public class BabelSecurity {
 
     // ------ Public methods
 
+    /**
+     * Removes the identity identified by its raw byte identifier from whichever key store holds it.
+     *
+     * @param identity the byte identifier of the identity to remove
+     * @return a pair of the deleted {@link PrivateKeyEntry} and the alias it was stored under,
+     *         or {@code null} if the alias does not map to a private key entry
+     * @throws UnrecoverableEntryException if the entry cannot be recovered during deletion
+     */
     public Pair<PrivateKeyEntry, String> deleteIdentity(byte[] identity) throws UnrecoverableEntryException {
         synchronized (idAliasMapper) {
             String alias = idAliasMapper.getAlias(identity);
@@ -656,6 +837,14 @@ public class BabelSecurity {
         }
     }
 
+    /**
+     * Removes the identity stored under the given alias from whichever key store holds it.
+     *
+     * @param alias the key-store alias of the identity to remove
+     * @return a pair of the deleted {@link PrivateKeyEntry} and the byte identity it represented,
+     *         or {@code null} if the alias does not map to a private key entry
+     * @throws UnrecoverableEntryException if the entry cannot be recovered during deletion
+     */
     public Pair<PrivateKeyEntry, byte[]> deleteIdentity(String alias) throws UnrecoverableEntryException {
         synchronized (idAliasMapper) {
             try {
@@ -684,6 +873,13 @@ public class BabelSecurity {
         }
     }
 
+    /**
+     * Generates a new random identity using the configured {@link IdentityGenerator} and stores it.
+     *
+     * @param persistOnDisk {@code true} to store the identity in the persistent key store;
+     *                      {@code false} to store it in the ephemeral key store
+     * @return an {@link IdentityCrypt} handle for the newly created identity
+     */
     public IdentityCrypt generateIdentity(boolean persistOnDisk) {
         try {
             return addIdentity(persistOnDisk, identityGenerator.generateRandomCredentials());
@@ -695,6 +891,13 @@ public class BabelSecurity {
         }
     }
 
+    /**
+     * Generates a new random identity and stores it under an alias prefixed with {@code aliasPrefix}.
+     *
+     * @param persistOnDisk {@code true} to store in the persistent key store; {@code false} for ephemeral
+     * @param aliasPrefix   the prefix prepended to the derived alias (format: {@code prefix.encodedId})
+     * @return an {@link IdentityCrypt} handle for the newly created identity
+     */
     public IdentityCrypt generateIdentityWithAliasPrefix(boolean persistOnDisk, String aliasPrefix) {
         try {
             return addIdentityWithAliasPrefix(persistOnDisk, aliasPrefix,
@@ -704,6 +907,13 @@ public class BabelSecurity {
         }
     }
 
+    /**
+     * Generates a new random identity and stores it under an explicit alias.
+     *
+     * @param persistOnDisk {@code true} to store in the persistent key store; {@code false} for ephemeral
+     * @param alias         the key-store alias to use for the new identity
+     * @return an {@link IdentityCrypt} handle for the newly created identity
+     */
     public IdentityCrypt generateIdentity(boolean persistOnDisk, String alias) {
         try {
             return addIdentity(persistOnDisk, alias, identityGenerator.generateRandomCredentials());
@@ -715,6 +925,14 @@ public class BabelSecurity {
         }
     }
 
+    /**
+     * Creates a new identity from an existing {@link KeyPair} using the configured {@link IdentityGenerator}.
+     *
+     * @param persistOnDisk {@code true} to store in the persistent key store; {@code false} for ephemeral
+     * @param keyPair       the asymmetric key pair to wrap as an identity
+     * @return an {@link IdentityCrypt} handle for the created identity
+     * @throws NoSuchAlgorithmException if the key pair is incompatible with the configured algorithm
+     */
     public IdentityCrypt generateIdentity(boolean persistOnDisk, KeyPair keyPair) throws NoSuchAlgorithmException {
         try {
             return addIdentity(persistOnDisk, identityGenerator.generateCredentials(keyPair));
@@ -724,11 +942,29 @@ public class BabelSecurity {
         }
     }
 
+    /**
+     * Creates a new identity from an existing {@link KeyPair} and stores it under a prefixed alias.
+     *
+     * @param persistOnDisk {@code true} to store in the persistent key store; {@code false} for ephemeral
+     * @param aliasPrefix   the prefix prepended to the derived alias
+     * @param keyPair       the asymmetric key pair to wrap as an identity
+     * @return an {@link IdentityCrypt} handle for the created identity
+     * @throws NoSuchAlgorithmException if the key pair is incompatible with the configured algorithm
+     */
     public IdentityCrypt generateIdentityWithAliasPrefix(boolean persistOnDisk, String aliasPrefix, KeyPair keyPair)
             throws NoSuchAlgorithmException {
         return addIdentityWithAliasPrefix(persistOnDisk, aliasPrefix, identityGenerator.generateCredentials(keyPair));
     }
 
+    /**
+     * Creates a new identity from an existing {@link KeyPair} and stores it under an explicit alias.
+     *
+     * @param persistOnDisk {@code true} to store in the persistent key store; {@code false} for ephemeral
+     * @param alias         the key-store alias to use
+     * @param keyPair       the asymmetric key pair to wrap as an identity
+     * @return an {@link IdentityCrypt} handle for the created identity
+     * @throws NoSuchAlgorithmException if the key pair is incompatible with the configured algorithm
+     */
     public IdentityCrypt generateIdentity(boolean persistOnDisk, String alias, KeyPair keyPair)
             throws NoSuchAlgorithmException {
         try {
@@ -739,11 +975,30 @@ public class BabelSecurity {
         }
     }
 
+    /**
+     * Stores a pre-built {@link PrivateKeyEntry} as a new identity, deriving the alias from the
+     * identity bytes extracted by the configured {@link IdFromCertExtractor}.
+     *
+     * @param persistOnDisk  {@code true} to store in the persistent key store; {@code false} for ephemeral
+     * @param keyStoreEntry  the key-store entry containing the private key and certificate chain
+     * @return an {@link IdentityCrypt} handle for the added identity
+     * @throws NoSuchAlgorithmException if the signature algorithm cannot be determined
+     * @throws CertificateException     if identity extraction from the certificate fails
+     */
     public IdentityCrypt addIdentity(boolean persistOnDisk, PrivateKeyEntry keyStoreEntry)
             throws NoSuchAlgorithmException, CertificateException {
         return addIdentity(persistOnDisk, null, keyStoreEntry);
     }
 
+    /**
+     * Stores a pre-built {@link PrivateKeyEntry} as a new identity under a prefixed alias.
+     *
+     * @param persistOnDisk {@code true} to store in the persistent key store; {@code false} for ephemeral
+     * @param aliasPrefix   the prefix prepended to the encoded identity bytes in the alias
+     * @param keyStoreEntry the key-store entry containing the private key and certificate chain
+     * @return an {@link IdentityCrypt} handle for the added identity
+     * @throws NoSuchAlgorithmException if the signature algorithm cannot be determined
+     */
     public IdentityCrypt addIdentityWithAliasPrefix(boolean persistOnDisk, String aliasPrefix,
             PrivateKeyEntry keyStoreEntry) throws NoSuchAlgorithmException {
         byte[] id;
@@ -757,6 +1012,16 @@ public class BabelSecurity {
         return getIdentityCrypt(alias, id, keyStoreEntry);
     }
 
+    /**
+     * Stores a pre-built {@link PrivateKeyEntry} as a new identity under the given alias.
+     *
+     * @param persistOnDisk {@code true} to store in the persistent key store; {@code false} for ephemeral
+     * @param alias         the key-store alias to use, or {@code null} to derive it from the identity bytes
+     * @param keyStoreEntry the key-store entry containing the private key and certificate chain
+     * @return an {@link IdentityCrypt} handle for the added identity
+     * @throws NoSuchAlgorithmException if the signature algorithm cannot be determined
+     * @throws CertificateException     if identity extraction from the certificate fails
+     */
     public IdentityCrypt addIdentity(boolean persistOnDisk, String alias, PrivateKeyEntry keyStoreEntry)
             throws NoSuchAlgorithmException, CertificateException {
         byte[] id = identityExtractor.extractIdentity(keyStoreEntry.getCertificate());
@@ -765,6 +1030,14 @@ public class BabelSecurity {
         return getIdentityCrypt(alias, id, keyStoreEntry);
     }
 
+    /**
+     * Returns an {@link IdentityCrypt} for the configured default identity, generating an
+     * ephemeral one if no default has been set.
+     *
+     * @return the default identity's {@link IdentityCrypt}
+     * @throws NoSuchAlgorithmException    if the signature algorithm cannot be determined
+     * @throws UnrecoverableEntryException if the key-store entry cannot be recovered
+     */
     public IdentityCrypt getDefaultIdentityCrypt()
             throws NoSuchAlgorithmException, UnrecoverableEntryException {
         IdentityPair idPair = idAliasMapper.getDefault();
@@ -773,18 +1046,41 @@ public class BabelSecurity {
                 : generateIdentity(false);
     }
 
+    /**
+     * Returns an {@link IdentityCrypt} for the identity stored under the given alias,
+     * or {@code null} if no such alias is known.
+     *
+     * @param alias the key-store alias to look up
+     * @return the corresponding {@link IdentityCrypt}, or {@code null}
+     * @throws NoSuchAlgorithmException    if the signature algorithm cannot be determined
+     * @throws UnrecoverableEntryException if the key-store entry cannot be recovered
+     */
     public IdentityCrypt getIdentityCrypt(String alias)
             throws NoSuchAlgorithmException, UnrecoverableEntryException {
         byte[] id = idAliasMapper.getId(alias);
         return id == null ? null : getIdentityCrypt(alias, id);
     }
 
+    /**
+     * Returns an {@link IdentityCrypt} for the identity with the given byte identifier,
+     * or {@code null} if no such identity is known.
+     *
+     * @param identity the raw byte identifier of the identity to look up
+     * @return the corresponding {@link IdentityCrypt}, or {@code null}
+     * @throws NoSuchAlgorithmException    if the signature algorithm cannot be determined
+     * @throws UnrecoverableEntryException if the key-store entry cannot be recovered
+     */
     public IdentityCrypt getIdentityCrypt(byte[] identity)
             throws NoSuchAlgorithmException, UnrecoverableEntryException {
         String alias = idAliasMapper.getAlias(identity);
         return alias == null ? null : getIdentityCrypt(alias, identity);
     }
 
+    /**
+     * Returns all known identities from both the persistent and ephemeral key stores.
+     *
+     * @return a set of {@link IdentityPair} records covering all registered identities
+     */
     public Set<IdentityPair> getAllIdentities() {
         try {
             Set<IdentityPair> ids = new HashSet<>(getKeyStore().size() + getEphemeralKeyStore().size());
@@ -798,6 +1094,13 @@ public class BabelSecurity {
         }
     }
 
+    /**
+     * Returns all identities whose alias begins with {@code aliasPrefix} (case-insensitive),
+     * searching both the persistent and ephemeral key stores.
+     *
+     * @param aliasPrefix the prefix to filter aliases by
+     * @return a set of matching {@link IdentityPair} records
+     */
     public Set<IdentityPair> getAllIdentitiesWithPrefix(String aliasPrefix) {
         try {
             Set<IdentityPair> ids = new HashSet<>(getKeyStore().size() + getEphemeralKeyStore().size());
@@ -816,14 +1119,32 @@ public class BabelSecurity {
         }
     }
 
+    /**
+     * Returns the key-store alias associated with the given raw identity bytes, or {@code null} if unknown.
+     *
+     * @param identity the raw byte identifier to look up
+     * @return the alias string, or {@code null}
+     */
     public String getIdentityAlias(byte[] identity) {
         return idAliasMapper.getAlias(identity);
     }
 
+    /**
+     * Returns the raw identity bytes associated with the given key-store alias, or {@code null} if unknown.
+     *
+     * @param alias the key-store alias to look up
+     * @return the raw identity bytes, or {@code null}
+     */
     public byte[] getAliasIdentity(String alias) {
         return idAliasMapper.getId(alias);
     }
 
+    /**
+     * Returns the default {@link IdentityPair} as configured, triggering key-store initialisation
+     * if it has not occurred yet, or {@code null} if no default alias is set.
+     *
+     * @return the default {@link IdentityPair}, or {@code null}
+     */
     public IdentityPair getDefaultIdentity() {
         getKeyStore(); // ensure keystore was initialized
         return idAliasMapper.getDefault();
@@ -891,6 +1212,15 @@ public class BabelSecurity {
         return new IdentityCrypt(alias, id, privKey, pubKey, certChain, sigHashOrAlg);
     }
 
+    /**
+     * Returns the standard signature algorithm name for the given key algorithm.
+     * For EdDSA keys this is {@code "EdDSA"}; for other algorithms the hash algorithm
+     * configured in {@link #PAR_HASH_ALG} is prepended (e.g. {@code "SHA256WithRSA"}).
+     *
+     * @param keyAlgorithm the key algorithm name (e.g. {@code "RSA"}, {@code "EdDSA"})
+     * @return the corresponding signature algorithm name
+     * @throws NoSuchAlgorithmException if no matching signature algorithm is available
+     */
     public String getSignatureAlgorithmFor(String keyAlgorithm) throws NoSuchAlgorithmException {
         if (keyAlgorithm.equals("EdDSA"))
             return "EdDSA";
@@ -917,6 +1247,15 @@ public class BabelSecurity {
 
     /* ------------------- Trust ------------------- */
 
+    /**
+     * Adds a certificate to the appropriate trust store, optionally persisting it to disk.
+     * The alias is derived from the identity bytes extracted by the configured {@link IdFromCertExtractor}.
+     *
+     * @param peristOnDisk {@code true} to add to the persistent trust store; {@code false} for ephemeral
+     * @param certificate  the certificate to trust
+     * @throws KeyStoreException    if the trust store has not been initialised
+     * @throws CertificateException if identity extraction from the certificate fails
+     */
     public void addTrustedCertificate(boolean peristOnDisk, Certificate certificate)
             throws KeyStoreException, CertificateException {
         KeyStore trustStore = peristOnDisk ? getTrustStore() : getEphemeralTrustStore();
@@ -939,14 +1278,31 @@ public class BabelSecurity {
         }
     }
 
+    /**
+     * Marks the given peer identity as explicitly trusted in the trust manager.
+     *
+     * @param peerId the raw byte identifier of the peer to trust
+     */
     public void addTrustedPeerIdentity(byte[] peerId) {
         getTrustManager().addTrustedId(peerId);
     }
 
+    /**
+     * Removes a previously trusted peer identity from the trust manager.
+     *
+     * @param peerId the raw byte identifier of the peer whose trust is revoked
+     */
     public void removeTrustedPeerIdentity(byte[] peerId) {
         getTrustManager().removeTrustedId(peerId);
     }
 
+    /**
+     * Retrieves the trusted certificate for the given peer identity, searching the persistent
+     * trust store first, then the ephemeral trust store.
+     *
+     * @param peerId the raw byte identifier of the peer
+     * @return the trusted {@link Certificate}, or {@code null} if not found
+     */
     public Certificate getTrustedCertificate(byte[] peerId) {
         Certificate persistent = getTrustedCertificateFrom(getTrustStore(), peerId);
         return persistent != null ? persistent : getTrustedCertificateFrom(getEphemeralTrustStore(), peerId);
@@ -992,48 +1348,143 @@ public class BabelSecurity {
     // TODO Make a way to facilitate secret agreement? Might be terrible to make it
     // generalized
 
+    /**
+     * Derives a symmetric secret key from a password using the configured PBKDF and stores it
+     * under a prefixed alias.
+     *
+     * @param persistOnDisk {@code true} to store in the persistent secret store; {@code false} for ephemeral
+     * @param aliasPrefix   the prefix prepended to the generated alias
+     * @param password      the password to derive the key from
+     * @return a {@link SecretCrypt} handle for the derived key
+     * @throws NoSuchAlgorithmException if the PBKDF or cipher algorithm is unavailable
+     * @throws InvalidKeySpecException  if the key specification is invalid
+     */
     public SecretCrypt generateSecretFromPasswordWithAliasPrefix(boolean persistOnDisk, String aliasPrefix,
             String password) throws NoSuchAlgorithmException, InvalidKeySpecException {
         return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, applyPBKDF(password.toCharArray(), pbkdfSalt));
     }
 
+    /**
+     * Derives a symmetric secret key from a password and an explicit salt using the configured
+     * PBKDF, and stores it under a prefixed alias.
+     *
+     * @param persistOnDisk {@code true} to store in the persistent secret store; {@code false} for ephemeral
+     * @param aliasPrefix   the prefix prepended to the generated alias
+     * @param password      the password to derive the key from
+     * @param salt          the PBKDF salt bytes
+     * @return a {@link SecretCrypt} handle for the derived key
+     * @throws NoSuchAlgorithmException if the PBKDF or cipher algorithm is unavailable
+     * @throws InvalidKeySpecException  if the key specification is invalid
+     */
     public SecretCrypt generateSecretFromPasswordWithAliasPrefix(boolean persistOnDisk, String aliasPrefix,
             String password, byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
         return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, applyPBKDF(password.toCharArray(), salt));
     }
 
+    /**
+     * Derives a symmetric secret key from a password using the configured PBKDF and stores it
+     * under the given alias.
+     *
+     * @param persistOnDisk {@code true} to store in the persistent secret store; {@code false} for ephemeral
+     * @param alias         the key-store alias for the derived key
+     * @param password      the password to derive the key from
+     * @return a {@link SecretCrypt} handle for the derived key
+     * @throws NoSuchAlgorithmException if the PBKDF or cipher algorithm is unavailable
+     * @throws InvalidKeySpecException  if the key specification is invalid
+     */
     public SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String alias, String password)
             throws NoSuchAlgorithmException, InvalidKeySpecException {
         return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), pbkdfSalt));
     }
 
+    /**
+     * Derives a symmetric secret key from a password and an explicit salt, and stores it under the given alias.
+     *
+     * @param persistOnDisk {@code true} to store in the persistent secret store; {@code false} for ephemeral
+     * @param alias         the key-store alias for the derived key
+     * @param password      the password to derive the key from
+     * @param salt          the PBKDF salt bytes
+     * @return a {@link SecretCrypt} handle for the derived key
+     * @throws NoSuchAlgorithmException if the PBKDF or cipher algorithm is unavailable
+     * @throws InvalidKeySpecException  if the key specification is invalid
+     */
     public SecretCrypt generateSecretFromPassword(boolean persistOnDisk, String alias, String password, byte[] salt)
             throws NoSuchAlgorithmException, InvalidKeySpecException {
         return addSecret(persistOnDisk, alias, applyPBKDF(password.toCharArray(), salt));
     }
 
+    /**
+     * Generates a new random symmetric secret key using the configured algorithm and stores it.
+     * The alias is derived from a hash of the key material.
+     *
+     * @param persistOnDisk {@code true} to store in the persistent secret store; {@code false} for ephemeral
+     * @return a {@link SecretCrypt} handle for the generated key
+     * @throws NoSuchAlgorithmException if the key or cipher algorithm is unavailable
+     */
     public SecretCrypt generateSecret(boolean persistOnDisk) throws NoSuchAlgorithmException {
         return addSecret(persistOnDisk, generateSecretKey());
     }
 
+    /**
+     * Generates a new random symmetric secret key and stores it under a prefixed alias.
+     *
+     * @param persistOnDisk {@code true} to store in the persistent secret store; {@code false} for ephemeral
+     * @param aliasPrefix   the prefix prepended to the hash-derived alias
+     * @return a {@link SecretCrypt} handle for the generated key
+     * @throws NoSuchAlgorithmException if the key or cipher algorithm is unavailable
+     */
     public SecretCrypt generateSecretWithAliasPrefix(boolean persistOnDisk, String aliasPrefix)
             throws NoSuchAlgorithmException {
         return addSecretWithAliasPrefix(persistOnDisk, aliasPrefix, generateSecretKey());
     }
 
+    /**
+     * Generates a new random symmetric secret key and stores it under an explicit alias.
+     *
+     * @param persistOnDisk {@code true} to store in the persistent secret store; {@code false} for ephemeral
+     * @param alias         the key-store alias for the generated key
+     * @return a {@link SecretCrypt} handle for the generated key
+     * @throws NoSuchAlgorithmException if the key or cipher algorithm is unavailable
+     */
     public SecretCrypt generateSecret(boolean persistOnDisk, String alias) throws NoSuchAlgorithmException {
         return addSecret(persistOnDisk, alias, generateSecretKey());
     }
 
+    /**
+     * Stores an existing {@link SecretKey} under a prefixed alias derived from a hash of the key material.
+     *
+     * @param peristOnDisk {@code true} to store in the persistent secret store; {@code false} for ephemeral
+     * @param aliasPrefix  the prefix prepended to the hash-derived alias
+     * @param secretKey    the symmetric key to store
+     * @return a {@link SecretCrypt} handle for the stored key
+     * @throws NoSuchAlgorithmException if the hash or cipher algorithm is unavailable
+     */
     public SecretCrypt addSecretWithAliasPrefix(boolean peristOnDisk, String aliasPrefix, SecretKey secretKey)
             throws NoSuchAlgorithmException {
         return addSecret(peristOnDisk, aliasPrefix + "." + generateSecretAlias(secretKey), secretKey);
     }
 
+    /**
+     * Stores an existing {@link SecretKey} with an alias derived from a hash of the key material.
+     *
+     * @param peristOnDisk {@code true} to store in the persistent secret store; {@code false} for ephemeral
+     * @param secretKey    the symmetric key to store
+     * @return a {@link SecretCrypt} handle for the stored key
+     * @throws NoSuchAlgorithmException if the hash or cipher algorithm is unavailable
+     */
     public SecretCrypt addSecret(boolean peristOnDisk, SecretKey secretKey) throws NoSuchAlgorithmException {
         return addSecret(peristOnDisk, generateSecretAlias(secretKey), secretKey);
     }
 
+    /**
+     * Stores an existing {@link SecretKey} under an explicit alias.
+     *
+     * @param peristOnDisk {@code true} to store in the persistent secret store; {@code false} for ephemeral
+     * @param alias        the key-store alias for the key
+     * @param secretKey    the symmetric key to store
+     * @return a {@link SecretCrypt} handle for the stored key
+     * @throws NoSuchAlgorithmException if the cipher algorithm is unavailable
+     */
     public SecretCrypt addSecret(boolean peristOnDisk, String alias, SecretKey secretKey)
             throws NoSuchAlgorithmException {
         try {
@@ -1060,6 +1511,15 @@ public class BabelSecurity {
         return getSecretCrypt(alias, secretKey);
     }
 
+    /**
+     * Returns the {@link SecretCrypt} for the secret stored under the given alias,
+     * or {@code null} if no such alias is known.
+     *
+     * @param alias the key-store alias of the secret to retrieve
+     * @return the corresponding {@link SecretCrypt}, or {@code null}
+     * @throws NoSuchAlgorithmException    if the cipher or MAC algorithm is unavailable
+     * @throws UnrecoverableEntryException if the key-store entry cannot be recovered
+     */
     public SecretCrypt getSecretCrypt(String alias) throws NoSuchAlgorithmException, UnrecoverableEntryException {
         try {
             var chosenPair = chooseSecretStore(store -> store.containsAlias(alias));

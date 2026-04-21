@@ -20,5 +20,11 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
 public @interface AutoConfigureParameter {
+    /**
+     * Returns the property name used in a DNS TXT record for this parameter.
+     * Defaults to {@code "none"} when the field name in code is already suitable.
+     *
+     * @return the DNS TXT record property name, or {@code "none"} if not overridden
+     */
     String propsName() default "none";
 }

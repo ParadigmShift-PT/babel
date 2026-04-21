@@ -42,11 +42,21 @@ public class Sample implements Serializable {
         return this.labels;
     }
 
+    /**
+     * Returns the label names present in this sample.
+     *
+     * @return an array of label name strings
+     */
     @JsonIgnore
     public String[] getLabelsNames() {
         return labels.keySet().toArray(new String[0]);
     }
 
+    /**
+     * Returns the label values present in this sample, in the same iteration order as {@link #getLabelsNames()}.
+     *
+     * @return an array of label value strings
+     */
     @JsonIgnore
     public String[] getLabelsValues() {
         return labels.values().toArray(new String[0]);
@@ -59,6 +69,11 @@ public class Sample implements Serializable {
         return value;
     }
 
+    /**
+     * Returns a shallow copy of this {@code Sample} with the same value and labels.
+     *
+     * @return a new {@code Sample} with identical value and label data
+     */
     public Sample clone(){
         return new Sample(this.value, this.getLabelsNames(), this.getLabelsValues());
     }

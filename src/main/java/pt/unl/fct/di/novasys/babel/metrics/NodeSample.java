@@ -15,14 +15,26 @@ public class NodeSample implements Serializable {
 
     private final Map<Short, ProtocolSample> samplesPerProtocol;
 
+    /** Creates an empty {@code NodeSample} with a default-capacity backing map. */
     public NodeSample() {
         this.samplesPerProtocol = new HashMap<>();
     }
 
+    /**
+     * Creates an empty {@code NodeSample} with the given initial capacity for the backing map.
+     *
+     * @param size the expected number of protocol entries
+     */
     public NodeSample(int size) {
         this.samplesPerProtocol = new HashMap<>(size);
     }
 
+    /**
+     * Adds or replaces the {@link ProtocolSample} for the given protocol ID.
+     *
+     * @param protocolID     the protocol identifier
+     * @param protocolSample the sample to associate with that protocol
+     */
     public void addProtocolSample(short protocolID, ProtocolSample protocolSample){
         this.samplesPerProtocol.put(protocolID, protocolSample);
     }
@@ -35,6 +47,13 @@ public class NodeSample implements Serializable {
         return samplesPerProtocol.keySet();
     }
 
+    /**
+     * Returns the {@link ProtocolSample} for the given protocol ID.
+     *
+     * @param protocolID the protocol identifier to look up
+     * @return the sample for that protocol
+     * @throws NoSuchProtocolRegistry if no sample exists for the given protocol ID
+     */
     public ProtocolSample getProtocolSample(short protocolID) throws NoSuchProtocolRegistry {
         if(!samplesPerProtocol.containsKey(protocolID)){
             throw new NoSuchProtocolRegistry(protocolID);
@@ -43,10 +62,22 @@ public class NodeSample implements Serializable {
 
     }
 
+    /**
+     * Returns the full map from protocol ID to {@link ProtocolSample}.
+     *
+     * @return the unmodifiable backing map of protocol samples
+     */
     public Map<Short, ProtocolSample> getSamplesPerProtocol() {
         return samplesPerProtocol;
     }
 
+    /**
+     * Deserializes a {@code NodeSample} from its Java-serialized byte representation.
+     *
+     * @param data the serialized bytes previously produced by {@link #toByteArray()}
+     * @return the deserialized {@code NodeSample}
+     * @throws RuntimeException if deserialization fails
+     */
     public static NodeSample fromByteArray(byte[] data){
         try {
             ObjectInputStream in = new ObjectInputStream(new ByteArrayInputStream(data));
@@ -56,6 +87,12 @@ public class NodeSample implements Serializable {
         }
     }
 
+    /**
+     * Serializes this {@code NodeSample} to a Java-serialized byte array for network transmission or storage.
+     *
+     * @return the serialized bytes
+     * @throws RuntimeException if serialization fails
+     */
     public byte[] toByteArray(){
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         try {

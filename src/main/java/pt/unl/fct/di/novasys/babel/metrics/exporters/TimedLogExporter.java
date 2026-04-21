@@ -46,16 +46,35 @@ public class TimedLogExporter extends ThreadedExporter{
             super(exporterName);
         }
 
+        /**
+         * Sets the formatter used to render each metric snapshot before writing to the log file.
+         *
+         * @param formatter the {@link NodeSampleFormatter} to use
+         * @return this builder
+         */
         public Builder setFormatter(NodeSampleFormatter formatter){
             properties.setProperty(FORMATTER,formatter.getFormatterName());
             return this;
         }
 
+        /**
+         * Sets the directory path where the log file is written.
+         * The file is named {@code <exporterName>.log} within that directory.
+         *
+         * @param path the target directory path (trailing slash optional)
+         * @return this builder
+         */
         public Builder setLogPath(String path){
             properties.setProperty(LOG_PATH, path);
             return this;
         }
 
+        /**
+         * Sets the export interval in seconds.
+         *
+         * @param interval seconds between successive log writes
+         * @return this builder
+         */
         public Builder setInterval(long interval){
             properties.setProperty(INTERVAL, Long.toString(interval));
             return this;
@@ -68,6 +87,11 @@ public class TimedLogExporter extends ThreadedExporter{
         }
 
 
+        /**
+         * Builds and returns a configured {@link TimedLogExporter}.
+         *
+         * @return a new {@code TimedLogExporter}
+         */
         @Override
         public TimedLogExporter build() {
             exporterConfigs(properties);
@@ -75,6 +99,12 @@ public class TimedLogExporter extends ThreadedExporter{
         }
     }
 
+    /**
+     * Creates a {@code TimedLogExporter} from the supplied builder, resolving the formatter
+     * from the configured property (defaulting to {@link SimpleFormatter}).
+     *
+     * @param builder the fully configured builder
+     */
     public TimedLogExporter(Builder builder) {
         super(builder);
         this.formatter = getFormatterOrDefault(getProperty(FORMATTER), new SimpleFormatter());
@@ -82,6 +112,12 @@ public class TimedLogExporter extends ThreadedExporter{
     }
 
 
+    /**
+     * Returns the default configuration: interval of 10 seconds, log path {@code ./},
+     * and no default formatter (falls back to {@code SimpleFormatter} at construction time).
+     *
+     * @return properties containing default values for {@code INTERVAL} and {@code LOG_PATH}
+     */
     @Override
     public Properties loadDefaults() {
         Properties defaultProperties = new Properties();
@@ -90,6 +126,10 @@ public class TimedLogExporter extends ThreadedExporter{
         return defaultProperties;
     }
 
+    /**
+     * Runs the export loop: sleeps for the configured interval, then collects all metrics,
+     * formats the snapshot, and appends it to the log file. Exits when the exporter is disabled.
+     */
     @Override
     public void run() {
         long sleep_ms = Long.parseLong(this.getProperty(INTERVAL)) * S_TO_MS;

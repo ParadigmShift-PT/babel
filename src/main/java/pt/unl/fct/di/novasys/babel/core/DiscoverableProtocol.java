@@ -5,25 +5,58 @@ import java.util.concurrent.BlockingQueue;
 import pt.unl.fct.di.novasys.babel.internal.InternalEvent;
 import pt.unl.fct.di.novasys.network.data.Host;
 
+/**
+ * A {@link GenericProtocol} extension for protocols that participate in peer discovery.
+ * Subclasses declare whether they still need contacts from the network and supply
+ * the local host identity used when advertising themselves to other nodes.
+ */
 public abstract class DiscoverableProtocol extends GenericProtocol {
 
     private Host myself;
 
+    /**
+     * Creates a discoverable protocol with no pre-known local host address.
+     *
+     * @param protoName human-readable name for this protocol
+     * @param protoId   unique short identifier for this protocol
+     */
     public DiscoverableProtocol(String protoName, short protoId) {
         super(protoName, protoId);
         this.myself = null;
     }
 
+    /**
+     * Creates a discoverable protocol with a pre-known local host address.
+     *
+     * @param protoName human-readable name for this protocol
+     * @param protoId   unique short identifier for this protocol
+     * @param myself    the local host address to advertise during discovery
+     */
     public DiscoverableProtocol(String protoName, short protoId, Host myself) {
         super(protoName, protoId);
         this.myself = myself;
     }
 
+    /**
+     * Creates a discoverable protocol with no pre-known local host address and a custom event queue policy.
+     *
+     * @param protoName human-readable name for this protocol
+     * @param protoId   unique short identifier for this protocol
+     * @param policy    the blocking queue used as the internal event queue
+     */
     public DiscoverableProtocol(String protoName, short protoId, BlockingQueue<InternalEvent> policy) {
         super(protoName, protoId, policy);
         this.myself = null;
     }
 
+    /**
+     * Creates a discoverable protocol with a pre-known local host address and a custom event queue policy.
+     *
+     * @param protoName human-readable name for this protocol
+     * @param protoId   unique short identifier for this protocol
+     * @param myself    the local host address to advertise during discovery
+     * @param policy    the blocking queue used as the internal event queue
+     */
     public DiscoverableProtocol(String protoName, short protoId, Host myself, BlockingQueue<InternalEvent> policy) {
         super(protoName, protoId, policy);
         this.myself = myself;
@@ -91,10 +124,21 @@ public abstract class DiscoverableProtocol extends GenericProtocol {
      */
     public abstract Host getContact();
 
+    /**
+     * Sets the local host address used when advertising this protocol to discovery peers.
+     *
+     * @param h the local host address
+     */
     protected final void setMyself(Host h) {
         this.myself = h;
     }
 
+    /**
+     * Returns the local host address associated with this protocol instance, or {@code null}
+     * if it has not been set yet.
+     *
+     * @return the local {@link Host}, or {@code null}
+     */
     public Host getMyself() {
         return this.myself;
     }

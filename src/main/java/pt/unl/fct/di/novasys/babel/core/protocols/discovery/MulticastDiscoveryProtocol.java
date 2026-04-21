@@ -40,6 +40,9 @@ public class MulticastDiscoveryProtocol extends LocalDiscoveryProtocol {
 	private Thread listeningMulticastThread;
 	private Thread listeningUnicastThread;
 
+	/**
+	 * Creates a MulticastDiscoveryProtocol with the default protocol name and ID.
+	 */
 	public MulticastDiscoveryProtocol() {
 		super(PROTO_NAME, PROTO_ID);
 	}

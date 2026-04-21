@@ -47,18 +47,38 @@ public class MessageInEvent extends InternalEvent {
                 '}';
     }
 
+    /**
+     * Returns the remote host from which the message was received.
+     *
+     * @return sender host
+     */
     public final Host getFrom() {
         return this.from;
     }
 
+    /**
+     * Returns the cryptographic peer identity of the sender, if available.
+     *
+     * @return an {@code Optional} containing the sender's raw ID bytes, or empty if not set
+     */
     public final Optional<byte[]> getFromId() {
         return this.fromId;
     }
 
+    /**
+     * Returns the ID of the channel on which the message arrived.
+     *
+     * @return channel ID
+     */
     public int getChannelId() {
         return channelId;
     }
 
+    /**
+     * Returns the received message.
+     *
+     * @return the incoming {@link BabelMessage}
+     */
     public BabelMessage getMsg() {
         return msg;
     }

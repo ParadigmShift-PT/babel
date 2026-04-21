@@ -14,10 +14,20 @@ public class MetricIdentifier {
         this.protocolId = protocolId;
     }
 
+    /**
+     * Returns the name of the metric.
+     *
+     * @return the metric name
+     */
     public String getMetricName() {
         return metricName;
     }
 
+    /**
+     * Returns the ID of the protocol that owns this metric.
+     *
+     * @return the protocol ID
+     */
     public short getProtocolId() {
         return protocolId;
     }

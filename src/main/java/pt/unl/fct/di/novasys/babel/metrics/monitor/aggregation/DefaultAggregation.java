@@ -28,10 +28,25 @@ public class DefaultAggregation extends Aggregation {
 
     String globalID ="";
 
+    /**
+     * Constructs a {@code DefaultAggregation} for a single metric; the result is placed under
+     * the global host identifier.
+     *
+     * @param protocolId the protocol ID of the metric to aggregate
+     * @param metricName the name of the metric to aggregate
+     */
     public DefaultAggregation(short protocolId, String metricName) {
         super(protocolId, metricName);
     }
 
+    /**
+     * Constructs a {@code DefaultAggregation} for a single metric; the result is attributed to
+     * the given {@code globalID} host string instead of the default global identifier.
+     *
+     * @param protocolId the protocol ID of the metric to aggregate
+     * @param metricName the name of the metric to aggregate
+     * @param globalID   the host identifier to use for the aggregated result
+     */
     public DefaultAggregation(short protocolId, String metricName, String globalID){
         super(protocolId, metricName);
         this.globalID = globalID;
@@ -164,6 +179,16 @@ public class DefaultAggregation extends Aggregation {
     }
 
 
+    /**
+     * Aggregates a single metric from all hosts in the input according to the metric type:
+     * counters and histograms are summed, gauges are averaged, stats-gauges merge count/avg/min/max,
+     * and records are concatenated.
+     *
+     * @param aggregationInput  the per-host samples to aggregate; must contain exactly one metric
+     * @param aggregationResult the result object to which the aggregated sample is added
+     * @return the updated {@code aggregationResult}
+     * @throws IllegalArgumentException if the input contains more or fewer than one metric
+     */
     public AggregationResult aggregate(AggregationInput aggregationInput, AggregationResult aggregationResult) {
         if (aggregationInput.getMetrics().size() != 1) {
             throw new IllegalArgumentException("DefaultAggregation can only aggregate one metric");

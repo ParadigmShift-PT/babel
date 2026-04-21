@@ -9,6 +9,9 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.Enumeration;
 
+/**
+ * Utility class providing helper methods for network interface inspection.
+ */
 public class NetworkingUtilities {
 
     private static final Logger logger = LogManager.getLogger(NetworkingUtilities.class);

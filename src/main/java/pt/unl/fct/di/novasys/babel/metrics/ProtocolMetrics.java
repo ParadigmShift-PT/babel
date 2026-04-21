@@ -28,6 +28,12 @@ public class ProtocolMetrics {
 
     private final Map<String, Metric> metrics;
 
+    /**
+     * Creates a new {@code ProtocolMetrics} registry for the protocol with the given ID and name.
+     *
+     * @param protocolID the protocol identifier
+     * @param protoName  the protocol name
+     */
     public ProtocolMetrics(short protocolID, String protoName) {
         this.protocolID = protocolID;
         this.metrics = new ConcurrentHashMap<>();
@@ -36,6 +42,12 @@ public class ProtocolMetrics {
 
 
 
+    /**
+     * Registers a metric in this protocol's registry.
+     *
+     * @param metric the metric to register
+     * @throws DuplicatedProtocolMetric if a metric with the same name is already registered
+     */
     public void register(Metric metric) throws DuplicatedProtocolMetric {
         //a metric with same name already exists!!
         if(metrics.containsKey(metric.getName())){
@@ -46,6 +58,13 @@ public class ProtocolMetrics {
 
 
     //TODO: Concurrency Who is that :))?
+    /**
+     * Collects a snapshot of all registered metrics, applying the per-metric options in
+     * {@code protocolCollectOptions}, and returns them bundled in a {@link ProtocolSample}.
+     *
+     * @param protocolCollectOptions per-metric collection options such as reset-on-collect
+     * @return a {@link ProtocolSample} containing the current values of all registered metrics
+     */
     public ProtocolSample collect(ProtocolCollectOptions protocolCollectOptions) {
 
         List<MetricSample> samples = new LinkedList<>();
@@ -62,6 +81,10 @@ public class ProtocolMetrics {
         return new ProtocolSample(this.protocolID, this.protocolName, samples);
     }
 
+    /**
+     * Disables all metrics registered in this protocol registry, causing future updates and
+     * collections to become no-ops.
+     */
     public void disable() {
         for (Metric metric : metrics.values()) {
             metric.disable();

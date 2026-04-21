@@ -37,6 +37,14 @@ public class Record extends Metric<Record> {
         init(r.timestampParam, 0, r.recordParams);
     }
 
+    /**
+     * Initialises (or re-initialises) the record metric with the given configuration.
+     * Called by constructors; may also be used to reconfigure an instance before first use.
+     *
+     * @param timestampParam   if {@code true}, a millisecond timestamp is automatically appended to every recorded entry
+     * @param estimatedRecords initial capacity hint for the internal records list
+     * @param recordParams     the names of the parameters that form each recorded entry
+     */
     public void init(boolean timestampParam, int estimatedRecords, String... recordParams) {
         this.timestampParam = timestampParam;
         this.recordParams = recordParams;
@@ -49,6 +57,13 @@ public class Record extends Metric<Record> {
         this.records = new ArrayList<>(estimatedRecords);
     }
 
+    /**
+     * Records an occurrence of the event with the given parameter values, optionally appending
+     * the current timestamp if the metric was built with {@link Builder#timestampParam()}.
+     *
+     * @param parameters the event parameter values, one per declared record param (excluding the auto-timestamp)
+     * @throws pt.unl.fct.di.novasys.babel.metrics.exceptions.IncorrectLabelNumberException if the number of parameters does not match the declared count
+     */
     public void record(String... parameters) {
         if(isDisabled()) return;
 
@@ -66,6 +81,13 @@ public class Record extends Metric<Record> {
         }
     }
 
+    /**
+     * Creates a {@link Builder} for a {@code Record} metric with the given name and parameter names.
+     *
+     * @param name         the metric name
+     * @param recordParams the names of the fields captured per event occurrence
+     * @return a new {@link Builder}
+     */
     public static Builder builder(String name, String... recordParams){
         return new Builder(name, recordParams);
     }
@@ -104,6 +126,12 @@ public class Record extends Metric<Record> {
         private boolean timestampParam = false;
         private int estimatedRecords = DEFAULT_RECORDS_ESTIMATE;
 
+        /**
+         * Creates a builder for a {@code Record} metric with the given name and event parameter names.
+         *
+         * @param name         the metric name
+         * @param recordParams the names of the fields captured per event occurrence
+         */
         public Builder(String name, String... recordParams){
             super(name, Unit.NONE, MetricType.RECORD);
             this.recordParams = Arrays.copyOf(recordParams, recordParams.length);
@@ -144,6 +172,11 @@ public class Record extends Metric<Record> {
             return this;
         }
 
+        /**
+         * Builds and returns a new {@link Record} instance.
+         *
+         * @return a new {@link Record}
+         */
         public Record build(){
             return new Record(this);
         }

@@ -26,10 +26,26 @@ import pt.unl.fct.di.novasys.babel.core.security.IdFromCertExtractor;
 import pt.unl.fct.di.novasys.network.data.Bytes;
 import pt.unl.fct.di.novasys.network.security.X509ITrustManager;
 
+/**
+ * Babel-specific {@link X509ITrustManager} that enforces configurable peer-certificate trust
+ * policies and exposes a live set of trusted peer identities that can be updated at runtime.
+ *
+ * <p>Three policies are supported:
+ * <ul>
+ *   <li>{@link TrustPolicy#UNKNOWN} — accept any certificate whose identity is internally consistent.</li>
+ *   <li>{@link TrustPolicy#KNOWN_ID} — accept only peers whose identity (public-key hash) is already
+ *       known in the trust store; unknown identities are passed to the {@code trustUnknownPeerCallback}.</li>
+ *   <li>{@link TrustPolicy#KNOWN_CERT} — accept only peers whose exact certificate is already known;
+ *       changed certificates for a known identity are passed to the callback.</li>
+ * </ul>
+ */
 public class X509BabelTrustManager extends X509ITrustManager {
 
     private static final Logger logger = LogManager.getLogger(X509BabelTrustManager.class);
 
+    /**
+     * Determines how the trust manager evaluates an incoming peer certificate.
+     */
     public enum TrustPolicy {
         UNKNOWN, KNOWN_ID, KNOWN_CERT; // TODO CERTIFICATE_AUTHORITIES?
     }
@@ -65,6 +81,20 @@ public class X509BabelTrustManager extends X509ITrustManager {
 
     private final IdFromCertExtractor idExtractor;
 
+    /**
+     * Constructs an {@code X509BabelTrustManager} with the specified trust stores and policy.
+     *
+     * @param idExtractor                  extracts the raw peer identity from a certificate
+     * @param trustStores                  keystore(s) holding trusted peer certificates
+     * @param trustPolicy                  initial trust evaluation policy
+     * @param trustUnknownPeerCallback     predicate invoked when an incoming certificate/identity is not
+     *                                     yet known; returning {@code true} accepts the peer
+     * @param verifyCertificateSignature   predicate that performs cryptographic signature verification
+     *                                     of the certificate chain
+     * @param targetTrustStore             keystore where newly trusted certificates are persisted;
+     *                                     must have been initialised before construction
+     * @throws KeyStoreException if any of the provided keystores has not been initialized
+     */
     public X509BabelTrustManager(IdFromCertExtractor idExtractor, Collection<KeyStore> trustStores,
             TrustPolicy trustPolicy, X509CertificateChainPredicate trustUnknownPeerCallback,
             X509CertificateChainPredicate verifyCertificateSignature, KeyStore targetTrustStore)
@@ -87,22 +117,54 @@ public class X509BabelTrustManager extends X509ITrustManager {
         setTrustPolicy(trustPolicy);
     }
 
+    /**
+     * Validates the client certificate chain using the same logic as server-certificate validation.
+     *
+     * @param chain    the client's certificate chain
+     * @param authType the authentication type
+     * @throws CertificateException if the chain is not trusted
+     */
     @Override
     public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
         checkServerTrusted(chain, authType);
     }
 
+    /**
+     * Validates the server certificate chain without a pre-expected peer identity.
+     *
+     * @param chain    the server's certificate chain
+     * @param authType the authentication type
+     * @throws CertificateException if the chain is not trusted
+     */
     @Override
     public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
         checkServerTrusted(chain, null, authType);
     }
 
+    /**
+     * Validates the client certificate chain and verifies it belongs to the expected peer identity.
+     *
+     * @param chain      the client's certificate chain
+     * @param expectedId raw identity bytes the peer is expected to present, or {@code null} to skip check
+     * @param authType   the authentication type
+     * @throws CertificateException if the chain is not trusted or the identity does not match
+     */
     @Override
     public void checkClientTrusted(X509Certificate[] chain, byte[] expectedId, String authType)
             throws CertificateException {
         checkServerTrusted(chain, expectedId, authType);
     }
 
+    /**
+     * Validates the server certificate chain, optionally asserting it belongs to {@code expectedId},
+     * and applies the current {@link TrustPolicy} to decide acceptance.
+     *
+     * @param chain      the server's certificate chain
+     * @param expectedId raw identity bytes the peer is expected to present, or {@code null} to skip check
+     * @param authType   the authentication type
+     * @throws CertificateException if the chain is empty, the identity mismatches, signature verification
+     *                              fails, or the current policy does not permit the certificate
+     */
     @Override
     public void checkServerTrusted(X509Certificate[] chain, byte[] expectedId, String authType)
             throws CertificateException {
@@ -144,11 +206,23 @@ public class X509BabelTrustManager extends X509ITrustManager {
         }
     }
 
+    /**
+     * Extracts the raw peer identity bytes from the given X.509 certificate.
+     *
+     * @param certificate the certificate from which to extract the identity
+     * @return raw peer identity bytes
+     * @throws CertificateException if the identity cannot be extracted
+     */
     @Override
     public byte[] extractIdFromCertificate(X509Certificate certificate) throws CertificateException {
         return idExtractor.extractIdentity(certificate);
     }
 
+    /**
+     * Returns the union of all explicitly expected IDs and all identities found in the trust stores.
+     *
+     * @return set of trusted peer identity wrappers
+     */
     @Override
     public Set<Bytes> getTrustedIds() {
         HashSet<Bytes> ids = new HashSet<>(expectedIds);
@@ -171,11 +245,23 @@ public class X509BabelTrustManager extends X509ITrustManager {
         return ids;
     }
 
+    /**
+     * Marks a peer identity as expected, allowing its next certificate to be accepted regardless
+     * of whether it already appears in the trust stores.
+     *
+     * @param id raw peer identity bytes to pre-authorise
+     */
     @Override
     public void addTrustedId(byte[] id) {
         expectedIds.add(Bytes.of(id));
     }
 
+    /**
+     * Removes a peer identity from the set of expected IDs and deletes its certificate entry from
+     * all configured trust stores.
+     *
+     * @param id raw peer identity bytes to remove
+     */
     @Override
     public void removeTrustedId(byte[] id) {
         expectedIds.remove(Bytes.of(id));
@@ -193,15 +279,30 @@ public class X509BabelTrustManager extends X509ITrustManager {
         }
     }
 
+    /**
+     * Returns an empty array; Babel does not restrict peers by issuer CA.
+     *
+     * @return an empty {@link X509Certificate} array
+     */
     @Override
     public X509Certificate[] getAcceptedIssuers() {
         return new X509Certificate[0];
     }
 
+    /**
+     * Returns the currently active trust evaluation policy.
+     *
+     * @return the current {@link TrustPolicy}
+     */
     public TrustPolicy getTrustPolicy() {
         return trustPolicy;
     }
 
+    /**
+     * Atomically replaces the trust policy and updates the internal certificate-evaluation predicate.
+     *
+     * @param newPolicy the new trust policy to apply
+     */
     public void setTrustPolicy(TrustPolicy newPolicy) {
         policyWriteLock.lock();
         try {
@@ -217,6 +318,11 @@ public class X509BabelTrustManager extends X509ITrustManager {
         }
     }
 
+    /**
+     * Replaces the predicate used to perform cryptographic signature verification of incoming certificate chains.
+     *
+     * @param verifyCertificateSignature the new signature-verification predicate
+     */
     public void setCertificateSignatureVerifier(X509CertificateChainPredicate verifyCertificateSignature) {
         policyWriteLock.lock();
         try {
@@ -227,6 +333,12 @@ public class X509BabelTrustManager extends X509ITrustManager {
     }
 
 
+    /**
+     * Replaces the callback invoked when an incoming certificate belongs to an unrecognised peer.
+     * Returning {@code true} from the predicate accepts the peer; {@code false} rejects it.
+     *
+     * @param trustUnknownCertCallback the new callback predicate
+     */
     public void setTrustUnknownPeerCallback(X509CertificateChainPredicate trustUnknownCertCallback) {
         policyWriteLock.lock();
         try {

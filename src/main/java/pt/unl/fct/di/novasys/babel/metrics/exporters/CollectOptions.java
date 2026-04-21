@@ -30,14 +30,29 @@ public class CollectOptions{
         this.reset_on_collect = false;
     }
 
+    /**
+     * Sets whether the metric should be reset to its zero value after each collection.
+     *
+     * @param reset_on_collect {@code true} to reset the metric after collection, {@code false} to retain its value
+     */
     public void setResetOnCollect(boolean reset_on_collect) {
         this.reset_on_collect = reset_on_collect;
     }
 
+    /**
+     * Returns whether the metric is reset to its zero value after each collection.
+     *
+     * @return {@code true} if the metric resets on collect, {@code false} otherwise
+     */
     public boolean getResetOnCollect() {
         return reset_on_collect;
     }
 
+    /**
+     * Returns a human-readable description of these collect options.
+     *
+     * @return string representation showing the reset-on-collect flag value
+     */
     public String toString(){
         return "Reset on collect: " + reset_on_collect;
     }

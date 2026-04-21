@@ -30,44 +30,91 @@ public class TimedSocketExporter extends ThreadedExporter{
 
     Socket socket = null;
 
+    /**
+     * Builder for {@link TimedSocketExporter}.
+     */
     public static class Builder extends ExporterBuilder<Builder>{
         Properties properties = new Properties();
 
+        /**
+         * Creates a builder for a {@link TimedSocketExporter} with the given name.
+         *
+         * @param exporterName logical name for the exporter
+         */
         public Builder(String exporterName) {
             super(exporterName);
         }
 
+        /**
+         * Returns this builder (required by the covariant builder pattern).
+         *
+         * @return this builder
+         */
         @Override
         public Builder self() {
             return this;
         }
 
+        /**
+         * Sets the hostname or IP address of the remote TCP server to connect to.
+         *
+         * @param host the remote host
+         * @return this builder
+         */
         public Builder setHost(String host){
             properties.setProperty(HOST, host);
             return this;
         }
 
+        /**
+         * Sets the TCP port of the remote server.
+         *
+         * @param port the remote port number
+         * @return this builder
+         */
         public Builder setPort(int port){
             properties.setProperty(PORT, Integer.toString(port));
             return this;
         }
 
+        /**
+         * Sets the string appended after each metric payload to delimit messages on the stream.
+         *
+         * @param terminator the message terminator (e.g. {@code "\n"})
+         * @return this builder
+         */
         public Builder setTerminator(String terminator){
             properties.setProperty(TERMINATOR, terminator);
             return this;
         }
 
+        /**
+         * Sets the formatter used to serialise each metric snapshot before sending.
+         *
+         * @param formatter the {@link NodeSampleFormatter} to use
+         * @return this builder
+         */
         public Builder setFormatter(NodeSampleFormatter formatter){
             properties.setProperty(FORMATTER, formatter.getFormatterName());
             return this;
         }
 
+        /**
+         * Sets the export interval in seconds (fractional values are allowed).
+         *
+         * @param interval seconds between successive metric sends
+         * @return this builder
+         */
         public Builder setInterval(double interval){
             properties.setProperty(INTERVAL, Double.toString(interval));
             return this;
         }
 
-
+        /**
+         * Builds and returns a configured {@link TimedSocketExporter}.
+         *
+         * @return a new {@code TimedSocketExporter}
+         */
         @Override
         public TimedSocketExporter build() {
             exporterConfigs(properties);
@@ -95,6 +142,12 @@ public class TimedSocketExporter extends ThreadedExporter{
         return true;
     }
 
+    /**
+     * Returns default configuration: interval 10 s, empty host and port (must be provided),
+     * newline terminator, and JSON formatter.
+     *
+     * @return properties containing default values for all configuration keys
+     */
     @Override
     public Properties loadDefaults() {
         Properties defaults = new Properties();
@@ -116,6 +169,13 @@ public class TimedSocketExporter extends ThreadedExporter{
     }
 
 
+    /**
+     * Connects to the configured host and port, then enters a loop that collects all metrics,
+     * formats the snapshot, and sends it over the socket at the configured interval.
+     * Automatically reconnects on I/O failure. Exits when the exporter is disabled.
+     *
+     * @throws IllegalArgumentException if {@code HOST} or {@code PORT} are not configured
+     */
     @Override
     public void run() {
 

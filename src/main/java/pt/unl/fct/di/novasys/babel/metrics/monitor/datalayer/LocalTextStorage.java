@@ -10,22 +10,44 @@ import java.io.IOException;
 import java.util.Map;
 
 
+/**
+ * A {@link Storage} implementation that persists aggregated {@link NodeSample} data to a local text file,
+ * using a configurable {@link IdentifiedNodeSampleFormatter} (default: {@link SimpleFormatter}).
+ * Each call to {@link #store} appends a formatted and flushed line to the file.
+ */
 public class LocalTextStorage implements Storage{
 
     private final IdentifiedNodeSampleFormatter formatter;
     private final FileWriter writer;
 
+    /**
+     * Builder for {@link LocalTextStorage}.
+     * Defaults: {@link SimpleFormatter}, path {@code MonitorTextStorage.txt}, append mode enabled.
+     */
     public static class Builder {
         private IdentifiedNodeSampleFormatter formatter = new SimpleFormatter();
         private String path = "MonitorTextStorage.txt";
         private boolean append = true;
 
-
+        /**
+         * Sets the formatter used to convert samples to text.
+         *
+         * @param formatter the formatter to use
+         * @return this builder
+         */
         public Builder setFormatter(IdentifiedNodeSampleFormatter formatter) {
             this.formatter = formatter;
             return this;
         }
 
+        /**
+         * Sets the file path for the output file, creating parent directories if necessary.
+         *
+         * @param path the file path; must not be null, empty, or end with {@code /}
+         * @return this builder
+         * @throws IllegalArgumentException if the path is invalid
+         * @throws RuntimeException         if required parent directories cannot be created
+         */
         public Builder setPath(String path) {
             if(path == null || path.isEmpty()) {
                 throw new IllegalArgumentException("Path cannot be null or empty");
@@ -48,12 +70,23 @@ public class LocalTextStorage implements Storage{
             return this;
         }
 
+        /**
+         * Controls whether samples are appended to an existing file ({@code true}) or the file is
+         * overwritten on each run ({@code false}).
+         *
+         * @param append {@code true} to append, {@code false} to overwrite
+         * @return this builder
+         */
         public Builder setAppend(boolean append) {
             this.append = append;
             return this;
         }
 
-
+        /**
+         * Builds and returns a new {@link LocalTextStorage} with the configured settings.
+         *
+         * @return a new {@link LocalTextStorage}
+         */
         public LocalTextStorage build() {
             return new LocalTextStorage(formatter, path, append);
         }
@@ -78,6 +111,13 @@ public class LocalTextStorage implements Storage{
 
 
 
+    /**
+     * Formats and appends a single host's sample to the output file.
+     *
+     * @param host       the node identifier string
+     * @param nodeSample the metrics snapshot to persist
+     * @throws RuntimeException if writing to the file fails
+     */
     @Override
     public void store(String host, NodeSample nodeSample) {
         try {
@@ -89,6 +129,12 @@ public class LocalTextStorage implements Storage{
         }
     }
 
+    /**
+     * Formats and appends a map of per-node samples to the output file in a single write.
+     *
+     * @param samples a map from node identifier to its collected {@link NodeSample}
+     * @throws RuntimeException if writing to the file fails
+     */
     @Override
     public void store(Map<String, NodeSample> samples) {
         try {

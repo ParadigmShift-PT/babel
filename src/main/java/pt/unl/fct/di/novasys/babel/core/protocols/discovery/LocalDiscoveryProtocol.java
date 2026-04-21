@@ -53,10 +53,26 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
     private Set<InetSocketAddress> socketAddresses;
     private Set<ServiceMessage> pendingServices;
 
+    /**
+     * Creates a LocalDiscoveryProtocol with the given name and ID.
+     *
+     * @param protoName the human-readable protocol name
+     * @param protoId   the unique short protocol identifier
+     */
     public LocalDiscoveryProtocol(String protoName, short protoId) {
         super(protoName, protoId);
     }
 
+    /**
+     * Resolves the local unicast {@link InetAddress} to bind the discovery socket to,
+     * consulting (in order) the explicit address property, the interface property, and finally
+     * the first non-loopback non-virtual IPv4 address found on any active interface.
+     *
+     * @param props configuration properties; may contain {@link #PAR_DISCOVERY_UNICAST_ADDRESS}
+     *              or {@link #PAR_DISCOVERY_UNICAST_INTERFACE}
+     * @return the resolved local address, or {@code null} if none can be determined
+     * @throws IOException if network interface enumeration fails
+     */
     protected InetAddress getAddressForSocket(Properties props) throws IOException {
         InetAddress address = null;
 
@@ -87,18 +103,44 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
         return address;
     }
 
+    /**
+     * Adds a destination socket address (by {@link InetAddress}) to the set of targets
+     * to which service announcements are sent.
+     *
+     * @param address the destination IP address
+     * @param port    the destination UDP port
+     * @return the constructed {@link InetSocketAddress} that was added
+     */
     protected InetSocketAddress addInetSocketAddress(InetAddress address, int port) {
         var socketAddress = new InetSocketAddress(address, port);
         socketAddresses.add(socketAddress);
         return socketAddress;
     }
 
+    /**
+     * Adds a destination socket address (by hostname/IP string) to the set of targets
+     * to which service announcements are sent.
+     *
+     * @param address the destination hostname or IP address string
+     * @param port    the destination UDP port
+     * @return the constructed {@link InetSocketAddress} that was added
+     */
     protected InetSocketAddress addInetSocketAddress(String address, int port) {
         var socketAddress = new InetSocketAddress(address, port);
         socketAddresses.add(socketAddress);
         return socketAddress;
     }
 
+    /**
+     * Creates and stores the local UDP {@link DatagramSocket} used to send announcements,
+     * and records the corresponding {@code discoveryHost} for self-message filtering.
+     *
+     * @param address   the local address to bind to
+     * @param port      the local UDP port to bind to
+     * @param broadcast {@code true} to enable the {@code SO_BROADCAST} socket option
+     * @return the newly created and bound socket
+     * @throws SocketException if the socket cannot be created or configured
+     */
     protected DatagramSocket setSocket(InetAddress address, int port, boolean broadcast) throws SocketException {
         socket = new DatagramSocket(port, address);
         discoveryHost = new Host(address, port);
@@ -274,6 +316,12 @@ public abstract class LocalDiscoveryProtocol extends DiscoveryProtocol {
         }
     }
 
+    /**
+     * Returns {@code true} if at least one destination socket address has been registered
+     * for sending announcements.
+     *
+     * @return {@code true} when the set of target addresses is non-empty
+     */
     protected boolean hasSocketAddresses() {
         return !socketAddresses.isEmpty();
     }

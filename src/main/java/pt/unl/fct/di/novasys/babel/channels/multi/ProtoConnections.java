@@ -21,10 +21,17 @@ import java.util.Map;
 
 import static pt.unl.fct.di.novasys.babel.channels.multi.MultiChannel.LISTEN_ADDRESS_ATTRIBUTE;
 
+/**
+ * Manages the set of inbound and outbound TCP connections belonging to a single Babel protocol
+ * within the shared {@link MultiChannel}. Maintains per-peer connection state and queues
+ * messages during connection establishment, forwarding delivery and lifecycle events to the
+ * protocol's {@link ChannelListener}.
+ */
 class ProtoConnections {
 
     private static final Logger logger = LogManager.getLogger(ProtoConnections.class);
 
+    /** Attribute key used to embed the owning protocol's numeric ID in connection attributes. */
     final static String PROTO_ID = "Protocol_ID";
     private final static int CONNECTION_OUT = 0;
     private final static int CONNECTION_IN = 1;

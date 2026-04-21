@@ -33,6 +33,14 @@ public class MonitorExporter extends ProtocolExporter {
 	private Host myself;
 	private Host monitor;
 
+	/**
+	 * Creates a new {@code MonitorExporter} that periodically sends metric snapshots to the given monitor host.
+	 *
+	 * @param myself       the local host address and port this protocol binds to
+	 * @param monitor      the remote monitor host to which metrics are sent
+	 * @param exportPeriod interval in milliseconds between successive metric exports
+	 * @param eco          collect options controlling which protocols and metrics are gathered
+	 */
 	public MonitorExporter(Host myself, Host monitor, long exportPeriod, ExporterCollectOptions eco) {
 		super(PROTO_NAME, PROTO_ID, eco);
 
@@ -42,6 +50,14 @@ public class MonitorExporter extends ProtocolExporter {
 		//this.pe = new ProtocolExporter.Builder("MonitorExporter").exporterCollectOptions(eco).build();
 	}
 
+	/**
+	 * Initialises the TCP channel, registers message serializers and channel event handlers,
+	 * schedules the periodic export timer, and opens the outbound connection to the monitor.
+	 *
+	 * @param props runtime properties passed by the Babel runtime (unused directly)
+	 * @throws HandlerRegistrationException if a handler for an already-registered event or timer is re-registered
+	 * @throws IOException                  if the TCP channel cannot be created
+	 */
 	@Override
 	public void init(Properties props) throws HandlerRegistrationException, IOException {
 		Properties channelProperties = new Properties();
@@ -70,6 +86,13 @@ public class MonitorExporter extends ProtocolExporter {
 		
 	}
 
+	/**
+	 * Timer handler invoked every {@code exportPeriod} milliseconds. Collects a metric snapshot and
+	 * sends it to the monitor; cancels the timer if the exporter has been disabled.
+	 *
+	 * @param t    the fired timer object
+	 * @param time the current Babel virtual time in milliseconds
+	 */
 	public void uponExportMetricsTimer(ExportMetricsTimer t, long time) {
 		if(isExporterDisabled()){
 			logger.debug("Exporter is disabled, not exporting metrics");

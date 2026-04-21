@@ -31,10 +31,20 @@ public class CustomChannelEvent extends InternalEvent {
                 '}';
     }
 
+    /**
+     * Returns the ID of the channel that produced this event.
+     *
+     * @return channel ID
+     */
     public int getChannelId() {
         return channelId;
     }
 
+    /**
+     * Returns the underlying channel event payload.
+     *
+     * @return the channel event
+     */
     public ChannelEvent getEvent() {
         return event;
     }

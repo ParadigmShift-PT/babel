@@ -18,6 +18,12 @@ public class AggregationResult {
     private long timestamp;
     private Map<Short, String> protoIdToName;
 
+    /**
+     * Constructs an empty {@code AggregationResult} timestamped at the given epoch milliseconds.
+     *
+     * @param timestamp     the aggregation timestamp in UNIX epoch milliseconds
+     * @param protoIdToName mapping from protocol ID to protocol name, used when creating new metrics
+     */
     public AggregationResult(long timestamp, Map<Short, String> protoIdToName) {
         this.samplesPerNode = new HashMap<>();
         this.timestamp = timestamp;
@@ -56,6 +62,13 @@ public class AggregationResult {
         this.addMetricToSample(m, protocolID, MetricsManager.GLOBAL_HOST_IDENTIFIER);
     }
 
+    /**
+     * Adds a pre-built {@link MetricSample} to the result, associated with the given host and protocol.
+     *
+     * @param ms         the metric sample to add
+     * @param protocolID the protocol ID this sample belongs to
+     * @param host       the host identifier this sample is attributed to
+     */
     public void addSample(MetricSample ms, short protocolID, String host){
 
         HostProtocolIdentifier npi = new HostProtocolIdentifier(host, protocolID);
@@ -65,10 +78,23 @@ public class AggregationResult {
         samplesPerNode.get(npi).add(ms);
     }
 
+    /**
+     * Adds a pre-built {@link MetricSample} to the result under the global host identifier,
+     * indicating it represents an aggregate across all nodes.
+     *
+     * @param ms         the metric sample to add
+     * @param protocolID the protocol ID this sample belongs to
+     */
     public void addGlobalSample(MetricSample ms, short protocolID){
         this.addSample(ms, protocolID, MetricsManager.GLOBAL_HOST_IDENTIFIER);
     }
 
+    /**
+     * Returns the map of aggregated samples, keyed by a {@link HostProtocolIdentifier} combining
+     * the host string and protocol ID.
+     *
+     * @return map from {@link HostProtocolIdentifier} to the list of aggregated {@link MetricSample} objects
+     */
     public Map <HostProtocolIdentifier, List<MetricSample>> getAggregatedSamples() {
         return samplesPerNode;
     }

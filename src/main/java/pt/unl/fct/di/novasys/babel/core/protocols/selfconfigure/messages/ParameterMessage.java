@@ -10,6 +10,14 @@ import io.netty.buffer.ByteBuf;
 import pt.unl.fct.di.novasys.babel.generic.ProtoMessage;
 import pt.unl.fct.di.novasys.network.ISerializer;
 
+/**
+ * Network message used by {@link pt.unl.fct.di.novasys.babel.core.protocols.selfconfigure.CopySelfConfigurationProtocol}
+ * to exchange parameter queries and answers between nodes.
+ *
+ * <p>A single message can carry entries for multiple protocols and parameters.
+ * Each entry is either a query (value is {@code null}) or an answer (value is non-{@code null}).
+ * The wire format is a compact byte-separated text encoding defined by the separator constants.
+ */
 public class ParameterMessage extends ProtoMessage {
 
     public static final short MSG_ID = 10604;
@@ -20,16 +28,32 @@ public class ParameterMessage extends ProtoMessage {
 
     private final Map<String, Map<String, String>> protoParam;
 
+    /**
+     * Creates an empty ParameterMessage with no parameters.
+     */
     public ParameterMessage() {
         this(new HashMap<>());
     }
 
+    /**
+     * Creates a ParameterMessage pre-populated with the given protocol-to-parameter map.
+     *
+     * @param protoParam a map from protocol name to a map of parameter names and their values
+     *                   ({@code null} values represent queries)
+     */
     public ParameterMessage(Map<String, Map<String, String>> protoParam) {
         super(MSG_ID);
 
         this.protoParam = protoParam;
     }
 
+    /**
+     * Adds a parameter entry with a known value (an answer) to this message.
+     *
+     * @param protoName the name of the owning protocol
+     * @param paramName the name of the parameter
+     * @param value     the parameter value to share with the peer
+     */
     public void addParameter(String protoName, String paramName, String value) {
         Map<String, String> paramValueMap = protoParam.get(protoName);
         if (paramValueMap == null) {
@@ -39,18 +63,42 @@ public class ParameterMessage extends ProtoMessage {
         paramValueMap.put(paramName, value);
     }
 
+    /**
+     * Adds a parameter query (a request for a value) to this message by inserting the parameter
+     * with a {@code null} value.
+     *
+     * @param protoName the name of the owning protocol
+     * @param paramName the name of the parameter whose value is being requested
+     */
     public void addAskingParameter(String protoName, String paramName) {
         addParameter(protoName, paramName, null);
     }
 
+    /**
+     * Merges all protocol-parameter entries from {@code msg} into this message,
+     * overwriting any existing entries with the same keys.
+     *
+     * @param msg the message whose entries should be merged into this one
+     */
     public void join(ParameterMessage msg) {
         protoParam.putAll(msg.getAllProtocolParams());
     }
 
+    /**
+     * Returns an unmodifiable view of all parameter name-to-value pairs for the given protocol.
+     *
+     * @param protoName the protocol name to look up
+     * @return an unmodifiable map of parameter names to values (values may be {@code null} for queries)
+     */
     public Map<String, String> getProtocolParams(String protoName) {
         return Collections.unmodifiableMap(protoParam.get(protoName));
     }
 
+    /**
+     * Returns an unmodifiable view of the complete protocol-to-parameter map contained in this message.
+     *
+     * @return an unmodifiable map from protocol name to a map of parameter names and values
+     */
     public Map<String, Map<String, String>> getAllProtocolParams() {
         return Collections.unmodifiableMap(protoParam);
     }

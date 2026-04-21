@@ -28,7 +28,18 @@ public class IdentityCrypt {
     private static final BabelSecurity babelSecurity = BabelSecurity.getInstance();
 
     /**
-     * @throws NoSuchAlgorithmException 
+     * Creates an {@code IdentityCrypt} for the given identity, key pair, and certificate chain.
+     * The {@code signatureHashOrAlgorithm} may be either a full algorithm name (e.g. {@code "SHA256WithRSA"})
+     * or just a hash name (e.g. {@code "SHA256"}), in which case it is expanded to
+     * {@code "<hash>WITH<keyAlgorithm>"}.
+     *
+     * @param alias                  the key-store alias this identity is stored under
+     * @param id                     the raw byte identity
+     * @param privKey                the private key used for signing
+     * @param pubKey                 the corresponding public key
+     * @param certChain              the certificate chain, with the leaf certificate at index 0
+     * @param signatureHashOrAlgorithm the full signature algorithm name or just the hash part
+     * @throws NoSuchAlgorithmException if the resolved signature algorithm is not available
      * @see <a href="https://docs.oracle.com/en/java/javase/21/docs/specs/security/standard-names.html#signature-algorithms">Java Security Standard Algorithm Names</a>
      */
     public IdentityCrypt(String alias, byte[] id, PrivateKey privKey, PublicKey pubKey, Certificate[] certChain,
@@ -93,6 +104,14 @@ public class IdentityCrypt {
 
     /* ------------------------ SIGNING --------------------- */
 
+    /**
+     * Signs one or more byte arrays using this identity's private key and the default signature algorithm.
+     *
+     * @param data one or more byte arrays whose concatenation is signed
+     * @return the signature bytes
+     * @throws InvalidKeyException if the private key is inappropriate for the algorithm
+     * @throws SignatureException  if the signing operation fails
+     */
     public byte[] sign(byte[]... data) throws InvalidKeyException, SignatureException {
         var sig = initSignature();
         for (byte[] part : data)
@@ -100,12 +119,30 @@ public class IdentityCrypt {
         return sig.sign();
     }
 
+    /**
+     * Signs a {@link ByteBuffer} using this identity's private key and the default signature algorithm.
+     *
+     * @param data the buffer containing the data to sign
+     * @return the signature bytes
+     * @throws InvalidKeyException if the private key is inappropriate for the algorithm
+     * @throws SignatureException  if the signing operation fails
+     */
     public byte[] sign(ByteBuffer data) throws InvalidKeyException, SignatureException {
         var sig = initSignature();
         sig.update(data);
         return sig.sign();
     }
 
+    /**
+     * Signs one or more byte arrays using this identity's private key and an explicit algorithm.
+     *
+     * @param algorithm the signature algorithm name
+     * @param data      one or more byte arrays whose concatenation is signed
+     * @return the signature bytes
+     * @throws InvalidKeyException      if the private key is inappropriate for the algorithm
+     * @throws NoSuchAlgorithmException if the algorithm is not available
+     * @throws SignatureException       if the signing operation fails
+     */
     public byte[] sign(String algorithm, byte[]... data)
             throws InvalidKeyException, NoSuchAlgorithmException, SignatureException {
         var sig = initSignature(algorithm);
@@ -114,6 +151,16 @@ public class IdentityCrypt {
         return sig.sign();
     }
 
+    /**
+     * Signs a {@link ByteBuffer} using this identity's private key and an explicit algorithm.
+     *
+     * @param algorithm the signature algorithm name
+     * @param data      the buffer containing the data to sign
+     * @return the signature bytes
+     * @throws InvalidKeyException      if the private key is inappropriate for the algorithm
+     * @throws NoSuchAlgorithmException if the algorithm is not available
+     * @throws SignatureException       if the signing operation fails
+     */
     public byte[] sign(String algorithm, ByteBuffer data)
             throws InvalidKeyException, NoSuchAlgorithmException, SignatureException {
         var sig = initSignature(algorithm);
@@ -121,6 +168,13 @@ public class IdentityCrypt {
         return sig.sign();
     }
 
+    /**
+     * Creates a {@link Signature} object initialised for signing with this identity's private key
+     * and the default signature algorithm.
+     *
+     * @return a {@link Signature} in SIGN mode, ready to receive data via {@link Signature#update}
+     * @throws InvalidKeyException if the private key is inappropriate for the algorithm
+     */
     public Signature initSignature() throws InvalidKeyException {
         try {
             return initSignature(signatureAlgorithm);
@@ -129,6 +183,15 @@ public class IdentityCrypt {
         }
     }
 
+    /**
+     * Creates a {@link Signature} object initialised for signing with this identity's private key
+     * and an explicit algorithm.
+     *
+     * @param algorithm the signature algorithm name
+     * @return a {@link Signature} in SIGN mode, ready to receive data via {@link Signature#update}
+     * @throws InvalidKeyException      if the private key is inappropriate for the algorithm
+     * @throws NoSuchAlgorithmException if the algorithm is not available
+     */
     public Signature initSignature(String algorithm)
             throws InvalidKeyException, NoSuchAlgorithmException {
         Signature sig;

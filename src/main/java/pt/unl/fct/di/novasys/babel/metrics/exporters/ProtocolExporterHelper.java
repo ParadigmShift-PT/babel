@@ -10,16 +10,34 @@ import java.util.Properties;
  */
 public class ProtocolExporterHelper extends Exporter {
 
+    /**
+     * Builder for {@link ProtocolExporterHelper}.
+     */
     public static class Builder extends ExporterBuilder<Builder> {
+        /**
+         * Creates a builder for a {@link ProtocolExporterHelper} with the given name.
+         *
+         * @param exporterName logical name used to identify this exporter helper
+         */
         public Builder(String exporterName) {
             super(exporterName);
         }
 
+        /**
+         * Returns this builder instance (required by the covariant builder pattern).
+         *
+         * @return this builder
+         */
         @Override
         public Builder self() {
             return this;
         }
 
+        /**
+         * Builds and returns a configured {@link ProtocolExporterHelper}.
+         *
+         * @return a new {@code ProtocolExporterHelper}
+         */
         @Override
         public ProtocolExporterHelper build() {
             return new ProtocolExporterHelper(this);
@@ -30,6 +48,11 @@ public class ProtocolExporterHelper extends Exporter {
         super(exporterBuilder);
     }
 
+    /**
+     * Returns an empty {@link Properties} object as this helper requires no default configuration.
+     *
+     * @return an empty properties set
+     */
     @Override
     public Properties loadDefaults() {
         return new Properties();

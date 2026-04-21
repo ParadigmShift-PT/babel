@@ -23,6 +23,10 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Singleton manager for all Babel metrics. Owns the registry of per-protocol {@link ProtocolMetrics}
+ * containers, controls metric exporters, and provides collection entry points used by exporters.
+ */
 public class MetricsManager {
 
     private static final String CURRENT_WORKING_DIR = System.getProperty("user.dir");
@@ -63,6 +67,11 @@ public class MetricsManager {
 
     private static MetricsManager system;
 
+    /**
+     * Returns the singleton {@code MetricsManager} instance, creating it on first call.
+     *
+     * @return the global {@code MetricsManager}
+     */
     public static synchronized MetricsManager getInstance() {
         if (system == null)
             system = new MetricsManager();
@@ -238,6 +247,14 @@ public class MetricsManager {
 //    }
 
 
+    /**
+     * Registers the specified OS metric types for collection under the reserved OS protocol slot.
+     * Silently ignores types that have already been registered.
+     *
+     * @param metricTypes the OS metric types to enable
+     * @throws NoProcfsException        if the {@code /proc} filesystem is unavailable
+     * @throws OSMetricsConfigException if an OS metric cannot be configured
+     */
     public synchronized void registerOSMetrics(OSMetrics.MetricType ...metricTypes) throws NoProcfsException, OSMetricsConfigException {
         if (this.osMetrics == null) {
             this.osMetrics = new OSMetrics();
@@ -252,6 +269,13 @@ public class MetricsManager {
         }
     }
 
+    /**
+     * Registers all OS metric types that belong to the given categories.
+     *
+     * @param metricCategories the OS metric categories whose constituent types should be enabled
+     * @throws NoProcfsException        if the {@code /proc} filesystem is unavailable
+     * @throws OSMetricsConfigException if an OS metric cannot be configured
+     */
     public synchronized void registerOSMetricCategory(OSMetrics.MetricCategory ...metricCategories) throws NoProcfsException, OSMetricsConfigException {
         if (this.osMetrics == null) {
             this.osMetrics = new OSMetrics();
@@ -301,6 +325,16 @@ public class MetricsManager {
     }
 
 
+    /**
+     * Registers a metric under the given protocol, creating a new {@link ProtocolMetrics} registry for
+     * the protocol if one does not yet exist. If metrics are disabled, the metric is immediately disabled
+     * and not stored.
+     *
+     * @param m          the metric to register
+     * @param protocolID the ID of the owning protocol
+     * @param protoName  the name of the owning protocol (used when creating a new registry)
+     * @throws DuplicatedProtocolMetric if a metric with the same name is already registered for this protocol
+     */
     public synchronized void registerMetric(Metric m, short protocolID, String protoName) throws DuplicatedProtocolMetric {
 
         //If metrics have been disabled, we don't register the metric and set it to disabled
@@ -335,6 +369,15 @@ public class MetricsManager {
     }
 
 
+    /**
+     * Collects metrics for a specific subset of protocol IDs, optionally including OS metrics.
+     *
+     * @param collectOSMetrics         whether to include OS metrics in the result
+     * @param exporterCollectOptions   per-protocol and per-metric collection options
+     * @param protocolIds              the IDs of the protocols to collect
+     * @return a {@link NodeSample} with samples for the requested protocols
+     * @throws NoSuchProtocolRegistry if a requested protocol ID has no registered metrics
+     */
     public NodeSample collectMetricsProtocols(boolean collectOSMetrics, ExporterCollectOptions exporterCollectOptions, short ...protocolIds) throws NoSuchProtocolRegistry{
         NodeSample nodeSample = new NodeSample();
 
@@ -373,6 +416,13 @@ public class MetricsManager {
     }
 
 
+    /**
+     * Returns the protocol name for the given protocol ID, using the special OS protocol name for
+     * {@link #OS_METRIC_PROTOCOL_ID} and delegating to the Babel core for all other IDs.
+     *
+     * @param protocolID the protocol ID to look up
+     * @return the protocol name, or {@link #OS_PROTO_NAME} for the OS metrics pseudo-protocol
+     */
     public String getProtoNameById(short protocolID){
         if(protocolID == OS_METRIC_PROTOCOL_ID){
             return OS_PROTO_NAME;
@@ -381,6 +431,15 @@ public class MetricsManager {
         return Babel.getInstance().getProtoNameById(protocolID);
     }
 
+    /**
+     * Registers and starts a {@link MonitorExporter} Babel protocol that periodically forwards
+     * collected metrics to a remote monitor host.
+     *
+     * @param self     this node's host address
+     * @param monitor  the remote monitor host to send metrics to
+     * @param interval the export interval in milliseconds
+     * @param eco      the exporter collection options controlling which metrics are sent
+     */
     public void startMonitorExporter(Host self, Host monitor, long interval, ExporterCollectOptions eco) {
         MonitorExporter exporter = new MonitorExporter(self, monitor, interval, eco);
         try {
@@ -406,6 +465,15 @@ public class MetricsManager {
         return startMonitor(myself, monitorStorage);
     }
 
+    /**
+     * Starts a {@link Monitor} backed by the given {@link Storage} implementation and registers it
+     * as a Babel protocol. Only one monitor may be active at a time.
+     *
+     * @param myself  this node's host address
+     * @param storage the storage backend used to persist collected metrics
+     * @return the started {@link Monitor} instance
+     * @throws IllegalStateException if a monitor has already been started
+     */
     public Monitor startMonitor(Host myself, Storage storage) {
         //Storage defaults to LocalTextStorage
         if(this.simpleMonitor != null){

@@ -1,12 +1,26 @@
 package pt.unl.fct.di.novasys.babel.metrics;
 
+/**
+ * An immutable key for a specific combination of label values used to identify a labeled metric instance.
+ * Two {@code LabelValues} objects are equal when all their value strings match element-wise.
+ */
 public class LabelValues {
     private final String[] labelValues;
 
+    /**
+     * Creates a {@code LabelValues} instance with the given ordered label values.
+     *
+     * @param labelValues the label values, in the same order as the corresponding label names
+     */
     public LabelValues(String... labelValues) {
         this.labelValues = labelValues;
     }
 
+    /**
+     * Returns the array of label values held by this instance.
+     *
+     * @return the label values array
+     */
     public String[] getLabelValues() {
         return labelValues;
     }

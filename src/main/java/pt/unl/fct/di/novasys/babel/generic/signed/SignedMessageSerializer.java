@@ -55,8 +55,24 @@ public abstract class SignedMessageSerializer<T extends SignedProtoMessage> impl
 		return msg;
 	}
 	
+	/**
+	 * Serializes the application-specific fields of {@code signedProtoMessage} into {@code out},
+	 * excluding the message-type short prefix (which is prepended by {@link #serialize}).
+	 *
+	 * @param signedProtoMessage the message whose body fields are to be written
+	 * @param out                the Netty buffer to write into
+	 * @throws IOException if writing to the buffer fails
+	 */
 	public abstract void serializeBody(T signedProtoMessage, ByteBuf out) throws IOException;
-	
+
+	/**
+	 * Reconstructs a message instance from the body bytes in {@code in}, which begins
+	 * immediately after the message-type short prefix has been consumed.
+	 *
+	 * @param in the Netty buffer positioned at the first application-payload byte
+	 * @return the deserialized message
+	 * @throws IOException if reading from the buffer fails
+	 */
 	public abstract T deserializeBody(ByteBuf in) throws IOException;
 	
 }

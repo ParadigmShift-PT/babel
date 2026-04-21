@@ -33,6 +33,12 @@ public class BroadcastDiscoveryProtocol extends LocalDiscoveryProtocol {
 	private int bcastPort;
 	private Thread listeningThread;
 
+	/**
+	 * Creates a BroadcastDiscoveryProtocol with the default protocol name and ID.
+	 *
+	 * @throws IOException                  if the parent constructor encounters a network error
+	 * @throws HandlerRegistrationException if a handler registration in the parent class fails
+	 */
 	public BroadcastDiscoveryProtocol() throws IOException, HandlerRegistrationException {
 		super(PROTO_NAME, PROTO_ID);
 	}

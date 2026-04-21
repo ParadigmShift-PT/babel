@@ -56,9 +56,20 @@ public abstract class InternalEvent {
     public final boolean isCustomChannelEvent() {
         return this.t == EventType.CUSTOM_CHANNEL_EVENT;
     }
+    /**
+     * Returns {@code true} if this event signals that a message was successfully sent.
+     *
+     * @return {@code true} if of type {@link EventType#MESSAGE_SENT_EVENT}
+     */
     public final boolean isMessageSentEvent() {
         return this.t == EventType.MESSAGE_SENT_EVENT;
     }
+
+    /**
+     * Returns {@code true} if this event signals that a message delivery failed.
+     *
+     * @return {@code true} if of type {@link EventType#MESSAGE_FAILED_EVENT}
+     */
     public final boolean isMessageFailedEvent() {
         return this.t == EventType.MESSAGE_FAILED_EVENT;
     }

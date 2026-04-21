@@ -29,6 +29,14 @@ import pt.unl.fct.di.novasys.babel.core.SelfConfigurableProtocol;
 import pt.unl.fct.di.novasys.babel.exceptions.HandlerRegistrationException;
 import pt.unl.fct.di.novasys.network.data.Host;
 
+/**
+ * Self-configuration protocol that resolves parameter values by querying DNS TXT records.
+ *
+ * <p>TXT records must be published under the host name stored in each protocol's
+ * {@code host} field and follow the format {@code protocolname.parametername=value}
+ * (all lower-cased). When a matching record is found the value is applied via the
+ * corresponding setter and, if the protocol is then fully configured, it is started.
+ */
 public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
 
     private static final Logger logger = LogManager.getLogger(DNSSelfConfigurationProtocol.class);
@@ -44,6 +52,9 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
 
     private Host myself;
 
+    /**
+     * Creates a DNSSelfConfigurationProtocol and initialises its internal parameter and protocol maps.
+     */
     public DNSSelfConfigurationProtocol() {
         super(PROTO_NAME, PROTO_ID);
 
@@ -51,6 +62,15 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
         protocolSet = new HashSet<>();
     }
 
+    /**
+     * Registers a parameter that needs a value by recording it for the next DNS {@link #search()} call.
+     * The parameter name and protocol name are lower-cased to match the DNS TXT record format.
+     *
+     * @param parameterName the logical name of the parameter to configure
+     * @param setter        the reflective setter used to apply the discovered value
+     * @param getter        the reflective getter (unused by this implementation but required by the interface)
+     * @param proto         the protocol that owns the parameter
+     */
     @Override
     public void addProtocolParameterToConfigure(String parameterName, Method setter, Method getter,
             SelfConfigurableProtocol proto) {
@@ -66,6 +86,15 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
         protocolSet.add(proto);
     }
 
+    /**
+     * No-op for the DNS-based strategy: once a parameter is configured via DNS its value
+     * is already authoritative and does not need to be shared with peers.
+     *
+     * @param parameterName the parameter name (unused)
+     * @param setter        the setter (unused)
+     * @param getter        the getter (unused)
+     * @param proto         the owning protocol (unused)
+     */
     @Override
     public void addProtocolParameterConfigured(String parameterName, Method setter, Method getter,
             SelfConfigurableProtocol proto) {
@@ -124,6 +153,12 @@ public class DNSSelfConfigurationProtocol extends SelfConfigurationProtocol {
         return Collections.unmodifiableSet(protocolSet);
     }
 
+    /**
+     * Returns this protocol's own host address.
+     * Always {@code null} for the DNS strategy as no TCP self-configuration endpoint is opened.
+     *
+     * @return {@code null}
+     */
     @Override
     public Host getMyself() {
         return myself;

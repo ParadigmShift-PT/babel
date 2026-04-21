@@ -113,11 +113,22 @@ public class Babel {
 	private final Map<String, GenericProtocol> protocolByNameMap;
 	private final Map<Short, Set<GenericProtocol>> subscribers;
 
+	/** Configuration property key for the default network interface name. */
 	public final static String PAR_DEFAULT_INTERFACE = "babel.interface";
+
+	/** Configuration property key for the default bind address. */
 	public final static String PAR_DEFAULT_ADDRESS = "babel.address";
+
+	/** Configuration property key for the default listen port. */
 	public final static String PAR_DEFAULT_PORT = "babel.port";
+
+	/** Configuration property key specifying the fully-qualified class name(s) of the discovery protocol(s) to load, separated by {@code ;}. */
 	public final static String PAR_DISCOVERY_PROTOCOL = "babel.discovery";
+
+	/** Configuration property key specifying the fully-qualified class name of the self-configuration protocol to load. */
 	public final static String PAR_SELF_CONFIGURATION_PROTOCOL = "babel.selfconfiguration";
+
+	/** Configuration property key specifying the fully-qualified class name of the DNS-based self-configuration protocol to load. */
 	public final static String PAR_DNS_CONFIGURATION_PROTOCOL = "babel.dnsconfiguration";
 
 	private final List<DiscoveryProtocol> discoveries;
@@ -128,6 +139,8 @@ public class Babel {
 	private final Map<Long, TimerEvent> allTimers;
 	private final PriorityBlockingQueue<TimerEvent> timerQueue;
 	private final Thread timersThread;
+
+	/** Monotonically increasing counter used to assign unique IDs to registered timers. */
 	public final AtomicLong timersCounter;
 
 	// Channels
@@ -204,6 +217,14 @@ public class Babel {
 		discoveries.forEach((discovery) -> discovery.registerProtocol(dcProto));
 	}
 
+	/**
+	 * Wires a self-configurable protocol into the given self-configuration protocol by scanning
+	 * the protocol's fields for {@link AutoConfigureParameter} annotations and registering the
+	 * corresponding getter/setter pairs.
+	 *
+	 * @param scProto             the protocol whose annotated fields are to be auto-configured
+	 * @param selfConfiguration   the self-configuration protocol that will manage the parameter values
+	 */
 	public void setupSelfConfiguration(SelfConfigurableProtocol scProto, SelfConfigurationProtocol selfConfiguration) {
 		Class<? extends SelfConfigurableProtocol> scProtoClass = scProto.getClass();
 		Field[] fields = scProtoClass.getDeclaredFields();
@@ -236,7 +257,7 @@ public class Babel {
 
 	/**
 	 * Asks all the running discoveries for a contact for proto
-	 * 
+	 *
 	 * @param proto  the protocol to receive the contact
 	 * @param myself host representing the protocol
 	 * @param listen if it should listen or just register
@@ -372,6 +393,12 @@ public class Babel {
 		}
 	}
 
+	/**
+	 * Starts the event thread of a discoverable protocol if it is ready to start and has not been started yet.
+	 *
+	 * @param dcProto the discoverable protocol to potentially start
+	 * @return {@code true} if the protocol's event thread is running (either just started or already running)
+	 */
 	public boolean checkAndStartDcProto(DiscoverableProtocol dcProto) {
 		if (dcProto.readyToStart() && !dcProto.hasProtocolThreadStarted()) {
 			dcProto.start();
@@ -800,6 +827,11 @@ public class Babel {
 		return config;
 	}
 
+	/**
+	 * Returns the number of milliseconds elapsed since {@link #start()} was called, or {@code 0} if Babel has not started yet.
+	 *
+	 * @return milliseconds since Babel started
+	 */
 	public long getMillisSinceStart() {
 		return started ? System.currentTimeMillis() - startTime : 0;
 	}
@@ -807,6 +839,12 @@ public class Babel {
 	// ---------------------------- MISC
 	// -----------------------------------------------------------
 
+	/**
+	 * Returns the human-readable name of the protocol registered under the given numeric identifier, or {@code "Unknown"} if no such protocol is registered.
+	 *
+	 * @param protoId the numeric protocol identifier to look up
+	 * @return the protocol name, or {@code "Unknown"}
+	 */
 	public String getProtoNameById(short protoId) {
 		GenericProtocol proto = protocolMap.get(protoId);
 		return proto != null ? proto.getProtoName() : "Unknown";

@@ -8,6 +8,11 @@ import java.util.Map;
 import static pt.unl.fct.di.novasys.babel.metrics.Metric.*;
 import static pt.unl.fct.di.novasys.babel.metrics.MetricsManager.OS_METRIC_PROTOCOL_ID;
 
+/**
+ * Formats a {@link NodeSample} in the Prometheus text exposition format.
+ * Each metric is prefixed with {@code Protocol_<id>_} or {@code OS_} and counter names
+ * receive the mandatory {@code _total} suffix as required by OpenMetrics.
+ */
 public class PrometheusFormatter implements NodeSampleFormatter {
 
     public static final String NAME = "PrometheusFormatter";
@@ -15,6 +20,9 @@ public class PrometheusFormatter implements NodeSampleFormatter {
     private static final int SUM = 1;
     private static final int COUNT = 2;
 
+    /**
+     * Constructs a new {@code PrometheusFormatter}.
+     */
     public PrometheusFormatter() {}
 
 

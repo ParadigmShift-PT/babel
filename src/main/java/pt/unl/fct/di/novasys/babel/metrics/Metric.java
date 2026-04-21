@@ -11,10 +11,20 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Base class for all Babel metrics. Supports both unlabeled (single-value) and labeled (multi-dimensional)
+ * variants. Labeled metrics maintain one child instance per unique {@link LabelValues} combination.
+ *
+ * @param <T> the concrete metric subtype
+ */
 public abstract class Metric<T extends Metric<T>>{
 
     private static final Logger logger = LogManager.getLogger(Metric.class);
 
+    /**
+     * Identifies the kind of metric (counter, gauge, histogram, record, or statsgauge).
+     * Pre-defined constants cover all built-in types; custom types may be created via {@link #of}.
+     */
     public record MetricType(String type) implements Serializable {
             private static final Map<String, MetricType> REGISTRY = new HashMap<>(5);
 
@@ -32,11 +42,22 @@ public abstract class Metric<T extends Metric<T>>{
             public static final MetricType RECORD = new MetricType(RECORD_NAME);
             public static final MetricType STATSGAUGE = new MetricType(STATSGAUGE_NAME);
 
+            /**
+             * Creates a {@code MetricType} with the given type string and registers it in the global registry.
+             *
+             * @param type the type identifier string
+             */
             public MetricType(String type) {
                 this.type = type;
                 REGISTRY.put(type.toLowerCase(Locale.ROOT), this);
             }
 
+            /**
+             * Returns the {@code MetricType} for the given string, creating and registering it if absent.
+             *
+             * @param type the type identifier string (case-insensitive)
+             * @return the matching or newly created {@code MetricType}
+             */
             public static MetricType of(String type) {
                 return REGISTRY.computeIfAbsent(type.toLowerCase(Locale.ROOT), MetricType::new);
             }
@@ -55,6 +76,10 @@ public abstract class Metric<T extends Metric<T>>{
             }
     }
 
+    /**
+     * Represents the measurement unit of a metric. Pre-defined constants cover common units;
+     * custom units may be created via {@link #of}.
+     */
     public record Unit(String type) implements Serializable{
         private static final Map<String, Unit> REGISTRY = new HashMap<>(5);
 
@@ -73,11 +98,22 @@ public abstract class Metric<T extends Metric<T>>{
         public static final Unit PERCENTAGE = new Unit(PERCENTAGE_STRING);
         public static final Unit NONE = new Unit(EMPTY);
 
+        /**
+         * Creates a {@code Unit} with the given type string and registers it in the global registry.
+         *
+         * @param type the unit identifier string
+         */
         public Unit(String type) {
             this.type = type;
             REGISTRY.put(type.toLowerCase(Locale.ROOT), this);
         }
 
+        /**
+         * Returns the {@code Unit} for the given string, creating and registering it if absent.
+         *
+         * @param type the unit identifier string (case-insensitive)
+         * @return the matching or newly created {@code Unit}
+         */
         public static Unit of(String type) {
             return REGISTRY.computeIfAbsent(type.toLowerCase(Locale.ROOT), Unit::new);
         }
@@ -171,10 +207,20 @@ public abstract class Metric<T extends Metric<T>>{
     }
 
 
+    /**
+     * Returns the name of this metric.
+     *
+     * @return the metric name
+     */
     public String getName() {
         return name;
     }
 
+    /**
+     * Returns the unit of measurement for this metric.
+     *
+     * @return the metric unit
+     */
     public Unit getUnit() {
         return unit;
     }
@@ -183,7 +229,11 @@ public abstract class Metric<T extends Metric<T>>{
         return type;
     }
 
-
+    /**
+     * Returns the human-readable description of this metric, or an empty string if none was set.
+     *
+     * @return the metric description
+     */
     public String getDescription() {
         return description;
     }
@@ -228,6 +278,10 @@ public abstract class Metric<T extends Metric<T>>{
      */
     protected abstract T newInstance();
 
+    /**
+     * Resets this metric (and all its labeled child instances) to their initial zero state.
+     * Has no effect if the metric is disabled.
+     */
     public final synchronized void reset() {
         if (isDisabled()) return;
 
@@ -313,6 +367,16 @@ public abstract class Metric<T extends Metric<T>>{
     }
 
 
+    /**
+     * Returns the child metric instance for the given label values, creating it if it does not yet exist.
+     * Throws {@link pt.unl.fct.di.novasys.babel.metrics.exceptions.UnlabelledMetricException} if called
+     * on an unlabeled metric, and
+     * {@link pt.unl.fct.di.novasys.babel.metrics.exceptions.IncorrectLabelNumberException} if the number
+     * of values does not match the number of declared label names.
+     *
+     * @param labelValues the label values identifying the desired child instance
+     * @return the existing or newly created child metric for these label values
+     */
     public T labelValues(String ...labelValues){
         if(isUnlabeledMetric()){
             throw new UnlabelledMetricException(this.getType(), this.getName());

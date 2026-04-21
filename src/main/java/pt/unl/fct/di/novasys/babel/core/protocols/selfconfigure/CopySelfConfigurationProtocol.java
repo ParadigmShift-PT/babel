@@ -67,6 +67,9 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
     private int defaultChannelID;
     private int confirmationsNeeded = 1;
 
+    /**
+     * Creates a CopySelfConfigurationProtocol and initialises all internal tracking maps.
+     */
     public CopySelfConfigurationProtocol() {
         super(PROTO_NAME, PROTO_ID);
 
@@ -119,6 +122,16 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
         registerReplyHandler(FoundServiceReply.REPLY_ID, this::uponFoundServiceReply);
     }
 
+    /**
+     * Registers a parameter that still needs a value before {@code proto} can start.
+     * On the first call, this method activates discovery (or primes the whisperer list from
+     * the protocol's existing contact) and schedules the periodic {@link SearchTimer}.
+     *
+     * @param parameterName the logical name of the parameter to configure
+     * @param setter        the reflective setter used to apply the discovered value
+     * @param getter        the reflective getter used to read the current value when acting as a peer
+     * @param proto         the protocol that owns the parameter
+     */
     public void addProtocolParameterToConfigure(String parameterName, Method setter, Method getter,
             SelfConfigurableProtocol proto) {
         if (protocolToParameterToConfigure.isEmpty()) {
@@ -140,6 +153,17 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
         protocolMap.put(proto.getProtoName(), proto);
     }
 
+    /**
+     * Registers a parameter that already has a value so that this node can share it with peers
+     * that are still searching.
+     * If {@code proto} already has a contact address, that host is added to the whisperer set
+     * so it can be contacted for future searches.
+     *
+     * @param parameterName the logical name of the configured parameter
+     * @param setter        the reflective setter for the parameter
+     * @param getter        the reflective getter used to read the value when responding to peers
+     * @param proto         the protocol that owns the parameter
+     */
     public void addProtocolParameterConfigured(String parameterName, Method setter, Method getter,
             SelfConfigurableProtocol proto) {
         if (proto.getContact() != null) {
@@ -238,6 +262,17 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
         }
     }
 
+    /**
+     * Handles an incoming {@link ParameterMessage} from a peer.
+     * For each parameter the peer is asking about, supplies the locally configured value (if known).
+     * For each parameter the peer is providing, records the value as a candidate and begins the
+     * confirmation countdown if this is the first reply received for that parameter.
+     *
+     * @param msg        the received parameter message (may contain both queries and answers)
+     * @param from       the host that sent the message
+     * @param sourceProto the source protocol ID
+     * @param channelId  the channel on which the message arrived
+     */
     public void uponParameterMessage(ParameterMessage msg, Host from, short sourceProto, int channelId) {
         logger.info("Got parameter message from " + from);
         var receivedParams = msg.getAllProtocolParams();
@@ -362,6 +397,11 @@ public class CopySelfConfigurationProtocol extends SelfConfigurationProtocol {
         whisperers.add(reply.getServiceHost());
     }
 
+    /**
+     * Returns the network address of this protocol's TCP self-configuration endpoint.
+     *
+     * @return the host address and port on which this node listens for parameter exchanges
+     */
     public Host getMyself() {
         return myself;
     }
